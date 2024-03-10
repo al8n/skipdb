@@ -1,0 +1,13 @@
+[workspace]
+members = [
+  "crates/*"
+]
+
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+repository = "https://github.com/al8n/crates"
+homepage = "https://github.com/al8n/crates"
+license = "Apache-2.0/MIT"
+
