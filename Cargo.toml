@@ -1,13 +1,30 @@
 [workspace]
 members = [
-  "crates/*"
+  "mwmr",
+  "async-mwmr",
+  "wmark"
 ]
-
+resolver = "2"
 
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
-repository = "https://github.com/al8n/crates"
-homepage = "https://github.com/al8n/crates"
+repository = "https://github.com/al8n/txn"
+homepage = "https://github.com/al8n/txn"
 license = "Apache-2.0/MIT"
 
+[workspace.dependencies]
+bytes = "1.5"
+bitflags = "2"
+cheap-clone = "0.1"
+crossbeam-channel = { version = "0.5", default-features = false }
+crossbeam-utils = { version = "0.8", default-features = false }
+either = "1"
+indexmap = { version = "2", default-features = false }
+parking_lot = "0.12"
+smallvec-wrapper = { version = "0.1", features = ["const_new"] }
+scopeguard = "1"
+thiserror = "1"
+tracing = "0.1"
+
+wmark = { path = "wmark", version = "0.0.0", default-features = false }

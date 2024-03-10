@@ -1,0 +1,24 @@
+[package]
+name = "async-mwmr"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+description = "A placeholder"
+
+[dependencies]
+bytes.workspace = true
+bitflags.workspace = true
+cheap-clone.workspace = true
+async-channel = "2"
+crossbeam-utils.workspace = true
+either.workspace = true
+indexmap.workspace = true
+parking_lot.workspace = true
+scopeguard = "1"
+smallvec-wrapper.workspace = true
+once_cell = "1"
+thiserror.workspace = true
+tracing.workspace = true
+wg = "0.7"
