@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use self::error::{Error, TransactionError};
+
 use super::*;
 
 /// A pending writes manager that can be used to store pending writes in a transaction.

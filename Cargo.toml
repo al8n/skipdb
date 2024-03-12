@@ -15,6 +15,7 @@ homepage = "https://github.com/al8n/txn"
 license = "Apache-2.0/MIT"
 
 [workspace.dependencies]
+async-channel = "2"
 bytes = "1.5"
 bitflags = "2"
 cheap-clone = "0.1"
@@ -23,6 +24,7 @@ crossbeam-utils = { version = "0.8", default-features = false }
 either = "1"
 indexmap = { version = "2", default-features = false }
 parking_lot = "0.12"
+rand = "0.8"
 smallvec-wrapper = { version = "0.1", features = ["const_new"] }
 scopeguard = "1"
 thiserror = "1"

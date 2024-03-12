@@ -5,34 +5,30 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 license.workspace = true
+description = "A multi-writer-multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager for database development."
 
 [features]
-default = ["std"]
-std = ["indexmap/default", "wmark/default"]
+default = []
 
 # Features will export the generic unit tests implementation for database based on mwmr
 test = ["rand"]
 
 [dependencies]
-bytes.workspace = true
-bitflags.workspace = true
 cheap-clone.workspace = true
 crossbeam-channel.workspace = true
 crossbeam-utils.workspace = true
 either.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["default"] }
 parking_lot.workspace = true
-scopeguard = "1"
+scopeguard.workspace = true 
 smallvec-wrapper.workspace = true
-once_cell = "1"
 thiserror.workspace = true
-tracing.workspace = true
-wmark.workspace = true
+wmark = { workspace = true, features = ["default"] }
 
-rand = { version = "0.8", optional = true }
+rand = { workspace = true, optional = true }
 
 [dev-dependencies]
-rand = "0.8"
+rand.workspace = true
 
 [[test]]
 name = "mwmr"

@@ -7,6 +7,8 @@ use crossbeam_channel::select;
 use rand::Rng;
 use wmark::Closer;
 
+use crate::error::{Error, TransactionError};
+
 use super::*;
 
 /// Unit test for txn simple functionality

@@ -1,4 +1,10 @@
+//! A multi-writer-multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager for database development.
 #![allow(clippy::type_complexity)]
+#![forbid(unsafe_code)]
+#![deny(warnings, missing_docs)]
+#![allow(clippy::type_complexity)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, allow(unused_attributes))]
 
 use std::{cell::RefCell, sync::Arc};
 
@@ -10,6 +16,14 @@ use indexmap::{IndexMap, IndexSet};
 use smallvec_wrapper::MediumVec;
 pub use smallvec_wrapper::OneOrMore;
 
+/// Error types for the [`mwmr`] crate.
+pub mod error;
+
+/// Generic unit tests for users to test their database implementation based on `mwmr`.
+#[cfg(any(feature = "test", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
+pub mod tests;
+
 mod oracle;
 use oracle::*;
 mod read;
@@ -17,77 +31,7 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-/// Generic unit tests for users to test their database implementation based on `mwmr`.
-#[cfg(any(feature = "test", test))]
-pub mod tests;
 
-#[derive(thiserror::Error)]
-pub enum TransactionError<P: PendingManager> {
-  /// Returned if an update function is called on a read-only transaction.
-  #[error("transaction is read-only")]
-  ReadOnly,
-
-  /// Returned when a transaction conflicts with another transaction. This can
-  /// happen if the read rows had been updated concurrently by another transaction.
-  #[error("transaction conflict, please retry")]
-  Conflict,
-
-  /// Returned if a previously discarded transaction is re-used.
-  #[error("transaction has been discarded, please create a new one")]
-  Discard,
-
-  /// Returned if too many writes are fit into a single transaction.
-  #[error("transaction is too large")]
-  LargeTxn,
-
-  /// Returned if the transaction manager error occurs.
-  #[error("transaction manager error: {0}")]
-  Manager(P::Error),
-}
-
-impl<P: PendingManager> core::fmt::Debug for TransactionError<P> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::ReadOnly => write!(f, "ReadOnly"),
-      Self::Conflict => write!(f, "Conflict"),
-      Self::Discard => write!(f, "Discard"),
-      Self::LargeTxn => write!(f, "LargeTxn"),
-      Self::Manager(e) => write!(f, "Manager({:?})", e),
-    }
-  }
-}
-
-#[derive(thiserror::Error)]
-pub enum Error<D: Database, P: PendingManager> {
-  /// Returned if transaction related error occurs.
-  #[error(transparent)]
-  Transaction(#[from] TransactionError<P>),
-
-  /// Returned if DB related error occurs.
-  #[error(transparent)]
-  DB(D::Error),
-}
-
-impl<D: Database, P: PendingManager> core::fmt::Debug for Error<D, P> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::Transaction(e) => e.fmt(f),
-      Self::DB(e) => e.fmt(f),
-    }
-  }
-}
-
-impl<D: Database, P: PendingManager> Error<D, P> {
-  /// Create a new error from the database error.
-  pub fn database(err: D::Error) -> Self {
-    Self::DB(err)
-  }
-
-  /// Create a new error from the transaction error.
-  pub fn transaction(err: TransactionError<P>) -> Self {
-    Self::Transaction(err)
-  }
-}
 
 /// A reference to a key.
 pub struct KeyRef<'a, K: 'a> {
@@ -666,6 +610,7 @@ impl IteratorOptions {
   }
 }
 
+/// An abstraction of database which can be managed by the [`TransactionDB`].
 pub trait Database: Sized + 'static {
   /// The error type returned by the database.
   type Error: std::error::Error + 'static;
@@ -784,6 +729,7 @@ pub trait Database: Sized + 'static {
   ) -> Self::Keys<'a>;
 }
 
+/// Options for the [`TransactionDB`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -833,7 +779,7 @@ struct Inner<D, S = std::hash::RandomState> {
   orc: Oracle<S>,
   hasher: S,
 }
-/// A multi-writer multi-reader Serializable Snapshot Isolation database.
+/// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
 pub struct TransactionDB<D, S = std::hash::RandomState> {
   inner: Arc<Inner<D, S>>,
 }

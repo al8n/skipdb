@@ -24,6 +24,9 @@ on:
 jobs:
   loc:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        crates: [mwmr, async-mwmr, wmark]
     steps:
       - uses: actions/checkout@v3
 
@@ -57,4 +60,30 @@ jobs:
                 }
               }
             });
-            console.log("Gist updated"); 
+            console.log("Gist updated");
+      
+      - name: Count lines of code in subcrates
+        run: |
+          for crate in mwmr async-mwmr wmark; do
+            cd $crate
+            tokeit
+            cd ..
+          done
+
+      - name: Upload subcrates loc to GitHub Gist
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GIST_PAT}}
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('${{ matrix.crates }}/tokeit.json', 'utf8');
+            const gistId = '4bac4a768dd5583e656aeecb44867864';
+            await github.rest.gists.update({
+              gist_id: gistId,
+              files: {
+                "${{ matrix.crates }}": {
+                  content: output
+                }
+              }
+            });
+            console.log("Gist updated");
