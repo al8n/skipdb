@@ -1,0 +1,10 @@
+[package]
+name = "txn"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+description = "A placeholder"
+
+[dependencies]
