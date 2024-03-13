@@ -14,6 +14,9 @@ pub use closer::Closer;
 #[cfg(feature = "future")]
 pub use closer::AsyncCloser;
 
+#[cfg(feature = "tokio")]
+pub use closer::TokioCloser;
+
 mod watermark;
 
 #[cfg(feature = "std")]
@@ -21,11 +24,15 @@ pub use watermark::{WaterMark, WaterMarkError};
 
 #[cfg(feature = "future")]
 #[cfg_attr(docsrs, doc(cfg(feature = "future")))]
-pub use watermark::AsyncWaterMark;
+pub use watermark::future::AsyncWaterMark;
 
 #[cfg(feature = "future")]
 #[cfg_attr(docsrs, doc(cfg(feature = "future")))]
 pub use wg::future::AsyncSpawner;
+
+#[cfg(feature = "tokio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
+pub use watermark::tokio::TokioWaterMark;
 
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
