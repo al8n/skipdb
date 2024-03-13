@@ -2,10 +2,12 @@
 use std::sync::Arc;
 
 #[cfg(not(feature = "std"))]
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 
 use async_channel::{unbounded, Receiver, Sender};
 use wg::future::AsyncWaitGroup as WaitGroup;
+
+use crate::AsyncSpawner;
 
 #[derive(Debug)]
 struct Canceler {
@@ -47,9 +49,9 @@ impl CancelContext {
 /// finish: a chan to tell the thread to shut down, and a WaitGroup with
 /// which to wait for it to finish shutting down.
 #[derive(Debug, Clone)]
-#[repr(transparent)]
-pub struct AsyncCloser {
+pub struct AsyncCloser<S> {
   inner: Arc<AsyncCloserInner>,
+  _spawner: core::marker::PhantomData<S>,
 }
 
 #[derive(Debug)]
@@ -81,20 +83,22 @@ impl AsyncCloserInner {
   }
 }
 
-impl Default for AsyncCloser {
+impl<S> Default for AsyncCloser<S> {
   fn default() -> Self {
     Self {
       inner: Arc::new(AsyncCloserInner::new()),
+      _spawner: core::marker::PhantomData,
     }
   }
 }
 
-impl AsyncCloser {
+impl<S> AsyncCloser<S> {
   /// Constructs a new [`AsyncCloser`], with an initial count on the [`WaitGroup`].
   #[inline]
   pub fn new(initial: usize) -> Self {
     Self {
       inner: Arc::new(AsyncCloserInner::new_with_initial(initial)),
+      _spawner: core::marker::PhantomData,
     }
   }
 
@@ -134,5 +138,14 @@ impl AsyncCloser {
   pub async fn signal_and_wait(&self) {
     self.signal();
     self.wait().await;
+  }
+}
+
+impl<S: AsyncSpawner> AsyncCloser<S> {
+  /// Calls [`AsyncCloser::signal`], then [`AsyncCloser::wait`].
+  #[inline]
+  pub fn signal_and_wait_blocking(&self) {
+    self.signal();
+    self.inner.wg.block_wait::<S>();
   }
 }

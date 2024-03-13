@@ -26,7 +26,7 @@ indexmap = { version = "2", default-features = false }
 parking_lot = "0.12"
 rand = "0.8"
 smallvec-wrapper = { version = "0.1", features = ["const_new"] }
-scopeguard = "1"
+scopeguard = { version = "1", default-features = false }
 thiserror = "1"
 tracing = "0.1"
 

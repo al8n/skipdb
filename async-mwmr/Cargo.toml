@@ -13,22 +13,29 @@ default = []
 # Features will export the generic unit tests implementation for database based on mwmr
 test = ["rand"]
 
+tokio = ["wmark/tokio"]
+async-std = ["wmark/async-std"]
+smol = ["wmark/smol"]
+
 [dependencies]
 async-channel.workspace = true
 cheap-clone.workspace = true
 crossbeam-utils.workspace = true
 either.workspace = true
 indexmap.workspace = true
-parking_lot.workspace = true
-scopeguard.workspace = true
+pollster = "0.3"
+scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
 wmark = { workspace = true, features = ["future", "default"] }
 
 rand = { workspace = true, optional = true }
+futures = { version = "=0.3.29" }
 
 [dev-dependencies]
 rand.workspace = true
+tokio = { version = "1", features = ["full"] }
+async-std = { version = "1", features = ["attributes"] }
 
 [[test]]
 name = "async-mwmr"

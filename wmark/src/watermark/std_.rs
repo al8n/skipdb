@@ -204,11 +204,11 @@ impl WaterMark {
   /// # Example
   ///
   /// ```rust
-  /// use oro_txn::ssi::mwmr::*;
+  /// use wmark::*;
   ///
   ///
   /// let closer = Closer::new(1);
-  /// WaterMark::new("test").init_with_thread(closer.clone(), std::thread::spawn);
+  /// WaterMark::new("test".into()).init_with(closer.clone(), std::thread::spawn);
   ///
   /// closer.signal_and_wait();
   /// ```

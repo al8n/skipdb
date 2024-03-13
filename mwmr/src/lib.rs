@@ -31,8 +31,6 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-
-
 /// A reference to a key.
 pub struct KeyRef<'a, K: 'a> {
   key: &'a K,

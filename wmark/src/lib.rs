@@ -20,7 +20,24 @@ mod watermark;
 pub use watermark::{WaterMark, WaterMarkError};
 
 #[cfg(feature = "future")]
+#[cfg_attr(docsrs, doc(cfg(feature = "future")))]
 pub use watermark::AsyncWaterMark;
+
+#[cfg(feature = "future")]
+#[cfg_attr(docsrs, doc(cfg(feature = "future")))]
+pub use wg::future::AsyncSpawner;
+
+#[cfg(feature = "tokio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
+pub use wg::future::TokioSpawner;
+
+#[cfg(feature = "async-std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async-std")))]
+pub use wg::future::AsyncStdSpawner;
+
+#[cfg(feature = "smol")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smol")))]
+pub use wg::future::SmolSpawner;
 
 /// For use in no_std environments.
 #[cfg(feature = "core")]

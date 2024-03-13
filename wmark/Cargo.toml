@@ -13,10 +13,14 @@ std = ["parking_lot", "wg", "crossbeam-channel", "async-channel?/default", "this
 core = ["crossbeam-queue/alloc", "hashbrown/allocator-api2"]
 future = ["wg/future", "async-channel", "futures-util"]
 
+smol = ["dep:smol", "wg/smol", "future"]
+async-std = ["dep:async-std", "wg/async-std", "future"]
+tokio = ["dep:tokio", "wg/tokio", "future"]
+
 [dependencies]
 smallvec-wrapper.workspace = true
 crossbeam-utils = { workspace = true, default-features = false }
-scopeguard = { workspace = true, default-features = false }
+scopeguard.workspace = true
 
 thiserror = { version = "1", optional = true }
 
@@ -25,12 +29,16 @@ hashbrown = { version = "0.14", optional = true, default-features = false }
 
 crossbeam-channel = { version = "0.5", optional = true }
 parking_lot = { version = "0.12", optional = true }
-wg = { version = "0.7", optional = true }
+wg = { version = "0.8", optional = true }
 
 async-channel = { version = "2", optional = true, default-features = false }
 futures-util = { version = "=0.3.29", optional = true, default-features = false, features = ["async-await-macro"] }
 
 tracing = { version = "0.1", optional = true, default-features = false }
+
+tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
+smol = { version = "2", optional = true }
+async-std = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

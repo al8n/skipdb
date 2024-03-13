@@ -1,6 +1,6 @@
 use async_channel::{bounded, Receiver, Sender};
 use crossbeam_utils::CachePadded;
-use futures_util::{select_biased, Future, FutureExt};
+use futures_util::{select_biased, FutureExt};
 use smallvec_wrapper::MediumVec;
 
 use core::{
@@ -21,7 +21,7 @@ use alloc::{borrow::Cow, collections::BinaryHeap};
 #[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
 
-use crate::{AsyncCloser, WaterMarkError};
+use crate::{AsyncCloser, AsyncSpawner, WaterMarkError};
 
 type Result<T> = core::result::Result<T, WaterMarkError>;
 
@@ -49,7 +49,7 @@ struct Inner {
 }
 
 impl Inner {
-  async fn process(&self, closer: AsyncCloser) {
+  async fn process<S>(&self, closer: AsyncCloser<S>) {
     macro_rules! process_one {
       ($pending:ident,$waiters:ident,$indices:ident,$idx: ident, $done: ident) => {{
         if !$pending.contains_key(&$idx) {
@@ -178,12 +178,32 @@ impl Inner {
 /// Since `done_until` and `last_index` addresses are passed to sync/atomic packages, we ensure that they
 /// are 64-bit aligned by putting them at the beginning of the structure.
 #[derive(Debug, Clone)]
-#[repr(transparent)]
-pub struct AsyncWaterMark {
+pub struct AsyncWaterMark<S> {
   inner: Arc<Inner>,
+  _spawner: core::marker::PhantomData<S>,
 }
 
-impl AsyncWaterMark {
+impl<S: AsyncSpawner> AsyncWaterMark<S> {
+  /// Initializes a AsyncWaterMark struct. MUST be called before using it.
+  ///
+  /// # Example
+  ///
+  /// ```no_compile
+  /// use wmark::*;
+  ///
+  /// let closer = AsyncCloser::new(1);
+  /// AsyncWaterMark::new("test".into()).init_with_thread(closer.clone(), tokio::spawn);
+  ///
+  /// closer.signal_and_wait().await;
+  /// ```
+  #[inline]
+  pub fn init(&self, closer: AsyncCloser<S>) {
+    let w = self.clone();
+    S::spawn_detach(async move { w.inner.process(closer).await })
+  }
+}
+
+impl<S> AsyncWaterMark<S> {
   /// Create a new AsyncWaterMark with the given name.
   ///
   /// **Note**: Before using the watermark, you must call `init` to start the background thread.
@@ -199,6 +219,7 @@ impl AsyncWaterMark {
         mark_tx,
         inited: AtomicBool::new(false),
       }),
+      _spawner: core::marker::PhantomData,
     }
   }
 
@@ -206,27 +227,6 @@ impl AsyncWaterMark {
   #[inline(always)]
   pub fn name(&self) -> &str {
     self.inner.name.as_ref()
-  }
-
-  /// Initializes a AsyncWaterMark struct. MUST be called before using it.
-  ///
-  /// # Example
-  ///
-  /// ```no_run
-  /// use wmark::*;
-  ///
-  /// let closer = AsyncCloser::new(1);
-  /// AsyncWaterMark::new("test").init_with_thread(closer.clone(), tokio::spawn);
-  ///
-  /// closer.signal_and_wait().await;
-  /// ```
-  #[inline]
-  pub fn init<S>(&self, closer: AsyncCloser, spawner: S)
-  where
-    S: FnOnce(core::pin::Pin<Box<dyn Future<Output = ()> + Send + Sync>>) + Send,
-  {
-    let w = self.clone();
-    (spawner)(Box::pin(async move { w.inner.process(closer).await }))
   }
 
   /// Sets the last index to the given value.
@@ -368,6 +368,42 @@ impl AsyncWaterMark {
       .unwrap() // unwrap is safe because self also holds a receiver
   }
 
+  /// Same as `done` but does not check if the watermark is initialized.
+  ///
+  /// This function is not marked as unsafe, because it will not cause unsafe behavior
+  /// but it will make the watermark has wrong behavior, if you are not using
+  /// watermark correctly.
+  #[inline]
+  pub fn done_unchecked_blocking(&self, index: u64) {
+    self
+      .inner
+      .mark_tx
+      .send_blocking(Mark {
+        index: MarkIndex::Single(index),
+        waiter: None,
+        done: true,
+      })
+      .unwrap() // unwrap is safe because self also holds a receiver
+  }
+
+  /// Same as `done_many` but does not check if the watermark is initialized.
+  ///
+  /// This function is not marked as unsafe, because it will not cause unsafe behavior
+  /// but it will make the watermark has wrong behavior, if you are not using
+  /// watermark correctly.
+  #[inline]
+  pub fn done_many_unchecked_blocking(&self, indices: MediumVec<u64>) {
+    self
+      .inner
+      .mark_tx
+      .send_blocking(Mark {
+        index: MarkIndex::Multiple(indices),
+        waiter: None,
+        done: true,
+      })
+      .unwrap() // unwrap is safe because self also holds a receiver
+  }
+
   /// Same as `done_until` but does not check if the watermark is initialized.
   ///
   /// This function is not marked as unsafe, because it will not cause unsafe behavior
@@ -439,18 +475,18 @@ impl AsyncWaterMark {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use core::future::Future;
 
-  async fn init_and_close<Fut, F>(f: F)
+  async fn init_and_close<S, Fut, F>(f: F)
   where
     Fut: Future,
-    F: FnOnce(AsyncWaterMark) -> Fut,
+    F: FnOnce(AsyncWaterMark<S>) -> Fut,
+    S: AsyncSpawner,
   {
     let closer = AsyncCloser::new(1);
 
     let watermark = AsyncWaterMark::new("watermark".into());
-    watermark.init(closer.clone(), |fut| {
-      tokio::spawn(fut);
-    });
+    watermark.init(closer.clone());
 
     f(watermark.clone()).await;
 
@@ -459,12 +495,12 @@ mod tests {
 
   #[tokio::test]
   async fn test_basic() {
-    init_and_close(|_| async {}).await;
+    init_and_close::<crate::TokioSpawner, _, _>(|_| async {}).await;
   }
 
   #[tokio::test]
   async fn test_begin_done() {
-    init_and_close(|watermark| async move {
+    init_and_close::<crate::TokioSpawner, _, _>(|watermark| async move {
       watermark.begin_unchecked(1).await;
       watermark
         .begin_many_unchecked([2, 3].into_iter().collect())
@@ -480,7 +516,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_wait_for_mark() {
-    init_and_close(|watermark| async move {
+    init_and_close::<crate::TokioSpawner, _, _>(|watermark| async move {
       watermark
         .begin_many_unchecked([1, 2, 3].into_iter().collect())
         .await;
@@ -500,7 +536,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_last_index() {
-    init_and_close(|watermark| async move {
+    init_and_close::<crate::TokioSpawner, _, _>(|watermark| async move {
       watermark
         .begin_many_unchecked([1, 2, 3].into_iter().collect())
         .await;
@@ -515,12 +551,12 @@ mod tests {
 
   #[tokio::test]
   async fn test_multiple_singles() {
-    let closer = AsyncCloser::default();
+    let closer = AsyncCloser::<crate::TokioSpawner>::default();
     closer.signal();
     closer.signal();
     closer.signal_and_wait().await;
 
-    let closer = AsyncCloser::new(1);
+    let closer = AsyncCloser::<crate::TokioSpawner>::new(1);
     closer.done();
     closer.signal_and_wait().await;
     closer.signal_and_wait().await;
@@ -529,7 +565,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_closer() {
-    let closer = AsyncCloser::new(1);
+    let closer = AsyncCloser::<crate::TokioSpawner>::new(1);
     let tc = closer.clone();
     tokio::spawn(async move {
       if let Err(err) = tc.has_been_closed().recv().await {
@@ -547,7 +583,7 @@ mod tests {
 
     let (tx, rx) = unbounded();
 
-    let c = AsyncCloser::default();
+    let c = AsyncCloser::<crate::TokioSpawner>::default();
 
     for _ in 0..10 {
       let c = c.clone();

@@ -28,56 +28,8 @@ English | [简体中文][zh-cn-url]
 
 ```toml
 [dependencies]
-crates = "0.1"
+txn = "0.1"
 ```
-
-## Example
-
-```rust
-use crates::example;
-
-fn main() {
-  
-}
-```
-
-## Tests
-
-- `test`:
-
-    ```sh
-    cargo test --all-features
-    ```
-
-- `miri`:
-
-    ```sh
-    cargo miri test --all-features
-    ```
-
-## Support Platforms
-
-| targets                       |   status  |
-|:-----------------------------:|:---------:|
-| aarch64-linux-android         |  &#9989;  |
-| aarch64-unknown-linux-gnu     |  &#9989;  |
-| aarch64-unknown-linux-musl    |  &#9989;  |
-| i686-pc-windows-gnu           |  &#9989;  |
-| i686-linux-android            |  &#9989;  |
-| i686-unknown-linux-gnu        |  &#9989;  |
-| mips64-unknown-linux-gnuabi64 |  &#9989;  |
-| powerpc64-unknown-linux-gnu   |  &#9989;  |
-| riscv64gc-unknown-linux-gnu   |  &#9989;  |
-| wasm32-unknown-unknown        |  &#9989;  |
-| wasm32-unknown-emscripten     |  &#9989;  |
-| x86_64-unknown-linux-gnu      |  &#9989;  |
-| x86_64-pc-windows-gnu         |  &#9989;  |
-| x86_64-linux-android          |  &#9989;  |
-
-## TODO (help wanted)
-
-- [x] Done
-- [ ] WIP
 
 #### License
 
@@ -93,7 +45,4 @@ Copyright (c) 2024 Al Liu.
 [doc-url]: https://docs.rs/crates
 [crates-url]: https://crates.io/crates/crates
 [codecov-url]: https://app.codecov.io/gh/al8n/crates/
-[rustc-url]: https://github.com/rust-lang/rust/blob/master/RELEASES.md
-[license-apache-url]: https://opensource.org/licenses/Apache-2.0
-[license-mit-url]: https://opensource.org/licenses/MIT
 [zh-cn-url]: https://github.com/al8n/txn/tree/main/README-zh_CN.md

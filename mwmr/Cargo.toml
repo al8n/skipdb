@@ -20,7 +20,7 @@ crossbeam-utils.workspace = true
 either.workspace = true
 indexmap = { workspace = true, features = ["default"] }
 parking_lot.workspace = true
-scopeguard.workspace = true 
+scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
 wmark = { workspace = true, features = ["default"] }
