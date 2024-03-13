@@ -94,7 +94,7 @@ struct TestBTreeDb {
 impl TestBTreeDb {
   fn iter_all_versions<'a, 'b: 'a>(
     &'a self,
-    pending: impl Iterator<Item = EntryRef<'b, Self>> + 'b,
+    pending: impl Iterator<Item = EntryRef<'b, u64, u64>> + 'b,
     max_version: u64,
     since_version: u64,
     reverse: bool,
@@ -133,7 +133,7 @@ impl TestBTreeDb {
 
   fn iter<'a, 'b: 'a>(
     &'a self,
-    pending: impl Iterator<Item = EntryRef<'b, Self>> + 'b,
+    pending: impl Iterator<Item = EntryRef<'b, u64, u64>> + 'b,
     max_version: u64,
     since_version: u64,
     reverse: bool,
@@ -202,11 +202,11 @@ impl Database for TestBTreeDb {
     self.max_batch_entries
   }
 
-  fn estimate_size(&self, _entry: &Entry<Self>) -> u64 {
+  fn estimate_size(&self, _entry: &Entry<u64, u64>) -> u64 {
     (mem::size_of::<TestKey>() + mem::size_of::<u64>()) as u64
   }
 
-  fn validate_entry(&self, _entry: &Entry<Self>) -> Result<(), Self::Error> {
+  fn validate_entry(&self, _entry: &Entry<u64, u64>) -> Result<(), Self::Error> {
     Ok(())
   }
 
@@ -231,7 +231,7 @@ impl Database for TestBTreeDb {
     self.hash.hash_one(k)
   }
 
-  fn apply(&self, entries: OneOrMore<Entry<Self>>) -> Result<(), Self::Error> {
+  fn apply(&self, entries: OneOrMore<Entry<Self::Key, Self::Value>>) -> Result<(), Self::Error> {
     let mut store = self.store.lock();
     store.extend(entries.into_iter().map(|ent| match ent.data() {
       EntryData::Insert { key, value, .. } => (
@@ -270,7 +270,7 @@ impl Database for TestBTreeDb {
 
   fn iter<'a, 'b: 'a>(
     &'a self,
-    pending: impl Iterator<Item = EntryRef<'b, Self>> + 'b,
+    pending: impl Iterator<Item = EntryRef<'b, Self::Key, Self::Value>> + 'b,
     transaction_version: u64,
     opts: IteratorOptions,
   ) -> Self::Iterator<'a> {

@@ -1,9 +1,6 @@
-use ::tokio::{
-  select,
-  sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    oneshot,
-  },
+use ::tokio::sync::{
+  mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+  oneshot,
 };
 use crossbeam_utils::CachePadded;
 use smallvec_wrapper::MediumVec;
@@ -136,7 +133,7 @@ impl Inner {
     let mut waiters: HashMap<u64, MediumVec<oneshot::Sender<()>>> = HashMap::new();
 
     loop {
-      select! {
+      tokio::select! {
         _ = closer.has_been_closed() => return,
         mark = rx.recv() => match mark {
           Some(mark) => {

@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 
-use std::{cell::RefCell, sync::Arc};
+use std::sync::Arc;
 
 use core::{hash::BuildHasher, mem};
 
@@ -30,7 +30,7 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-pub use mwmr_core::{sync::*, types::*};
+pub use mwmr_core::{future::*, types::*};
 
 /// Options for the [`TransactionDB`].
 #[derive(Debug, Clone)]
@@ -74,20 +74,20 @@ impl Options {
   }
 }
 
-struct Inner<D, S = std::hash::RandomState> {
+struct Inner<D, H = std::hash::RandomState> {
   db: D,
   /// Determines whether the transactions would be checked for conflicts.
   /// The transactions can be processed at a higher rate when conflict detection is disabled.
   opts: Options,
-  orc: Oracle<S>,
-  hasher: S,
+  orc: Oracle<H>,
+  hasher: H,
 }
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct TransactionDB<D, S = std::hash::RandomState> {
-  inner: Arc<Inner<D, S>>,
+pub struct TransactionDB<D, H = std::hash::RandomState> {
+  inner: Arc<Inner<D, H>>,
 }
 
-impl<D, S> Clone for TransactionDB<D, S> {
+impl<D, H> Clone for TransactionDB<D, H> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
@@ -95,16 +95,20 @@ impl<D, S> Clone for TransactionDB<D, S> {
   }
 }
 
-impl<D: Database, S: BuildHasher + Default + Clone + 'static> TransactionDB<D, S>
+impl<D, H> TransactionDB<D, H>
 where
-  D::Key: Eq + core::hash::Hash,
+  D: AsyncDatabase,
+  D::Key: Eq + core::hash::Hash + Send + Sync + 'static,
+  D::Value: Send + Sync + 'static,
+
+  H: BuildHasher + Default + Clone + Send + Sync + 'static,
 {
   /// Create a new writable transaction with
   /// the default pending writes manager to store the pending writes.
-  pub fn write(&self) -> WriteTransaction<D, IndexMapManager<D::Key, D::Value, S>, S> {
+  pub async fn write(&self) -> WriteTransaction<D, AsyncIndexMapManager<D::Key, D::Value, H>, H> {
     WriteTransaction {
       db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
+      read_ts: self.inner.orc.read_ts().await,
       size: 0,
       count: 0,
       reads: MediumVec::new(),
@@ -113,7 +117,7 @@ where
       } else {
         None
       },
-      pending_writes: Some(IndexMap::with_hasher(S::default())),
+      pending_writes: Some(IndexMap::with_hasher(H::default())),
       duplicate_writes: OneOrMore::new(),
       discarded: false,
       done_read: false,
@@ -121,12 +125,12 @@ where
   }
 }
 
-impl<D: Database, S: Clone + 'static> TransactionDB<D, S> {
+impl<D: AsyncDatabase, H: Clone + 'static> TransactionDB<D, H> {
   /// Create a new writable transaction with the given pending writes manager to store the pending writes.
-  pub fn write_by<W: PendingManager>(&self, backend: W) -> WriteTransaction<D, W, S> {
+  pub async fn write_by<W: AsyncPendingManager>(&self, backend: W) -> WriteTransaction<D, W, H> {
     WriteTransaction {
       db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
+      read_ts: self.inner.orc.read_ts().await,
       size: 0,
       count: 0,
       reads: MediumVec::new(),
@@ -143,21 +147,23 @@ impl<D: Database, S: Clone + 'static> TransactionDB<D, S> {
   }
 }
 
-impl<D: Database, S: Default> TransactionDB<D, S> {
+impl<D: AsyncDatabase, H: Default> TransactionDB<D, H> {
   /// Open the database with the given options.
-  pub fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
-    Self::with_hasher(transaction_opts, database_opts, S::default())
+  pub async fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
+    Self::with_hasher(transaction_opts, database_opts, H::default()).await
   }
 }
 
-impl<D: Database, S> TransactionDB<D, S> {
+impl<D: AsyncDatabase, H> TransactionDB<D, H> {
   /// Open the database with the given options.
-  pub fn with_hasher(
+  pub async fn with_hasher(
     transaction_opts: Options,
     database_opts: D::Options,
-    hasher: S,
+    hasher: H,
   ) -> Result<Self, D::Error> {
-    D::open(database_opts).map(|db| Self {
+    let db = D::open(database_opts).await?;
+
+    Ok(Self {
       inner: Arc::new(Inner {
         orc: {
           let next_ts = db.maximum_version();
@@ -167,9 +173,15 @@ impl<D: Database, S> TransactionDB<D, S> {
             transaction_opts.detect_conflicts(),
             next_ts,
           );
-          orc.read_mark.done_unchecked(next_ts);
-          orc.txn_mark.done_unchecked(next_ts);
-          orc.increment_next_ts();
+          orc
+            .read_mark
+            .done(next_ts)
+            .expect("watermark canceled by accident");
+          orc
+            .txn_mark
+            .done(next_ts)
+            .expect("watermark canceled by accident");
+          orc.increment_next_ts().await;
           orc
         },
         db,
@@ -204,15 +216,15 @@ impl<D: Database, S> TransactionDB<D, S> {
   }
 
   /// Create a new writable transaction.
-  pub fn read(&self) -> ReadTransaction<D, S> {
+  pub async fn read(&self) -> ReadTransaction<D, H> {
     ReadTransaction {
       db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
+      read_ts: self.inner.orc.read_ts().await,
     }
   }
 
   #[inline]
-  fn orc(&self) -> &Oracle<S> {
+  fn orc(&self) -> &Oracle<H> {
     &self.inner.orc
   }
 }

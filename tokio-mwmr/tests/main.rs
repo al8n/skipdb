@@ -4,7 +4,7 @@ use std::{cmp::Reverse, collections::BTreeMap, hash::BuildHasher, mem};
 
 use either::Either;
 
-use async_mwmr::{tests::*, *};
+use tokio_mwmr::{tests::*, *};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct TestKey {
@@ -324,210 +324,160 @@ impl AsyncDatabase for TestBTreeDb {
   }
 }
 
-macro_rules! unittests {
-  (
-    $run:ident($spawner:ty)
-  ) => {
-    #[test]
-    fn test_txn_simple() {
-      $run(txn_simple::<
-        TestBTreeDb,
-        BTreeMap<u64, EntryValue<u64>>,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |item| match item {
-          Either::Left(l) => Either::Right(l.1),
-          Either::Right(r) => Either::Right(r.1),
-        },
-      ))
-    }
-
-    #[test]
-    fn test_txn_read_after_write() {
-      $run(txn_read_after_write::<TestBTreeDb, $spawner>(
-        (),
-        |i| i as u64,
-        |i| i as u64,
-        |item| match item {
-          Either::Left(l) => Either::Right(l.1),
-          Either::Right(r) => Either::Right(r.1),
-        },
-      ))
-    }
-
-    #[test]
-    fn test_txn_commit_with_callback() {
-      $run(txn_commit_with_callback::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        $spawner,
-      >((), BTreeMap::default, |i| i as u64, |i| i as u64))
-    }
-
-    #[test]
-    fn test_txn_versions() {
-      $run(txn_versions::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        _,
-        _,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |item| match item {
-          Either::Left(l) => Either::Right(l.1),
-          Either::Right(r) => Either::Right(r.1),
-        },
-        |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-        |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-      ))
-    }
-
-    #[test]
-    fn test_txn_write_skew() {
-      $run(txn_write_skew::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |v: &u64| *v as usize,
-        |item| match item {
-          Either::Left(l) => Either::Right(l.1),
-          Either::Right(r) => Either::Right(r.1),
-        },
-      ))
-    }
-
-    #[test]
-    fn test_txn_iteration_edge_case() {
-      $run(txn_iteration_edge_case::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        _,
-        _,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |iter| {
-          iter
-            .into_iter()
-            .rev()
-            .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-        },
-        |iter| {
-          iter
-            .into_iter()
-            .rev()
-            .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-        },
-      ))
-    }
-
-    #[test]
-    fn test_txn_iteration_edge_case2() {
-      $run(txn_iteration_edge_case2::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        _,
-        _,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |iter| {
-          iter
-            .into_iter()
-            .rev()
-            .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-        },
-        |iter| {
-          iter
-            .into_iter()
-            .rev()
-            .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-        },
-      ))
-    }
-
-    #[test]
-    fn test_txn_all_versions_with_removed() {
-      $run(txn_all_versions_with_removed::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        _,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |v| match v {
-          Either::Left(l) => l.0,
-          Either::Right(r) => r.0,
-        },
-        |iter| iter.into_iter().rev(),
-      ))
-    }
-
-    #[test]
-    fn test_txn_all_versions_with_removed2() {
-      $run(txn_all_versions_with_removed2::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        _,
-        $spawner,
-      >(
-        (),
-        BTreeMap::default,
-        |i| i as u64,
-        |i| i as u64,
-        |iter| iter.into_iter().rev(),
-      ))
-    }
-
-    #[test]
-    fn test_txn_conflict_get() {
-      $run(txn_conflict_get::<
-        TestBTreeDb,
-        AsyncBTreeMapManager<u64, u64>,
-        $spawner,
-      >(|| (), BTreeMap::default, |i| i as u64, |i| i as u64))
-    }
-
-    // #[$rt::test]
-    // async fn test_txn_conflict_iter() {
-    //   txn_conflict_iter::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _, $spawner>(
-    //     || (),
-    //     BTreeMap::default,
-    //     |i| i as u64,
-    //     |i| i as u64,
-    //     |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-    //   ).await
-    // }
-  };
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_simple() {
+  txn_simple::<TestBTreeDb, BTreeMap<u64, EntryValue<u64>>>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |item| match item {
+      Either::Left(l) => Either::Right(l.1),
+      Either::Right(r) => Either::Right(r.1),
+    },
+  )
+  .await
 }
 
-#[cfg(feature = "async-std")]
-mod _async_std {
-  use super::*;
-  use async_std::task::block_on;
-  use wmark::AsyncStdSpawner;
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_read_after_write() {
+  txn_read_after_write::<TestBTreeDb>(
+    (),
+    |i| i as u64,
+    |i| i as u64,
+    |item| match item {
+      Either::Left(l) => Either::Right(l.1),
+      Either::Right(r) => Either::Right(r.1),
+    },
+  )
+  .await
+}
 
-  unittests!(block_on(AsyncStdSpawner));
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_commit_with_callback() {
+  txn_commit_with_callback::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_versions() {
+  txn_versions::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _, _>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |item| match item {
+      Either::Left(l) => Either::Right(l.1),
+      Either::Right(r) => Either::Right(r.1),
+    },
+    |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
+    |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_write_skew() {
+  txn_write_skew::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |v: &u64| *v as usize,
+    |item| match item {
+      Either::Left(l) => Either::Right(l.1),
+      Either::Right(r) => Either::Right(r.1),
+    },
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_iteration_edge_case() {
+  txn_iteration_edge_case::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _, _>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |iter| {
+      iter
+        .into_iter()
+        .rev()
+        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+    },
+    |iter| {
+      iter
+        .into_iter()
+        .rev()
+        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+    },
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_iteration_edge_case2() {
+  txn_iteration_edge_case2::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _, _>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |iter| {
+      iter
+        .into_iter()
+        .rev()
+        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+    },
+    |iter| {
+      iter
+        .into_iter()
+        .rev()
+        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+    },
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_all_versions_with_removed() {
+  txn_all_versions_with_removed::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |v| match v {
+      Either::Left(l) => l.0,
+      Either::Right(r) => r.0,
+    },
+    |iter| iter.into_iter().rev(),
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_all_versions_with_removed2() {
+  txn_all_versions_with_removed2::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>, _>(
+    (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+    |iter| iter.into_iter().rev(),
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_txn_conflict_get() {
+  txn_conflict_get::<TestBTreeDb, AsyncBTreeMapManager<u64, u64>>(
+    || (),
+    BTreeMap::default,
+    |i| i as u64,
+    |i| i as u64,
+  )
+  .await
 }

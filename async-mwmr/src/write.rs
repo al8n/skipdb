@@ -1,167 +1,17 @@
-use std::collections::BTreeMap;
+use core::mem;
 
+use either::Either;
 use pollster::FutureExt;
 
 use self::error::{Error, TransactionError};
 
 use super::*;
 
-/// A pending writes manager that can be used to store pending writes in a transaction.
-///
-/// By default, there are two implementations of this trait:
-/// - [`IndexMap`]: A hash map with consistent ordering and fast lookups.
-/// - [`BTreeMap`]: A balanced binary tree with ordered keys and fast lookups.
-///
-/// But, users can create their own implementations by implementing this trait.
-/// e.g. if you want to implement a recovery transaction manager, you can use a persistent
-/// storage to store the pending writes.
-pub trait PendingManager: Send + Sync + 'static {
-  /// The error type returned by the pending manager.
-  type Error: std::error::Error + Send + Sync + 'static;
-  /// The key type.
-  type Key: Send + Sync + 'static;
-  /// The value type.
-  type Value: Send + Sync + 'static;
-
-  /// Returns true if the buffer is empty.
-  fn is_empty(&self) -> bool;
-
-  /// Returns the number of elements in the buffer.
-  fn len(&self) -> usize;
-
-  /// Returns a reference to the value corresponding to the key.
-  fn get(
-    &self,
-    key: &Self::Key,
-  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>> + Send;
-
-  /// Inserts a key-value pair into the buffer.
-  fn insert(
-    &mut self,
-    key: Self::Key,
-    value: EntryValue<Self::Value>,
-  ) -> impl Future<Output = Result<(), Self::Error>> + Send;
-
-  /// Removes a key from the buffer, returning the key-value pair if the key was previously in the buffer.
-  fn remove_entry(
-    &mut self,
-    key: &Self::Key,
-  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>> + Send;
-
-  /// Returns an iterator over the keys in the buffer.
-  fn keys(&self) -> impl Future<Output = impl Iterator<Item = &'_ Self::Key>> + Send;
-
-  /// Returns an iterator over the key-value pairs in the buffer.
-  fn iter(
-    &self,
-  ) -> impl Future<Output = impl Iterator<Item = (&'_ Self::Key, &'_ EntryValue<Self::Value>)>> + Send;
-
-  /// Returns an iterator that consumes the buffer.
-  fn into_iter(
-    self,
-  ) -> impl Future<Output = impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>> + Send;
-}
-
-/// A type alias for [`PendingManager`] that based on the [`IndexMap`].
-pub type IndexMapManager<K, V, S = std::hash::RandomState> = IndexMap<K, EntryValue<V>, S>;
-/// A type alias for [`PendingManager`] that based on the [`BTreeMap`].
-pub type BTreeMapManager<K, V> = BTreeMap<K, EntryValue<V>>;
-
-impl<K, V, S> PendingManager for IndexMap<K, EntryValue<V>, S>
-where
-  K: Eq + core::hash::Hash + Send + Sync + 'static,
-  V: Send + Sync + 'static,
-  S: BuildHasher + Default + Send + Sync + 'static,
-{
-  type Error = std::convert::Infallible;
-  type Key = K;
-  type Value = V;
-
-  fn is_empty(&self) -> bool {
-    self.is_empty()
-  }
-
-  fn len(&self) -> usize {
-    self.len()
-  }
-
-  async fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
-    Ok(self.get(key))
-  }
-
-  async fn insert(&mut self, key: K, value: EntryValue<V>) -> Result<(), Self::Error> {
-    self.insert(key, value);
-    Ok(())
-  }
-
-  async fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<V>)>, Self::Error> {
-    Ok(self.shift_remove_entry(key))
-  }
-
-  async fn keys(&self) -> impl Iterator<Item = &K> {
-    self.keys()
-  }
-
-  async fn iter(&self) -> impl Iterator<Item = (&K, &EntryValue<V>)> {
-    self.iter()
-  }
-
-  async fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
-    core::iter::IntoIterator::into_iter(self)
-  }
-}
-
-impl<K, V> PendingManager for BTreeMap<K, EntryValue<V>>
-where
-  K: Eq + core::hash::Hash + Ord + Send + Sync + 'static,
-  V: Send + Sync + 'static,
-{
-  type Error = std::convert::Infallible;
-  type Key = K;
-  type Value = V;
-
-  fn is_empty(&self) -> bool {
-    self.is_empty()
-  }
-
-  fn len(&self) -> usize {
-    self.len()
-  }
-
-  async fn get(&self, key: &K) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
-    Ok(self.get(key))
-  }
-
-  async fn insert(&mut self, key: K, value: EntryValue<Self::Value>) -> Result<(), Self::Error> {
-    self.insert(key, value);
-    Ok(())
-  }
-
-  async fn remove_entry(
-    &mut self,
-    key: &K,
-  ) -> Result<Option<(K, EntryValue<Self::Value>)>, Self::Error> {
-    Ok(self.remove_entry(key))
-  }
-
-  async fn keys(&self) -> impl Iterator<Item = &K> {
-    self.keys()
-  }
-
-  async fn iter(&self) -> impl Iterator<Item = (&K, &EntryValue<Self::Value>)> {
-    self.iter()
-  }
-
-  async fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<Self::Value>)> {
-    core::iter::IntoIterator::into_iter(self)
-  }
-}
-
 /// WriteTransaction is used to perform writes to the database. It is created by
 /// calling [`TransactionDB::write`].
 pub struct WriteTransaction<
-  D: Database,
-  W: PendingManager,
+  D: AsyncDatabase,
+  W: AsyncPendingManager,
   S: AsyncSpawner,
   H = std::hash::RandomState,
 > {
@@ -178,7 +28,7 @@ pub struct WriteTransaction<
   // buffer stores any writes done by txn.
   pub(super) pending_writes: Option<W>,
   // Used in managed mode to store duplicate entries.
-  pub(super) duplicate_writes: OneOrMore<Entry<D>>,
+  pub(super) duplicate_writes: OneOrMore<Entry<D::Key, D::Value>>,
 
   pub(super) discarded: bool,
   pub(super) done_read: bool,
@@ -186,8 +36,8 @@ pub struct WriteTransaction<
 
 impl<D, W, S, H> Drop for WriteTransaction<D, W, S, H>
 where
-  D: Database,
-  W: PendingManager,
+  D: AsyncDatabase,
+  W: AsyncPendingManager,
   S: AsyncSpawner,
 {
   fn drop(&mut self) {
@@ -199,8 +49,8 @@ where
 
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
-  D: Database,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  D: AsyncDatabase,
+  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   S: AsyncSpawner,
   H: BuildHasher + Default,
 {
@@ -227,7 +77,7 @@ where
   pub async fn get<'a, 'b: 'a>(
     &'a mut self,
     key: &'b D::Key,
-  ) -> Result<Option<Item<'a, D>>, Error<D, W>> {
+  ) -> Result<Option<Item<'a, D::Key, D::Value, D::ItemRef<'a>, D::Item>>, Error<D, W>> {
     if self.discarded {
       return Err(Error::transaction(TransactionError::Discard));
     }
@@ -391,10 +241,10 @@ where
 
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
-  D: Database + Send + Sync,
+  D: AsyncDatabase + Send + Sync,
   D::Key: Send,
   D::Value: Send,
-  W: PendingManager<Key = D::Key, Value = D::Value> + Send,
+  W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send,
   S: AsyncSpawner,
   H: BuildHasher + Default + Send + Sync + 'static,
 {
@@ -415,7 +265,7 @@ where
   /// background upon successful completion of writes or any error during write.
   ///
   /// If error does not occur, the transaction is successfully committed. In case of an error, the DB
-  /// should not be updated (The implementors of [`Database`] must promise this), so there's no need for any rollback.
+  /// should not be updated (The implementors of [`AsyncDatabase`] must promise this), so there's no need for any rollback.
   pub async fn commit_with_task<R>(
     &mut self,
     fut: impl FnOnce(Result<(), D::Error>) -> R + Send + 'static,
@@ -465,8 +315,8 @@ where
 
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
-  D: Database,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  D: AsyncDatabase,
+  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   S: AsyncSpawner,
   H: BuildHasher + Default,
 {
@@ -479,7 +329,7 @@ where
     self.modify(ent).await
   }
 
-  fn check_and_update_size(&mut self, ent: &Entry<D>) -> Result<(), Error<D, W>> {
+  fn check_and_update_size(&mut self, ent: &Entry<D::Key, D::Value>) -> Result<(), Error<D, W>> {
     let cnt = self.count + 1;
     let database = self.database();
     // Extra bytes for the version in key.
@@ -493,7 +343,7 @@ where
     Ok(())
   }
 
-  async fn modify(&mut self, ent: Entry<D>) -> Result<(), Error<D, W>> {
+  async fn modify(&mut self, ent: Entry<D::Key, D::Value>) -> Result<(), Error<D, W>> {
     if self.discarded {
       return Err(Error::transaction(TransactionError::Discard));
     }
@@ -540,7 +390,9 @@ where
     Ok(())
   }
 
-  async fn commit_entries(&mut self) -> Result<(u64, OneOrMore<Entry<D>>), TransactionError<W>> {
+  async fn commit_entries(
+    &mut self,
+  ) -> Result<(u64, OneOrMore<Entry<D::Key, D::Value>>), TransactionError<W>> {
     // Ensure that the order in which we get the commit timestamp is the same as
     // the order in which we push these updates to the write channel. So, we
     // acquire a writeChLock before getting a commit timestamp, and only release
@@ -582,7 +434,7 @@ where
         let mut entries =
           OneOrMore::with_capacity(pending_writes.len() + self.duplicate_writes.len());
 
-        let mut process_entry = |mut ent: Entry<D>| {
+        let mut process_entry = |mut ent: Entry<D::Key, D::Value>| {
           ent.version = commit_ts;
           entries.push(ent);
         };
@@ -603,8 +455,8 @@ where
 
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
-  D: Database,
-  W: PendingManager,
+  D: AsyncDatabase,
+  W: AsyncPendingManager,
   S: AsyncSpawner,
 {
   async fn done_read(&mut self) {

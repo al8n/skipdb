@@ -1,20 +1,18 @@
-use either::Either;
-use pollster::FutureExt;
+// use pollster::FutureExt;
 
 use super::*;
 
 /// ReadTransaction is a read-only transaction.
 ///
 /// It is created by calling [`TransactionDB::read`].
-pub struct ReadTransaction<D: AsyncDatabase, S: AsyncSpawner, H> {
-  pub(super) db: TransactionDB<D, S, H>,
+pub struct ReadTransaction<D: AsyncDatabase, H> {
+  pub(super) db: TransactionDB<D, H>,
   pub(super) read_ts: u64,
 }
 
-impl<D, S, H> ReadTransaction<D, S, H>
+impl<D, H> ReadTransaction<D, H>
 where
   D: AsyncDatabase,
-  S: AsyncSpawner,
 {
   /// Looks for key and returns corresponding Item.
   pub async fn get<'a: 'b, 'b>(
@@ -45,12 +43,11 @@ where
   }
 }
 
-impl<D, S, H> Drop for ReadTransaction<D, S, H>
+impl<D, H> Drop for ReadTransaction<D, H>
 where
   D: AsyncDatabase,
-  S: AsyncSpawner,
 {
   fn drop(&mut self) {
-    self.db.inner.orc.done_read(self.read_ts).block_on();
+    self.db.inner.orc.done_read(self.read_ts);
   }
 }

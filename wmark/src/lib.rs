@@ -34,8 +34,8 @@ pub use wg::future::AsyncSpawner;
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub use watermark::tokio::TokioWaterMark;
 
-#[cfg(feature = "tokio")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
+#[cfg(all(feature = "tokio", feature = "future"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "tokio", feature = "future"))))]
 pub use wg::future::TokioSpawner;
 
 #[cfg(feature = "async-std")]

@@ -15,7 +15,7 @@ future = ["wg/future", "async-channel", "futures-util"]
 
 smol = ["dep:smol", "wg/smol", "future"]
 async-std = ["dep:async-std", "wg/async-std", "future"]
-tokio = ["dep:tokio", "wg/tokio", "future"]
+tokio = ["dep:tokio", "wg/tokio", "futures-util"]
 
 [dependencies]
 smallvec-wrapper.workspace = true
@@ -36,7 +36,7 @@ futures-util = { version = "=0.3.29", optional = true, default-features = false,
 
 tracing = { version = "0.1", optional = true, default-features = false }
 
-tokio = { version = "1", optional = true, default-features = false, features = ["rt", "sync"] }
+tokio = { version = "1", optional = true, default-features = false, features = ["rt", "sync", "macros"] }
 smol = { version = "2", optional = true }
 async-std = { version = "1", optional = true }
 

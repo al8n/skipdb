@@ -3,17 +3,16 @@ use std::{
   time::Duration,
 };
 
-use either::Either;
-use futures::{select, FutureExt};
 use rand::{rngs::OsRng, Rng};
-use wmark::AsyncCloser;
+use tokio::select;
+use wmark::TokioCloser;
 
 use crate::error::{Error, TransactionError};
 
 use super::*;
 
 /// Unit test for txn simple functionality
-pub async fn txn_simple<'a, D, W, S>(
+pub async fn txn_simple<'a, D, W>(
   opts: D::Options,
   backend: impl Fn() -> W,
   mut get_key: impl FnMut(usize) -> D::Key,
@@ -24,9 +23,8 @@ pub async fn txn_simple<'a, D, W, S>(
   D::Key: Send + Sync + 'static,
   D::Value: PartialEq + Send + Sync + 'static,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
-  S: AsyncSpawner,
 {
-  let db = match TransactionDB::<D, S>::new(Default::default(), opts).await {
+  let db = match TransactionDB::<D>::new(Default::default(), opts).await {
     Ok(db) => db,
     Err(e) => panic!("{e}"),
   };
@@ -62,7 +60,7 @@ pub async fn txn_simple<'a, D, W, S>(
 }
 
 /// Unit test for txn read after write functionality
-pub async fn txn_read_after_write<'a, D, S>(
+pub async fn txn_read_after_write<'a, D>(
   opts: D::Options,
   mut get_key: impl FnMut(usize) -> D::Key + Send + Sync + Copy + 'static,
   mut get_value: impl FnMut(usize) -> D::Value + Send + Sync + Copy + 'static,
@@ -76,17 +74,16 @@ pub async fn txn_read_after_write<'a, D, S>(
   D::Error: Send + Sync + 'static,
   D::Key: core::hash::Hash + Eq,
   D::Value: PartialEq,
-  S: AsyncSpawner,
 {
   const N: usize = 100;
 
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
 
   let handles = (0..N).map(|i| {
     let db = db.clone();
-    S::spawn(async move {
+    ::tokio::spawn(async move {
       let k = get_key(i);
       let v = get_value(i);
 
@@ -106,12 +103,12 @@ pub async fn txn_read_after_write<'a, D, S>(
   });
 
   for handle in handles {
-    handle.await;
+    let _ = handle.await;
   }
 }
 
 /// Unit test for commit with callback functionality
-pub async fn txn_commit_with_callback<D, W, S>(
+pub async fn txn_commit_with_callback<D, W>(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
   mut get_key: impl FnMut(usize) -> D::Key + Send + Sync + 'static + Copy,
@@ -120,9 +117,8 @@ pub async fn txn_commit_with_callback<D, W, S>(
   D: AsyncDatabase,
   D::Value: PartialEq,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
   let mut txn = db.write_by(backend()).await;
@@ -134,17 +130,16 @@ pub async fn txn_commit_with_callback<D, W, S>(
   txn.commit().await.unwrap();
   txn.discard().await;
 
-  let closer = AsyncCloser::<S>::new(1);
+  let closer = TokioCloser::new(1);
 
   let db1 = db.clone();
   let closer1 = closer.clone();
-  S::spawn_detach(async move {
+  ::tokio::spawn(async move {
     scopeguard::defer!(closer.done(););
-    let closer = closer.has_been_closed();
     loop {
       select! {
-        _ = closer.recv().fuse() => return,
-        default => {
+        _ = closer.has_been_closed() => return,
+        else => {
           // Keep checking balance variant
           let txn = db1.read().await;
           let mut total_balance = 0;
@@ -162,7 +157,7 @@ pub async fn txn_commit_with_callback<D, W, S>(
 
   let handles = (0..100).map(|_| {
     let db1 = db.clone();
-    S::spawn(async move {
+    ::tokio::spawn(async move {
       let mut txn = db1.write_by(backend()).await;
       for i in 0..20 {
         let mut rng = OsRng;
@@ -187,7 +182,7 @@ pub async fn txn_commit_with_callback<D, W, S>(
   });
 
   for handle in handles {
-    handle.await;
+    let _ = handle.await;
   }
 
   closer1.signal_and_wait().await;
@@ -202,7 +197,6 @@ pub async fn txn_versions<
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   I,
   RI,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -220,9 +214,8 @@ pub async fn txn_versions<
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator + Send + Sync,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator + Send + Sync,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
 
@@ -346,7 +339,6 @@ pub async fn txn_write_skew<
   'a,
   D: AsyncDatabase,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W,
@@ -356,12 +348,11 @@ pub async fn txn_write_skew<
   item_value: impl Fn(Either<D::ItemRef<'_>, D::Item>) -> Either<&'a D::Value, D::Value> + Copy,
 ) where
   D::Value: PartialEq,
-  S: AsyncSpawner,
 {
   // accounts
   let a999 = get_key(999);
   let a888 = get_key(888);
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
 
@@ -372,8 +363,8 @@ pub async fn txn_write_skew<
   txn.commit().await.unwrap();
   assert_eq!(1, db.inner.orc.read_ts().await);
 
-  async fn get_bal<'a, D, W, S>(
-    txn: &mut WriteTransaction<D, W, S>,
+  async fn get_bal<'a, D, W>(
+    txn: &mut WriteTransaction<D, W>,
     k: &D::Key,
     value_to_usize: impl Fn(&D::Value) -> usize,
     item_value: impl Fn(Either<D::ItemRef<'_>, D::Item>) -> Either<&'a D::Value, D::Value>,
@@ -381,7 +372,6 @@ pub async fn txn_write_skew<
   where
     D: AsyncDatabase,
     W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
-    S: AsyncSpawner,
   {
     let item = txn.get(k).await.unwrap().unwrap();
     match item {
@@ -435,7 +425,7 @@ pub async fn txn_write_skew<
 }
 
 /// Unit test for txn conflict get functionality
-pub async fn txn_conflict_get<D, W, S>(
+pub async fn txn_conflict_get<D, W>(
   opts: impl Fn() -> D::Options,
   backend: impl Fn() -> W + Send + Copy + 'static,
   mut get_key: impl FnMut(usize) -> D::Key + Send + 'static + Copy,
@@ -445,19 +435,18 @@ pub async fn txn_conflict_get<D, W, S>(
   D::Value: PartialEq,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   W::Error: Send,
-  S: AsyncSpawner,
 {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db = TransactionDB::<D, S>::new(Default::default(), opts())
+    let db = TransactionDB::<D>::new(Default::default(), opts())
       .await
       .unwrap();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
       let set_count1 = set_count.clone();
-      S::spawn(async move {
+      ::tokio::spawn(async move {
         let mut txn = db1.write_by(backend()).await;
         if txn.get(&get_key(100)).await.unwrap().is_none() {
           txn.insert(get_key(100), get_value(999)).await.unwrap();
@@ -477,7 +466,7 @@ pub async fn txn_conflict_get<D, W, S>(
     });
 
     for handle in handles {
-      handle.await;
+      let _ = handle.await;
     }
 
     assert_eq!(1, set_count.load(Ordering::SeqCst));
@@ -497,19 +486,19 @@ pub async fn txn_conflict_get<D, W, S>(
 //   D::Value: PartialEq,
 //   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
 //   I: Iterator<Item = (u64, D::Key, D::Value)> + Send + Sync + 'static,
-//   S: AsyncSpawner,
+//
 // {
 //   let set_count = Arc::new(AtomicU32::new(0));
 
 //   for _ in 0..10 {
-//     let db = TransactionDB::<D, S>::new(Default::default(), opts()).await.unwrap();
+//     let db = TransactionDB::<D>::new(Default::default(), opts()).await.unwrap();
 //     set_count.store(0, Ordering::SeqCst);
 //     let wg = Arc::new(());
 //     (0..16).map(|_| {
 //       let db1 = db.clone();
 //       let set_count1 = set_count.clone();
 //       let wg = wg.clone();
-//       S::spawn(async {
+//       ::tokio::spawn(async {
 //         let mut txn = db1.write_by(backend()).await;
 
 //         let itr = txn.iter(Default::default()).await.unwrap();
@@ -549,7 +538,6 @@ pub async fn txn_all_versions_with_removed<
   D: AsyncDatabase + Send + Sync,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   I,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -561,9 +549,8 @@ pub async fn txn_all_versions_with_removed<
   D::Key: PartialEq,
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, Option<D::Value>)> + DoubleEndedIterator,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
   // write two keys
@@ -617,7 +604,6 @@ pub async fn txn_all_versions_with_removed2<
   D: AsyncDatabase + Send + Sync,
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   I,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -628,9 +614,8 @@ pub async fn txn_all_versions_with_removed2<
   D::Key: PartialEq,
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, Option<D::Value>)> + DoubleEndedIterator,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
   // Set and delete alternatively
@@ -681,7 +666,6 @@ pub async fn txn_iteration_edge_case<
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   I,
   RI,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -694,9 +678,8 @@ pub async fn txn_iteration_edge_case<
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
 
@@ -818,7 +801,6 @@ pub async fn txn_iteration_edge_case2<
   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
   I,
   RI,
-  S,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -831,9 +813,8 @@ pub async fn txn_iteration_edge_case2<
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
-  S: AsyncSpawner,
 {
-  let db = TransactionDB::<D, S>::new(Default::default(), opts)
+  let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
     .unwrap();
 

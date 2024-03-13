@@ -1,23 +1,25 @@
 [workspace]
 members = [
+  "mwmr-core",
   "mwmr",
   "async-mwmr",
+  "tokio-mwmr",
   "wmark",
   "txn",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/al8n/txn"
 homepage = "https://github.com/al8n/txn"
+categories = ["asynchronous", "data-structures", "concurrency", "database-implementations", "development-tools"]
+keywords = ["ssi", "transaction", "database", "optimistic", "mvcc"]
 license = "Apache-2.0/MIT"
 
 [workspace.dependencies]
 async-channel = "2"
-bytes = "1.5"
-bitflags = "2"
 cheap-clone = "0.1"
 crossbeam-channel = { version = "0.5", default-features = false }
 crossbeam-utils = { version = "0.8", default-features = false }
@@ -30,4 +32,5 @@ scopeguard = { version = "1", default-features = false }
 thiserror = "1"
 tracing = "0.1"
 
-wmark = { path = "wmark", version = "0.0.0", default-features = false }
+wmark = { path = "wmark", version = "0.1.0", default-features = false }
+mwmr-core = { path = "mwmr-core", version = "0.1.0", default-features = false }
