@@ -99,11 +99,11 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-coverage-cargo-build-target
-      - name: Run tarpaulin
-        uses: actions-rs/cargo@v1
-        with:
-          command: tarpaulin
-          args: --run-types Tests,Doctests --workspace --out Xml
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Run Coverage and Generate Report
+        run: |
+          cargo tarpaulin --all-features --out xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3.1.1
         with:
