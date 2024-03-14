@@ -12,8 +12,20 @@ impl<D, S> ReadTransaction<D, S>
 where
   D: Database,
 {
+  /// Returns the version of this read transaction.
+  #[inline]
+  pub const fn version(&self) -> u64 {
+    self.read_ts
+  }
+
+  /// Returns the database.
+  #[inline]
+  pub fn database(&self) -> &TransactionDB<D, S> {
+    &self.db
+  }
+
   /// Looks for key and returns corresponding Item.
-  pub fn get<'a: 'b, 'b>(
+  pub fn get<'a, 'b: 'a>(
     &'a self,
     key: &'b D::Key,
   ) -> Result<Option<Either<D::ItemRef<'a>, D::Item>>, D::Error> {

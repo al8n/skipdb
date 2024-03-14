@@ -8,8 +8,72 @@ use smallvec_wrapper::OneOrMore;
 
 /// Types
 pub mod types {
+  use core::cmp::Reverse;
+
   use super::*;
   use cheap_clone::CheapClone;
+
+  /// Key is a versioned key
+  #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+  pub struct Key<K> {
+    key: K,
+    version: u64,
+  }
+
+  impl<K> Key<K> {
+    /// Create a new key with default version.
+    pub fn new(key: K) -> Key<K> {
+      Key { key, version: 0 }
+    }
+
+    /// Returns the key.
+    #[inline]
+    pub const fn key(&self) -> &K {
+      &self.key
+    }
+
+    /// Returns the version of the key.
+    #[inline]
+    pub const fn version(&self) -> u64 {
+      self.version
+    }
+
+    /// Set the version of the key.
+    #[inline]
+    pub fn set_version(&mut self, version: u64) {
+      self.version = version;
+    }
+
+    /// Set the version of the key.
+    #[inline]
+    pub const fn with_version(mut self, version: u64) -> Self {
+      self.version = version;
+      self
+    }
+
+    /// Consumes the key and returns the key and the version.
+    #[inline]
+    pub fn into_components(self) -> (K, u64) {
+      (self.key, self.version)
+    }
+  }
+
+  impl<K: Ord> PartialOrd for Key<K> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+      Some(self.cmp(other))
+    }
+  }
+
+  impl<K: Ord> Ord for Key<K> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+      self
+        .key
+        .cmp(&other.key)
+        .then_with(|| Reverse(self.version).cmp(&Reverse(other.version)))
+    }
+  }
 
   /// A reference to a key.
   pub struct KeyRef<'a, K: 'a> {
@@ -609,6 +673,17 @@ pub mod types {
 pub mod sync {
   use super::{types::*, *};
 
+  /// The conflict manager that can be used to manage the conflicts in a transaction.
+  pub trait ConflictManager: 'static {
+    /// The error type returned by the pending manager.
+    type Error: std::error::Error + 'static;
+    /// The key type.
+    type Key: 'static;
+
+    /// Mark the key is read.
+    fn mark_read(&mut self, key: &Self::Key) -> Result<(), Self::Error>;
+  }
+
   /// A pending writes manager that can be used to store pending writes in a transaction.
   ///
   /// By default, there are two implementations of this trait:
@@ -824,11 +899,11 @@ pub mod sync {
     fn apply(&self, entries: OneOrMore<Entry<Self::Key, Self::Value>>) -> Result<(), Self::Error>;
 
     /// Get the item from the database by the key and the version (version can be used for MVCC).
-    fn get(
-      &self,
-      k: &Self::Key,
+    fn get<'a, 'b: 'a>(
+      &'a self,
+      k: &'b Self::Key,
       version: u64,
-    ) -> Result<Option<Either<Self::ItemRef<'_>, Self::Item>>, Self::Error>;
+    ) -> Result<Option<Either<Self::ItemRef<'a>, Self::Item>>, Self::Error>;
 
     /// Accepts an iterator of pending and returns an combined iterator.
     ///

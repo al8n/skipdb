@@ -252,11 +252,11 @@ impl Database for TestBTreeDb {
     Ok(())
   }
 
-  fn get(
-    &self,
-    k: &Self::Key,
+  fn get<'a, 'b: 'a>(
+    &'a self,
+    k: &'b Self::Key,
     version: u64,
-  ) -> Result<Option<Either<Self::ItemRef<'_>, Self::Item>>, Self::Error> {
+  ) -> Result<Option<Either<Self::ItemRef<'a>, Self::Item>>, Self::Error> {
     let mut h = None;
     let mut val = None;
     self.store.lock().iter().for_each(|(key, v)| {

@@ -4,7 +4,7 @@ use super::*;
 
 /// WriteTransaction is used to perform writes to the database. It is created by
 /// calling [`TransactionDB::write`].
-pub struct WriteTransaction<D: Database, W: PendingManager, S = std::hash::RandomState> {
+pub struct WriteTransaction<D: Database, C, W, S = std::hash::RandomState> {
   pub(super) db: TransactionDB<D, S>,
   pub(super) read_ts: u64,
   pub(super) size: u64,
@@ -24,10 +24,9 @@ pub struct WriteTransaction<D: Database, W: PendingManager, S = std::hash::Rando
   pub(super) done_read: bool,
 }
 
-impl<D, W, S> Drop for WriteTransaction<D, W, S>
+impl<D, C, W, S> Drop for WriteTransaction<D, C, W, S>
 where
   D: Database,
-  W: PendingManager,
 {
   fn drop(&mut self) {
     if !self.discarded {
@@ -42,6 +41,11 @@ where
   W: PendingManager<Key = D::Key, Value = D::Value>,
   S: BuildHasher + Default,
 {
+  /// Returns the reference manager.
+  pub fn manager(&self) -> Result<&W, Error<D, W>> {
+    self.pending_writes.as_ref().ok_or(Error::transaction(TransactionError::Discard))
+  }
+
   /// Insert a key-value pair to the database.
   pub fn insert(&mut self, key: D::Key, value: D::Value) -> Result<(), Error<D, W>> {
     self.insert_with_in(key, value)
@@ -58,6 +62,26 @@ where
       version: 0,
     })
   }
+
+  /// Marks a key as conflict. This is used for conflict detection.
+  pub fn mark_conflict(&mut self, k: &D::Key) {
+    if let Some(ref mut conflict_keys) = self.conflict_keys {
+      let fp = self.db.inner.db.fingerprint(k);
+      conflict_keys.insert(fp);
+    }
+  }
+
+  /// Returns the version of this read transaction.
+  #[inline]
+  pub const fn version(&self) -> u64 {
+    self.read_ts
+  }
+
+  /// Returns the database.
+  #[inline]
+  pub fn database(&self) -> &TransactionDB<D, S> {
+    &self.db
+  } 
 
   /// Looks for key and returns corresponding Item.
   pub fn get<'a, 'b: 'a>(
@@ -91,7 +115,7 @@ where
     } else {
       // track reads. No need to track read if txn serviced it
       // internally.
-      let fp = self.database().fingerprint(key);
+      let fp = self.inner_database().fingerprint(key);
       self.reads.push(fp);
     }
 
@@ -116,18 +140,20 @@ where
     }
 
     Ok(
-      self.database().iter(
+      self.inner_database().iter(
         self
           .pending_writes
           .as_ref()
           .unwrap()
           .iter()
-          .map(|(k, v)| EntryRef {
-            data: match &v.value {
-              Some(value) => EntryDataRef::Insert { key: k, value },
-              None => EntryDataRef::Remove(k),
-            },
-            version: self.read_ts,
+          .map(|(k, v)| {
+            EntryRef {
+              data: match &v.value {
+                Some(value) => EntryDataRef::Insert { key: k, value },
+                None => EntryDataRef::Remove(k),
+              },
+              version: self.read_ts,
+            }
           }),
         self.read_ts,
         opts,
@@ -368,7 +394,7 @@ where
 
   fn check_and_update_size(&mut self, ent: &Entry<D::Key, D::Value>) -> Result<(), Error<D, W>> {
     let cnt = self.count + 1;
-    let database = self.database();
+    let database = self.inner_database();
     // Extra bytes for the version in key.
     let size = self.size + database.estimate_size(ent);
     if cnt >= database.max_batch_entries() || size >= database.max_batch_size() {
@@ -487,10 +513,9 @@ where
   }
 }
 
-impl<D, W, S> WriteTransaction<D, W, S>
+impl<D, C, W, S> WriteTransaction<D, C, W, S>
 where
   D: Database,
-  W: PendingManager,
 {
   fn done_read(&mut self) {
     if !self.done_read {
@@ -500,7 +525,7 @@ where
   }
 
   #[inline]
-  fn database(&self) -> &D {
+  fn inner_database(&self) -> &D {
     &self.db.inner.db
   }
 
@@ -520,5 +545,11 @@ where
     }
     self.discarded = true;
     self.done_read();
+  }
+
+  /// Returns true if the transaction is discarded.
+  #[inline]
+  pub const fn is_discard(&self) -> bool {
+    self.discarded
   }
 }

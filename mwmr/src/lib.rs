@@ -85,6 +85,7 @@ struct Inner<D, S = std::hash::RandomState> {
   orc: Oracle<S>,
   hasher: S,
 }
+
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
 pub struct TransactionDB<D, S = std::hash::RandomState> {
   inner: Arc<Inner<D, S>>,

@@ -8,14 +8,14 @@ use smallvec_wrapper::{MediumVec, TinyVec};
 use wmark::{Closer, WaterMark};
 
 #[derive(Debug)]
-pub(super) struct OracleInner<S> {
+pub(super) struct OracleInner<C> {
   next_txn_ts: u64,
 
   last_cleanup_ts: u64,
 
   /// Contains all committed writes (contains fingerprints
   /// of keys written and their latest commit counter).
-  pub(super) committed_txns: TinyVec<CommittedTxn<S>>,
+  pub(super) committed_txns: TinyVec<CommittedTxn<C>>,
 }
 
 impl<S> OracleInner<S>
@@ -39,7 +39,7 @@ where
       }
 
       for ro in reads {
-        if let Some(conflict_keys) = &committed_txn.conflict_keys {
+        if let Some(conflict_keys) = &committed_txn.conflict_manager {
           if conflict_keys.contains(ro) {
             return true;
           }
@@ -231,17 +231,17 @@ impl<S> Drop for Oracle<S> {
   }
 }
 
-pub(super) struct CommittedTxn<S> {
+pub(super) struct CommittedTxn<C> {
   ts: u64,
   /// Keeps track of the entries written at timestamp ts.
-  conflict_keys: Option<IndexSet<u64, S>>,
+  conflict_manager: Option<C>,
 }
 
-impl<S> core::fmt::Debug for CommittedTxn<S> {
+impl<C: core::fmt::Debug> core::fmt::Debug for CommittedTxn<C> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     f.debug_struct("CommittedTxn")
-      .field("ts", &self.ts)
-      .field("conflict_keys", &self.conflict_keys)
+      .field("committed_version", &self.ts)
+      .field("conflict_manager", &self.conflict_manager)
       .finish()
   }
 }

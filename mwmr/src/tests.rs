@@ -531,7 +531,8 @@ pub fn txn_all_versions_with_removed<
   // Delete the specific key version from underlying db directly
   {
     let txn = db.read();
-    let item = txn.get(&get_key(1)).unwrap().unwrap();
+    let k = get_key(1);
+    let item = txn.get(&k).unwrap().unwrap();
     txn
       .db
       .database()
