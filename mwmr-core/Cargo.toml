@@ -5,7 +5,7 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 license.workspace = true
-description = "The core library for the `mwmr`, `async-mwmr`, and `tokio-mwmr` crates."
+description = "The structs and traits for the `mwmr`, `async-mwmr`, and `tokio-mwmr` crates."
 
 [dependencies]
 cheap-clone.workspace = true

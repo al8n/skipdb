@@ -1,3 +1,8 @@
+//! `Watermark` and `Closer` implementation for implementing transaction.
+#![allow(clippy::type_complexity)]
+#![deny(warnings, missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, allow(unused_attributes))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "core")]

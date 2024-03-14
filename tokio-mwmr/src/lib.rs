@@ -1,8 +1,11 @@
-//! A multi-writer-multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager for database development.
+//! A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
+//!
+//! For sync version, please see [`mwmr`](https://crates.io/crates/mwmr)
+//!
+//! For other async runtime, please see [`async-mwmr`](https://crates.io/crates/async-mwmr)
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_docs)]
-#![allow(clippy::type_complexity)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 

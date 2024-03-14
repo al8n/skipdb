@@ -29,6 +29,7 @@ struct Channel<T> {
   queue: SegQueue<T>,
 }
 
+/// Receive error
 #[derive(Debug)]
 pub struct RecvError;
 
@@ -50,6 +51,7 @@ impl<T> Clone for Receiver<T> {
 }
 
 impl<T> Receiver<T> {
+  /// Receives a message from the channel.
   #[inline]
   pub fn recv(&self) -> Result<T, RecvError> {
     if self.0.signal.load(Ordering::Acquire) {
@@ -68,6 +70,7 @@ impl<T> Receiver<T> {
     }
   }
 
+  /// Tries to receive a message from the channel.
   #[inline]
   pub fn try_recv(&self) -> Option<T> {
     self.0.queue.pop()

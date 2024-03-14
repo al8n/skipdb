@@ -5,7 +5,10 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 license.workspace = true
-description = "A multi-writer-multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager for database development."
+categories.workspace = true
+keywords.workspace = true
+readme = "README.md"
+description = "A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation)."
 
 [features]
 default = []
