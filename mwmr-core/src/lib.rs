@@ -674,14 +674,23 @@ pub mod sync {
   use super::{types::*, *};
 
   /// The conflict manager that can be used to manage the conflicts in a transaction.
-  pub trait ConflictManager: 'static {
+  pub trait ConflictManager: Sized + 'static {
     /// The error type returned by the pending manager.
     type Error: std::error::Error + 'static;
     /// The key type.
     type Key: 'static;
 
-    /// Mark the key is read.
-    fn mark_read(&mut self, key: &Self::Key) -> Result<(), Self::Error>;
+    /// The options type used to create the conflict manager.
+    type Options: 'static;
+
+    /// Create a new conflict manager with the given options.
+    fn new(options: Self::Options) -> Result<Self, Self::Error>;
+
+    /// Mark the key is operated.
+    fn mark(&mut self, key: &Self::Key) -> Result<(), Self::Error>;
+
+    /// Returns true if we have a conflict.
+    fn has_conflict(&self, other: &Self) -> bool;
   }
 
   /// A pending writes manager that can be used to store pending writes in a transaction.
@@ -693,19 +702,43 @@ pub mod sync {
   /// But, users can create their own implementations by implementing this trait.
   /// e.g. if you want to implement a recovery transaction manager, you can use a persistent
   /// storage to store the pending writes.
-  pub trait PendingManager: 'static {
+  pub trait PendingManager: Sized + 'static {
     /// The error type returned by the pending manager.
     type Error: std::error::Error + 'static;
     /// The key type.
     type Key: 'static;
     /// The value type.
     type Value: 'static;
+    /// The options type used to create the pending manager.
+    type Options: 'static;
+
+    /// Create a new pending manager with the given options.
+    fn new(options: Self::Options) -> Result<Self, Self::Error>;
 
     /// Returns true if the buffer is empty.
     fn is_empty(&self) -> bool;
 
     /// Returns the number of elements in the buffer.
     fn len(&self) -> usize;
+
+    /// Validate if the entry is valid for this database.
+    ///
+    /// e.g.
+    /// - If the entry is expired
+    /// - If the key or the value is too large
+    /// - If the key or the value is empty
+    /// - If the key or the value contains invalid characters
+    /// - and etc.
+    fn validate_entry(&self, entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error>;
+
+    /// Returns the maximum batch size in bytes
+    fn max_batch_size(&self) -> u64;
+
+    /// Returns the maximum entries in batch
+    fn max_batch_entries(&self) -> u64;
+
+    /// Returns the estimated size of the entry in bytes when persisted in the database.
+    fn estimate_size(&self, entry: &Entry<Self::Key, Self::Value>) -> u64;
 
     /// Returns a reference to the value corresponding to the key.
     fn get(&self, key: &Self::Key) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>;
@@ -744,6 +777,14 @@ pub mod sync {
     type Error = std::convert::Infallible;
     type Key = K;
     type Value = V;
+    type Options = Option<S>;
+
+    fn new(options: Self::Options) -> Result<Self, Self::Error> {
+      Ok(match options {
+        Some(hasher) => Self::with_hasher(hasher),
+        None => Self::default(),
+      })
+    }
 
     fn is_empty(&self) -> bool {
       self.is_empty()
@@ -751,6 +792,18 @@ pub mod sync {
 
     fn len(&self) -> usize {
       self.len()
+    }
+
+    fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
+      todo!()
+    }
+
+    fn max_batch_entries(&self) -> u64 {
+      todo!()
+    }
+
+    fn max_batch_size(&self) -> u64 {
+      todo!()
     }
 
     fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
@@ -777,6 +830,10 @@ pub mod sync {
     fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
       core::iter::IntoIterator::into_iter(self)
     }
+
+    fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
+      Ok(())
+    }
   }
 
   impl<K, V> PendingManager for BTreeMap<K, EntryValue<V>>
@@ -788,12 +845,34 @@ pub mod sync {
     type Key = K;
     type Value = V;
 
+    type Options = ();
+
+    fn new(_: Self::Options) -> Result<Self, Self::Error> {
+      Ok(Self::default())
+    }
+
     fn is_empty(&self) -> bool {
       self.is_empty()
     }
 
     fn len(&self) -> usize {
       self.len()
+    }
+
+    fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
+      todo!()
+    }
+
+    fn max_batch_entries(&self) -> u64 {
+      todo!()
+    }
+
+    fn max_batch_size(&self) -> u64 {
+      todo!()
+    }
+
+    fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
+      Ok(())
     }
 
     fn get(&self, key: &K) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
