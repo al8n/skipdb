@@ -671,6 +671,7 @@ pub mod types {
 
 /// Traits for synchronization.
 pub mod sync;
+
 /// Traits for asynchronous.
 pub mod future {
   use super::{types::*, *};
@@ -827,7 +828,7 @@ pub mod future {
     }
   }
 
-  /// An abstraction of database which can be managed by the [`TransactionDB`].
+  /// An abstraction of database which can be managed by the [`Tm`].
   pub trait AsyncDatabase: Sized + Send + Sync + 'static {
     /// The error type returned by the database.
     type Error: std::error::Error + Send + Sync + 'static;

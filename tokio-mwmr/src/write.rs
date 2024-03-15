@@ -5,9 +5,9 @@ use self::error::{Error, TransactionError};
 use super::*;
 
 /// WriteTransaction is used to perform writes to the database. It is created by
-/// calling [`TransactionDB::write`].
+/// calling [`Tm::write`].
 pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPwm, H = std::hash::RandomState> {
-  pub(super) db: TransactionDB<D, H>,
+  pub(super) db: Tm<D, H>,
   pub(super) read_ts: u64,
   pub(super) size: u64,
   pub(super) count: u64,

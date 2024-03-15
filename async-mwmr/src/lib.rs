@@ -36,7 +36,7 @@ pub mod error;
 #[cfg_attr(docsrs, doc(cfg(feature = "test")))]
 pub mod tests;
 
-/// Options for the [`TransactionDB`].
+/// Options for the [`Tm`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -87,11 +87,11 @@ struct Inner<D, S: AsyncSpawner, H = std::hash::RandomState> {
   hasher: H,
 }
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct TransactionDB<D, S: AsyncSpawner, H = std::hash::RandomState> {
+pub struct Tm<D, S: AsyncSpawner, H = std::hash::RandomState> {
   inner: Arc<Inner<D, S, H>>,
 }
 
-impl<D, S: AsyncSpawner, H> Clone for TransactionDB<D, S, H> {
+impl<D, S: AsyncSpawner, H> Clone for Tm<D, S, H> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
@@ -99,7 +99,7 @@ impl<D, S: AsyncSpawner, H> Clone for TransactionDB<D, S, H> {
   }
 }
 
-impl<D, S, H> TransactionDB<D, S, H>
+impl<D, S, H> Tm<D, S, H>
 where
   D: AsyncDatabase,
   D::Key: Eq + core::hash::Hash + Send + Sync + 'static,
@@ -131,7 +131,7 @@ where
   }
 }
 
-impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> TransactionDB<D, S, H> {
+impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> Tm<D, S, H> {
   /// Create a new writable transaction with the given pending writes manager to store the pending writes.
   pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> WriteTransaction<D, W, S, H> {
     WriteTransaction {
@@ -153,14 +153,14 @@ impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> TransactionDB<D, S, 
   }
 }
 
-impl<D: AsyncDatabase, S: AsyncSpawner, H: Default> TransactionDB<D, S, H> {
+impl<D: AsyncDatabase, S: AsyncSpawner, H: Default> Tm<D, S, H> {
   /// Open the database with the given options.
   pub async fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
     Self::with_hasher(transaction_opts, database_opts, H::default()).await
   }
 }
 
-impl<D: AsyncDatabase, S: AsyncSpawner, H> TransactionDB<D, S, H> {
+impl<D: AsyncDatabase, S: AsyncSpawner, H> Tm<D, S, H> {
   /// Open the database with the given options.
   pub async fn with_hasher(
     transaction_opts: Options,

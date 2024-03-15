@@ -2,12 +2,12 @@ use super::*;
 
 /// ReadTransaction is a read-only transaction.
 ///
-/// It is created by calling [`TransactionManager::read`],
+/// It is created by calling [`Tm::read`],
 /// the read transaction will automatically notify the transaction manager when it
 /// is dropped. So, the end user doesn't need to call any cleanup function, but must
 /// hold this struct in their final read transaction implementation.
 pub struct ReadTransaction<K, V, C, P> {
-  pub(super) db: TransactionManager<K, V, C, P>,
+  pub(super) db: Tm<K, V, C, P>,
   pub(super) read_ts: u64,
 }
 

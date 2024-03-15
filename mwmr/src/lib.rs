@@ -13,7 +13,6 @@ use std::{cell::RefCell, sync::Arc};
 
 use core::mem;
 
-use either::Either;
 use error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
 
@@ -34,7 +33,7 @@ pub use write::*;
 
 pub use mwmr_core::{sync::*, types::*};
 
-/// Options for the [`TransactionDB`].
+/// Options for the [`Tm`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -77,12 +76,12 @@ impl Options {
 }
 
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct TransactionManager<K, V, C, P> {
+pub struct Tm<K, V, C, P> {
   inner: Arc<Oracle<C>>,
   _phantom: std::marker::PhantomData<(K, V, P)>,
 }
 
-impl<K, V, C, P> Clone for TransactionManager<K, V, C, P> {
+impl<K, V, C, P> Clone for Tm<K, V, C, P> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
@@ -91,7 +90,7 @@ impl<K, V, C, P> Clone for TransactionManager<K, V, C, P> {
   }
 }
 
-impl<K, V, C, P> TransactionManager<K, V, C, P>
+impl<K, V, C, P> Tm<K, V, C, P>
 where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
@@ -121,7 +120,7 @@ where
   }
 }
 
-impl<K, V, C, P> TransactionManager<K, V, C, P> {
+impl<K, V, C, P> Tm<K, V, C, P> {
   /// Create a new transaction manager with the given name (just for logging or debugging, use your crate name is enough)
   /// and the current version (provided by the database).
   #[inline]
@@ -144,7 +143,7 @@ impl<K, V, C, P> TransactionManager<K, V, C, P> {
   }
 }
 
-impl<K, V, C, P> TransactionManager<K, V, C, P> {
+impl<K, V, C, P> Tm<K, V, C, P> {
   /// Returns a timestamp which hints that any versions under this timestamp can be discard.
   /// This is useful when users want to implement compaction/merge functionality.
   pub fn discard_hint(&self) -> u64 {
@@ -157,11 +156,5 @@ impl<K, V, C, P> TransactionManager<K, V, C, P> {
       db: self.clone(),
       read_ts: self.inner.read_ts(),
     }
-  }
-
-  /// Returns the oracle.
-  #[inline]
-  fn orc(&self) -> &Oracle<C> {
-    &self.inner
   }
 }

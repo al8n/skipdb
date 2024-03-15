@@ -37,7 +37,7 @@ impl<P: AsyncPwm> core::fmt::Debug for TransactionError<P> {
   }
 }
 
-/// Error type for the [`TransactionDB`].
+/// Error type for the [`Tm`].
 #[derive(thiserror::Error)]
 pub enum Error<D: AsyncDatabase, P: AsyncPwm> {
   /// Returned if transaction related error occurs.

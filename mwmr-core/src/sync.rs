@@ -31,16 +31,16 @@ pub trait Cm: Sized + 'static {
   fn new(options: Self::Options) -> Result<Self, Self::Error>;
 
   /// Mark the key is read.
-  fn mark_read(&mut self, key: &Self::Key) -> Result<(), Self::Error>;
+  fn mark_read(&mut self, key: &Self::Key);
 
   /// Mark the key is .
-  fn mark_conflict(&mut self, key: &Self::Key) -> Result<(), Self::Error>;
+  fn mark_conflict(&mut self, key: &Self::Key);
 
   /// Returns true if we have a conflict.
   fn has_conflict(&self, other: &Self) -> bool;
 }
 
-/// A [`ComflictManager`] that based on the hash.
+/// A [`Cm`] conflict manager implementation that based on the hash.
 pub struct HashCM<K, S = DefaultHasher> {
   reads: MediumVec<u64>,
   conflict_keys: IndexSet<u64, S>,
@@ -66,17 +66,15 @@ where
   }
 
   #[inline]
-  fn mark_read(&mut self, key: &K) -> Result<(), Self::Error> {
+  fn mark_read(&mut self, key: &K) {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.reads.push(fp);
-    Ok(())
   }
 
   #[inline]
-  fn mark_conflict(&mut self, key: &Self::Key) -> Result<(), Self::Error> {
+  fn mark_conflict(&mut self, key: &Self::Key) {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.conflict_keys.insert(fp);
-    Ok(())
   }
 
   #[inline]
@@ -153,12 +151,6 @@ pub trait Pwm: Sized + 'static {
     key: &Self::Key,
   ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>;
 
-  /// Returns an iterator over the keys in the buffer.
-  fn keys(&self) -> impl Iterator<Item = &'_ Self::Key>;
-
-  /// Returns an iterator over the key-value pairs in the buffer.
-  fn iter(&self) -> impl Iterator<Item = (&'_ Self::Key, &'_ EntryValue<Self::Value>)>;
-
   /// Returns an iterator that consumes the buffer.
   fn into_iter(self) -> impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
 }
@@ -195,15 +187,15 @@ where
   }
 
   fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    todo!()
+    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
   }
 
   fn max_batch_entries(&self) -> u64 {
-    todo!()
+    u64::MAX
   }
 
   fn max_batch_size(&self) -> u64 {
-    todo!()
+    u64::MAX
   }
 
   fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
@@ -217,14 +209,6 @@ where
 
   fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<V>)>, Self::Error> {
     Ok(self.shift_remove_entry(key))
-  }
-
-  fn keys(&self) -> impl Iterator<Item = &K> {
-    self.keys()
-  }
-
-  fn iter(&self) -> impl Iterator<Item = (&K, &EntryValue<V>)> {
-    self.iter()
   }
 
   fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
@@ -260,15 +244,15 @@ where
   }
 
   fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    todo!()
+    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
   }
 
   fn max_batch_entries(&self) -> u64 {
-    todo!()
+    u64::MAX
   }
 
   fn max_batch_size(&self) -> u64 {
-    todo!()
+    u64::MAX
   }
 
   fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
@@ -286,14 +270,6 @@ where
 
   fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<Self::Value>)>, Self::Error> {
     Ok(self.remove_entry(key))
-  }
-
-  fn keys(&self) -> impl Iterator<Item = &K> {
-    self.keys()
-  }
-
-  fn iter(&self) -> impl Iterator<Item = (&K, &EntryValue<Self::Value>)> {
-    self.iter()
   }
 
   fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<Self::Value>)> {

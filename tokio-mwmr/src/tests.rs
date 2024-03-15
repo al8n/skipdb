@@ -24,7 +24,7 @@ pub async fn txn_simple<'a, D, W>(
   D::Value: PartialEq + Send + Sync + 'static,
   W: AsyncPwm<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
 {
-  let db = match TransactionDB::<D>::new(Default::default(), opts).await {
+  let db = match Tm::<D>::new(Default::default(), opts).await {
     Ok(db) => db,
     Err(e) => panic!("{e}"),
   };
@@ -77,9 +77,7 @@ pub async fn txn_read_after_write<'a, D>(
 {
   const N: usize = 100;
 
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
 
   let handles = (0..N).map(|i| {
     let db = db.clone();
@@ -118,9 +116,7 @@ pub async fn txn_commit_with_callback<D, W>(
   D::Value: PartialEq,
   W: AsyncPwm<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
   let mut txn = db.write_by(backend()).await;
   for i in 0..40 {
     let k = get_key(i);
@@ -215,9 +211,7 @@ pub async fn txn_versions<
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator + Send + Sync,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator + Send + Sync,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
 
   for i in 1..10 {
     let mut txn = db.write_by(backend()).await;
@@ -348,9 +342,7 @@ pub async fn txn_write_skew<'a, D: AsyncDatabase, W: AsyncPwm<Key = D::Key, Valu
   // accounts
   let a999 = get_key(999);
   let a888 = get_key(888);
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
 
   // Set balance to $100 in each account.
   let mut txn = db.write_by(backend()).await;
@@ -435,9 +427,7 @@ pub async fn txn_conflict_get<D, W>(
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db = TransactionDB::<D>::new(Default::default(), opts())
-      .await
-      .unwrap();
+    let db = Tm::<D>::new(Default::default(), opts()).await.unwrap();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -487,7 +477,7 @@ pub async fn txn_conflict_get<D, W>(
 //   let set_count = Arc::new(AtomicU32::new(0));
 
 //   for _ in 0..10 {
-//     let db = TransactionDB::<D>::new(Default::default(), opts()).await.unwrap();
+//     let db = Tm::<D>::new(Default::default(), opts()).await.unwrap();
 //     set_count.store(0, Ordering::SeqCst);
 //     let wg = Arc::new(());
 //     (0..16).map(|_| {
@@ -546,9 +536,7 @@ pub async fn txn_all_versions_with_removed<
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, Option<D::Value>)> + DoubleEndedIterator,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
   // write two keys
   {
     let mut txn = db.write_by(backend()).await;
@@ -611,9 +599,7 @@ pub async fn txn_all_versions_with_removed2<
   D::Value: PartialEq,
   I: Iterator<Item = (u64, D::Key, Option<D::Value>)> + DoubleEndedIterator,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
   // Set and delete alternatively
   {
     for i in 0..4 {
@@ -675,9 +661,7 @@ pub async fn txn_iteration_edge_case<
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
 
   // c1
   {
@@ -810,9 +794,7 @@ pub async fn txn_iteration_edge_case2<
   I: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
   RI: Iterator<Item = (u64, D::Key, D::Value)> + DoubleEndedIterator,
 {
-  let db = TransactionDB::<D>::new(Default::default(), opts)
-    .await
-    .unwrap();
+  let db = Tm::<D>::new(Default::default(), opts).await.unwrap();
 
   // c1
   {

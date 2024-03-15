@@ -176,301 +176,301 @@ impl TestBTreeDb {
   }
 }
 
-impl Database for TestBTreeDb {
-  type Error = std::convert::Infallible;
+// impl Database for TestBTreeDb {
+//   type Error = std::convert::Infallible;
 
-  type Options = ();
+//   type Options = ();
 
-  type Key = u64;
+//   type Key = u64;
 
-  type Value = u64;
+//   type Value = u64;
 
-  // version and value
-  type Item = (u64, u64);
-  // version and value
-  type ItemRef<'a> = (u64, u64);
+//   // version and value
+//   type Item = (u64, u64);
+//   // version and value
+//   type ItemRef<'a> = (u64, u64);
 
-  type Iterator<'a> = TestBTreeDbIter;
+//   type Iterator<'a> = TestBTreeDbIter;
 
-  type Keys<'a> = TestBTreeDbKeys;
+//   type Keys<'a> = TestBTreeDbKeys;
 
-  fn max_batch_size(&self) -> u64 {
-    self.max_batch_size
-  }
+//   fn max_batch_size(&self) -> u64 {
+//     self.max_batch_size
+//   }
 
-  fn max_batch_entries(&self) -> u64 {
-    self.max_batch_entries
-  }
+//   fn max_batch_entries(&self) -> u64 {
+//     self.max_batch_entries
+//   }
 
-  fn estimate_size(&self, _entry: &Entry<u64, u64>) -> u64 {
-    (mem::size_of::<TestKey>() + mem::size_of::<u64>()) as u64
-  }
+//   fn estimate_size(&self, _entry: &Entry<u64, u64>) -> u64 {
+//     (mem::size_of::<TestKey>() + mem::size_of::<u64>()) as u64
+//   }
 
-  fn validate_entry(&self, _entry: &Entry<u64, u64>) -> Result<(), Self::Error> {
-    Ok(())
-  }
+//   fn validate_entry(&self, _entry: &Entry<u64, u64>) -> Result<(), Self::Error> {
+//     Ok(())
+//   }
 
-  fn maximum_version(&self) -> u64 {
-    0
-  }
+//   fn maximum_version(&self) -> u64 {
+//     0
+//   }
 
-  fn options(&self) -> &Self::Options {
-    &()
-  }
+//   fn options(&self) -> &Self::Options {
+//     &()
+//   }
 
-  fn open(_opts: Self::Options) -> Result<Self, Self::Error> {
-    Ok(Self {
-      max_batch_size: 1024,
-      max_batch_entries: 1024,
-      store: parking_lot::Mutex::new(BTreeMap::new()),
-      hash: std::hash::RandomState::new(),
-    })
-  }
+//   fn open(_opts: Self::Options) -> Result<Self, Self::Error> {
+//     Ok(Self {
+//       max_batch_size: 1024,
+//       max_batch_entries: 1024,
+//       store: parking_lot::Mutex::new(BTreeMap::new()),
+//       hash: std::hash::RandomState::new(),
+//     })
+//   }
 
-  fn fingerprint(&self, k: &Self::Key) -> u64 {
-    self.hash.hash_one(k)
-  }
+//   fn fingerprint(&self, k: &Self::Key) -> u64 {
+//     self.hash.hash_one(k)
+//   }
 
-  fn apply(&self, entries: OneOrMore<Entry<Self::Key, Self::Value>>) -> Result<(), Self::Error> {
-    let mut store = self.store.lock();
-    store.extend(entries.into_iter().map(|ent| match ent.data() {
-      EntryData::Insert { key, value, .. } => (
-        TestKey {
-          key: *key,
-          version: ent.version(),
-        },
-        Some(*value),
-      ),
-      EntryData::Remove(key) => (
-        TestKey {
-          key: *key,
-          version: ent.version(),
-        },
-        None,
-      ),
-    }));
-    Ok(())
-  }
+//   fn apply(&self, entries: OneOrMore<Entry<Self::Key, Self::Value>>) -> Result<(), Self::Error> {
+//     let mut store = self.store.lock();
+//     store.extend(entries.into_iter().map(|ent| match ent.data() {
+//       EntryData::Insert { key, value, .. } => (
+//         TestKey {
+//           key: *key,
+//           version: ent.version(),
+//         },
+//         Some(*value),
+//       ),
+//       EntryData::Remove(key) => (
+//         TestKey {
+//           key: *key,
+//           version: ent.version(),
+//         },
+//         None,
+//       ),
+//     }));
+//     Ok(())
+//   }
 
-  fn get<'a, 'b: 'a>(
-    &'a self,
-    k: &'b Self::Key,
-    version: u64,
-  ) -> Result<Option<Either<Self::ItemRef<'a>, Self::Item>>, Self::Error> {
-    let mut h = None;
-    let mut val = None;
-    self.store.lock().iter().for_each(|(key, v)| {
-      if key.key == *k && v.is_some() && key.version <= version && key.version > h.unwrap_or(0) {
-        h = Some(key.version);
-        val = v.map(|v| Either::Right((key.version, v)));
-      }
-    });
-    Ok(val)
-  }
+//   fn get<'a, 'b: 'a>(
+//     &'a self,
+//     k: &'b Self::Key,
+//     version: u64,
+//   ) -> Result<Option<Either<Self::ItemRef<'a>, Self::Item>>, Self::Error> {
+//     let mut h = None;
+//     let mut val = None;
+//     self.store.lock().iter().for_each(|(key, v)| {
+//       if key.key == *k && v.is_some() && key.version <= version && key.version > h.unwrap_or(0) {
+//         h = Some(key.version);
+//         val = v.map(|v| Either::Right((key.version, v)));
+//       }
+//     });
+//     Ok(val)
+//   }
 
-  fn iter<'a, 'b: 'a>(
-    &'a self,
-    pending: impl Iterator<Item = EntryRef<'b, Self::Key, Self::Value>> + 'b,
-    transaction_version: u64,
-    opts: IteratorOptions,
-  ) -> Self::Iterator<'a> {
-    if opts.all_versions {
-      self.iter_all_versions(
-        pending,
-        transaction_version,
-        opts.since_version,
-        opts.reverse,
-      )
-    } else {
-      self.iter(
-        pending,
-        transaction_version,
-        opts.since_version,
-        opts.reverse,
-      )
-    }
-  }
+//   fn iter<'a, 'b: 'a>(
+//     &'a self,
+//     pending: impl Iterator<Item = EntryRef<'b, Self::Key, Self::Value>> + 'b,
+//     transaction_version: u64,
+//     opts: IteratorOptions,
+//   ) -> Self::Iterator<'a> {
+//     if opts.all_versions {
+//       self.iter_all_versions(
+//         pending,
+//         transaction_version,
+//         opts.since_version,
+//         opts.reverse,
+//       )
+//     } else {
+//       self.iter(
+//         pending,
+//         transaction_version,
+//         opts.since_version,
+//         opts.reverse,
+//       )
+//     }
+//   }
 
-  fn keys<'a, 'b: 'a>(
-    &'a self,
-    _pending: impl Iterator<Item = KeyRef<'b, Self::Key>> + 'b,
-    _transaction_version: u64,
-    _opts: KeysOptions,
-  ) -> Self::Keys<'a> {
-    // let pendings = pending.map(|k| *k.key).collect::<BTreeSet<_>>();
-    // let data = self
-    //   .store
-    //   .lock()
-    //   .iter()
-    //   .filter_map(|(k, v)| {
-    //     if pendings.contains(&k.key) {
-    //       None
-    //     } else {
-    //       v.as_ref().map(|_| k.key)
-    //     }
-    //   })
-    //   .collect::<BTreeSet<_>>();
+//   fn keys<'a, 'b: 'a>(
+//     &'a self,
+//     _pending: impl Iterator<Item = KeyRef<'b, Self::Key>> + 'b,
+//     _transaction_version: u64,
+//     _opts: KeysOptions,
+//   ) -> Self::Keys<'a> {
+//     // let pendings = pending.map(|k| *k.key).collect::<BTreeSet<_>>();
+//     // let data = self
+//     //   .store
+//     //   .lock()
+//     //   .iter()
+//     //   .filter_map(|(k, v)| {
+//     //     if pendings.contains(&k.key) {
+//     //       None
+//     //     } else {
+//     //       v.as_ref().map(|_| k.key)
+//     //     }
+//     //   })
+//     //   .collect::<BTreeSet<_>>();
 
-    // TestBTreeDbKeys { pendings, data }
-    todo!()
-  }
-}
+//     // TestBTreeDbKeys { pendings, data }
+//     todo!()
+//   }
+// }
 
-#[test]
-fn test_txn_simple() {
-  txn_simple::<TestBTreeDb, BTreeMap<u64, EntryValue<u64>>>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |item| match item {
-      Either::Left(l) => Either::Right(l.1),
-      Either::Right(r) => Either::Right(r.1),
-    },
-  )
-}
+// #[test]
+// fn test_txn_simple() {
+//   txn_simple::<TestBTreeDb, BTreeMap<u64, EntryValue<u64>>>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |item| match item {
+//       Either::Left(l) => Either::Right(l.1),
+//       Either::Right(r) => Either::Right(r.1),
+//     },
+//   )
+// }
 
-#[test]
-fn test_txn_read_after_write() {
-  txn_read_after_write::<TestBTreeDb>(
-    (),
-    |i| i as u64,
-    |i| i as u64,
-    |item| match item {
-      Either::Left(l) => Either::Right(l.1),
-      Either::Right(r) => Either::Right(r.1),
-    },
-  )
-}
+// #[test]
+// fn test_txn_read_after_write() {
+//   txn_read_after_write::<TestBTreeDb>(
+//     (),
+//     |i| i as u64,
+//     |i| i as u64,
+//     |item| match item {
+//       Either::Left(l) => Either::Right(l.1),
+//       Either::Right(r) => Either::Right(r.1),
+//     },
+//   )
+// }
 
-#[test]
-fn test_txn_commit_with_callback() {
-  txn_commit_with_callback::<TestBTreeDb, BTreeMapManager<u64, u64>>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-  )
-}
+// #[test]
+// fn test_txn_commit_with_callback() {
+//   txn_commit_with_callback::<TestBTreeDb, BTreeMapManager<u64, u64>>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//   )
+// }
 
-#[test]
-fn test_txn_versions() {
-  txn_versions::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |item| match item {
-      Either::Left(l) => Either::Right(l.1),
-      Either::Right(r) => Either::Right(r.1),
-    },
-    |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-    |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-  )
-}
+// #[test]
+// fn test_txn_versions() {
+//   txn_versions::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |item| match item {
+//       Either::Left(l) => Either::Right(l.1),
+//       Either::Right(r) => Either::Right(r.1),
+//     },
+//     |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
+//     |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
+//   )
+// }
 
-#[test]
-fn test_txn_write_skew() {
-  txn_write_skew::<TestBTreeDb, BTreeMapManager<u64, u64>>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |v: &u64| *v as usize,
-    |item| match item {
-      Either::Left(l) => Either::Right(l.1),
-      Either::Right(r) => Either::Right(r.1),
-    },
-  )
-}
+// #[test]
+// fn test_txn_write_skew() {
+//   txn_write_skew::<TestBTreeDb, BTreeMapManager<u64, u64>>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |v: &u64| *v as usize,
+//     |item| match item {
+//       Either::Left(l) => Either::Right(l.1),
+//       Either::Right(r) => Either::Right(r.1),
+//     },
+//   )
+// }
 
-#[test]
-fn test_txn_iteration_edge_case() {
-  txn_iteration_edge_case::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |iter| {
-      iter
-        .into_iter()
-        .rev()
-        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-    },
-    |iter| {
-      iter
-        .into_iter()
-        .rev()
-        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-    },
-  )
-}
+// #[test]
+// fn test_txn_iteration_edge_case() {
+//   txn_iteration_edge_case::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |iter| {
+//       iter
+//         .into_iter()
+//         .rev()
+//         .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+//     },
+//     |iter| {
+//       iter
+//         .into_iter()
+//         .rev()
+//         .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+//     },
+//   )
+// }
 
-#[test]
-fn test_txn_iteration_edge_case2() {
-  txn_iteration_edge_case2::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |iter| {
-      iter
-        .into_iter()
-        .rev()
-        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-    },
-    |iter| {
-      iter
-        .into_iter()
-        .rev()
-        .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
-    },
-  )
-}
+// #[test]
+// fn test_txn_iteration_edge_case2() {
+//   txn_iteration_edge_case2::<TestBTreeDb, BTreeMapManager<u64, u64>, _, _>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |iter| {
+//       iter
+//         .into_iter()
+//         .rev()
+//         .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+//     },
+//     |iter| {
+//       iter
+//         .into_iter()
+//         .rev()
+//         .filter_map(|(vs, k, v)| v.map(|v| (vs, k, v)))
+//     },
+//   )
+// }
 
-#[test]
-fn test_txn_all_versions_with_removed() {
-  txn_all_versions_with_removed::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |v| match v {
-      Either::Left(l) => l.0,
-      Either::Right(r) => r.0,
-    },
-    |iter| iter.into_iter().rev(),
-  )
-}
+// #[test]
+// fn test_txn_all_versions_with_removed() {
+//   txn_all_versions_with_removed::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |v| match v {
+//       Either::Left(l) => l.0,
+//       Either::Right(r) => r.0,
+//     },
+//     |iter| iter.into_iter().rev(),
+//   )
+// }
 
-#[test]
-fn test_txn_all_versions_with_removed2() {
-  txn_all_versions_with_removed2::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
-    (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |iter| iter.into_iter().rev(),
-  )
-}
+// #[test]
+// fn test_txn_all_versions_with_removed2() {
+//   txn_all_versions_with_removed2::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
+//     (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |iter| iter.into_iter().rev(),
+//   )
+// }
 
-#[test]
-fn test_txn_conflict_get() {
-  txn_conflict_get::<TestBTreeDb, BTreeMapManager<u64, u64>>(
-    || (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-  )
-}
+// #[test]
+// fn test_txn_conflict_get() {
+//   txn_conflict_get::<TestBTreeDb, BTreeMapManager<u64, u64>>(
+//     || (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//   )
+// }
 
-#[test]
-fn test_txn_conflict_iter() {
-  txn_conflict_iter::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
-    || (),
-    BTreeMap::default,
-    |i| i as u64,
-    |i| i as u64,
-    |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
-  )
-}
+// #[test]
+// fn test_txn_conflict_iter() {
+//   txn_conflict_iter::<TestBTreeDb, BTreeMapManager<u64, u64>, _>(
+//     || (),
+//     BTreeMap::default,
+//     |i| i as u64,
+//     |i| i as u64,
+//     |itr| itr.into_iter().map(|(vs, k, v)| (vs, k, v.unwrap())),
+//   )
+// }

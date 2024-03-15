@@ -5,9 +5,9 @@ use super::*;
 
 /// ReadTransaction is a read-only transaction.
 ///
-/// It is created by calling [`TransactionDB::read`].
+/// It is created by calling [`Tm::read`].
 pub struct ReadTransaction<D: AsyncDatabase, S: AsyncSpawner, H> {
-  pub(super) db: TransactionDB<D, S, H>,
+  pub(super) db: Tm<D, S, H>,
   pub(super) read_ts: u64,
 }
 

@@ -2,7 +2,7 @@ use self::error::WriteTransactionError;
 
 use super::*;
 
-/// A marker for any keys that are operated.
+/// A marker used to mark the keys that are read.
 pub struct Marker<'a, C> {
   marker: &'a mut C,
 }
@@ -10,12 +10,12 @@ pub struct Marker<'a, C> {
 impl<'a, C: Cm> Marker<'a, C> {
   /// Marks a key is operated.
   pub fn mark(&mut self, k: &C::Key) {
-    self.marker.mark(k);
+    self.marker.mark_read(k);
   }
 }
 
 /// WriteTransaction is used to perform writes to the database. It is created by
-/// calling [`TransactionManager::write`].
+/// calling [`Tm::write`].
 pub struct WriteTransaction<K, V, C, P> {
   pub(super) read_ts: u64,
   pub(super) size: u64,
@@ -75,10 +75,17 @@ where
     })
   }
 
-  /// Marks a key is operated.
-  pub fn mark(&mut self, k: &K) {
+  /// Marks a key is read.
+  pub fn mark_read(&mut self, k: &K) {
     if let Some(ref mut conflict_manager) = self.conflict_manager {
-      conflict_manager.mark(k);
+      conflict_manager.mark_read(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict(&mut self, k: &K) {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict(k);
     }
   }
 
@@ -95,7 +102,7 @@ where
     key: &'b K,
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>> {
     if self.discarded {
-      return Err(TransactionError::Discard.into());
+      return Err(TransactionError::Discard);
     }
 
     if let Some(e) = self
@@ -122,7 +129,7 @@ where
       // track reads. No need to track read if txn serviced it
       // internally.
       if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark(key);
+        conflict_manager.mark_read(key);
       }
 
       Ok(None)

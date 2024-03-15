@@ -35,7 +35,7 @@ pub use write::*;
 
 pub use mwmr_core::{future::*, types::*};
 
-/// Options for the [`TransactionDB`].
+/// Options for the [`Tm`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -86,11 +86,11 @@ struct Inner<D, H = std::hash::RandomState> {
   hasher: H,
 }
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct TransactionDB<D, H = std::hash::RandomState> {
+pub struct Tm<D, H = std::hash::RandomState> {
   inner: Arc<Inner<D, H>>,
 }
 
-impl<D, H> Clone for TransactionDB<D, H> {
+impl<D, H> Clone for Tm<D, H> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
@@ -98,7 +98,7 @@ impl<D, H> Clone for TransactionDB<D, H> {
   }
 }
 
-impl<D, H> TransactionDB<D, H>
+impl<D, H> Tm<D, H>
 where
   D: AsyncDatabase,
   D::Key: Eq + core::hash::Hash + Send + Sync + 'static,
@@ -128,7 +128,7 @@ where
   }
 }
 
-impl<D: AsyncDatabase, H: Clone + 'static> TransactionDB<D, H> {
+impl<D: AsyncDatabase, H: Clone + 'static> Tm<D, H> {
   /// Create a new writable transaction with the given pending writes manager to store the pending writes.
   pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> WriteTransaction<D, W, H> {
     WriteTransaction {
@@ -150,14 +150,14 @@ impl<D: AsyncDatabase, H: Clone + 'static> TransactionDB<D, H> {
   }
 }
 
-impl<D: AsyncDatabase, H: Default> TransactionDB<D, H> {
+impl<D: AsyncDatabase, H: Default> Tm<D, H> {
   /// Open the database with the given options.
   pub async fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
     Self::with_hasher(transaction_opts, database_opts, H::default()).await
   }
 }
 
-impl<D: AsyncDatabase, H> TransactionDB<D, H> {
+impl<D: AsyncDatabase, H> Tm<D, H> {
   /// Open the database with the given options.
   pub async fn with_hasher(
     transaction_opts: Options,
