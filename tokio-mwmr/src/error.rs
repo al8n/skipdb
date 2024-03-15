@@ -1,8 +1,8 @@
-use super::{AsyncDatabase, AsyncPendingManager};
+use super::{AsyncDatabase, AsyncPwm};
 
 /// Error type for the transaction.
 #[derive(thiserror::Error)]
-pub enum TransactionError<P: AsyncPendingManager> {
+pub enum TransactionError<P: AsyncPwm> {
   /// Returned if an update function is called on a read-only transaction.
   #[error("transaction is read-only")]
   ReadOnly,
@@ -25,7 +25,7 @@ pub enum TransactionError<P: AsyncPendingManager> {
   Manager(P::Error),
 }
 
-impl<P: AsyncPendingManager> core::fmt::Debug for TransactionError<P> {
+impl<P: AsyncPwm> core::fmt::Debug for TransactionError<P> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::ReadOnly => write!(f, "ReadOnly"),
@@ -39,7 +39,7 @@ impl<P: AsyncPendingManager> core::fmt::Debug for TransactionError<P> {
 
 /// Error type for the [`TransactionDB`].
 #[derive(thiserror::Error)]
-pub enum Error<D: AsyncDatabase, P: AsyncPendingManager> {
+pub enum Error<D: AsyncDatabase, P: AsyncPwm> {
   /// Returned if transaction related error occurs.
   #[error(transparent)]
   Transaction(#[from] TransactionError<P>),
@@ -49,7 +49,7 @@ pub enum Error<D: AsyncDatabase, P: AsyncPendingManager> {
   DB(D::Error),
 }
 
-impl<D: AsyncDatabase, P: AsyncPendingManager> core::fmt::Debug for Error<D, P> {
+impl<D: AsyncDatabase, P: AsyncPwm> core::fmt::Debug for Error<D, P> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Transaction(e) => e.fmt(f),
@@ -58,7 +58,7 @@ impl<D: AsyncDatabase, P: AsyncPendingManager> core::fmt::Debug for Error<D, P> 
   }
 }
 
-impl<D: AsyncDatabase, P: AsyncPendingManager> Error<D, P> {
+impl<D: AsyncDatabase, P: AsyncPwm> Error<D, P> {
   /// Create a new error from the database error.
   pub fn database(err: D::Error) -> Self {
     Self::DB(err)

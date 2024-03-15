@@ -19,8 +19,7 @@ impl<K, V, C, P> ReadTransaction<K, V, C, P> {
   }
 }
 
-impl<K, V, C, P> Drop for ReadTransaction<K, V, C, P>
-{
+impl<K, V, C, P> Drop for ReadTransaction<K, V, C, P> {
   fn drop(&mut self) {
     self.db.inner.done_read(self.read_ts);
   }

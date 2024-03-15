@@ -11,7 +11,7 @@ use super::*;
 /// calling [`TransactionDB::write`].
 pub struct WriteTransaction<
   D: AsyncDatabase,
-  W: AsyncPendingManager,
+  W: AsyncPwm,
   S: AsyncSpawner,
   H = std::hash::RandomState,
 > {
@@ -37,7 +37,7 @@ pub struct WriteTransaction<
 impl<D, W, S, H> Drop for WriteTransaction<D, W, S, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager,
+  W: AsyncPwm,
   S: AsyncSpawner,
 {
   fn drop(&mut self) {
@@ -50,7 +50,7 @@ where
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   S: AsyncSpawner,
   H: BuildHasher + Default,
 {
@@ -244,7 +244,7 @@ where
   D: AsyncDatabase + Send + Sync,
   D::Key: Send,
   D::Value: Send,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send,
+  W: AsyncPwm<Key = D::Key, Value = D::Value> + Send,
   S: AsyncSpawner,
   H: BuildHasher + Default + Send + Sync + 'static,
 {
@@ -316,7 +316,7 @@ where
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   S: AsyncSpawner,
   H: BuildHasher + Default,
 {
@@ -456,7 +456,7 @@ where
 impl<D, W, S, H> WriteTransaction<D, W, S, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager,
+  W: AsyncPwm,
   S: AsyncSpawner,
 {
   async fn done_read(&mut self) {

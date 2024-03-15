@@ -133,7 +133,7 @@ where
 
 impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> TransactionDB<D, S, H> {
   /// Create a new writable transaction with the given pending writes manager to store the pending writes.
-  pub async fn write_by<W: AsyncPendingManager>(&self, backend: W) -> WriteTransaction<D, W, S, H> {
+  pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> WriteTransaction<D, W, S, H> {
     WriteTransaction {
       db: self.clone(),
       read_ts: self.inner.orc.read_ts().await,

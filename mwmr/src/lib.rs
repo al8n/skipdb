@@ -76,8 +76,6 @@ impl Options {
   }
 }
 
-
-
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
 pub struct TransactionManager<K, V, C, P> {
   inner: Arc<Oracle<C>>,
@@ -95,12 +93,16 @@ impl<K, V, C, P> Clone for TransactionManager<K, V, C, P> {
 
 impl<K, V, C, P> TransactionManager<K, V, C, P>
 where
-  C: ConflictManager<Key = K>,
-  P: PendingManager<Key = K, Value = V>,
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
 {
   /// Create a new writable transaction with
   /// the default pending writes manager to store the pending writes.
-  pub fn write(&self, pending_manager_opts: P::Options, conflict_manager_opts: Option<C::Options>) -> Result<WriteTransaction<K, V, C, P>, TransactionError<C, P>> {
+  pub fn write(
+    &self,
+    pending_manager_opts: P::Options,
+    conflict_manager_opts: Option<C::Options>,
+  ) -> Result<WriteTransaction<K, V, C, P>, TransactionError<C, P>> {
     Ok(WriteTransaction {
       orc: self.inner.clone(),
       read_ts: self.inner.read_ts(),

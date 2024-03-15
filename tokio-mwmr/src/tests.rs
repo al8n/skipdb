@@ -22,7 +22,7 @@ pub async fn txn_simple<'a, D, W>(
   D: AsyncDatabase + Send + Sync + 'static,
   D::Key: Send + Sync + 'static,
   D::Value: PartialEq + Send + Sync + 'static,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
+  W: AsyncPwm<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
 {
   let db = match TransactionDB::<D>::new(Default::default(), opts).await {
     Ok(db) => db,
@@ -116,7 +116,7 @@ pub async fn txn_commit_with_callback<D, W>(
 ) where
   D: AsyncDatabase,
   D::Value: PartialEq,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
+  W: AsyncPwm<Key = D::Key, Value = D::Value> + Send + Sync + 'static,
 {
   let db = TransactionDB::<D>::new(Default::default(), opts)
     .await
@@ -194,7 +194,7 @@ pub async fn txn_commit_with_callback<D, W>(
 pub async fn txn_versions<
   'b,
   D: AsyncDatabase + Send + Sync,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   I,
   RI,
 >(
@@ -335,11 +335,7 @@ pub async fn txn_versions<
 }
 
 /// Unit test for txn write skew functionality
-pub async fn txn_write_skew<
-  'a,
-  D: AsyncDatabase,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
->(
+pub async fn txn_write_skew<'a, D: AsyncDatabase, W: AsyncPwm<Key = D::Key, Value = D::Value>>(
   opts: D::Options,
   backend: impl Fn() -> W,
   get_key: impl Fn(usize) -> D::Key,
@@ -371,7 +367,7 @@ pub async fn txn_write_skew<
   ) -> usize
   where
     D: AsyncDatabase,
-    W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+    W: AsyncPwm<Key = D::Key, Value = D::Value>,
   {
     let item = txn.get(k).await.unwrap().unwrap();
     match item {
@@ -433,7 +429,7 @@ pub async fn txn_conflict_get<D, W>(
 ) where
   D: AsyncDatabase,
   D::Value: PartialEq,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   W::Error: Send,
 {
   let set_count = Arc::new(AtomicU32::new(0));
@@ -484,7 +480,7 @@ pub async fn txn_conflict_get<D, W>(
 //   D: AsyncDatabase,
 //   D::Key: PartialEq,
 //   D::Value: PartialEq,
-//   W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+//   W: AsyncPwm<Key = D::Key, Value = D::Value>,
 //   I: Iterator<Item = (u64, D::Key, D::Value)> + Send + Sync + 'static,
 //
 // {
@@ -536,7 +532,7 @@ pub async fn txn_conflict_get<D, W>(
 /// Unit test for txn all versions with removed functionality
 pub async fn txn_all_versions_with_removed<
   D: AsyncDatabase + Send + Sync,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   I,
 >(
   opts: D::Options,
@@ -602,7 +598,7 @@ pub async fn txn_all_versions_with_removed<
 /// Unit test for txn all versions with removed functionality 2
 pub async fn txn_all_versions_with_removed2<
   D: AsyncDatabase + Send + Sync,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   I,
 >(
   opts: D::Options,
@@ -663,7 +659,7 @@ pub async fn txn_all_versions_with_removed2<
 /// Read at ts=1 -> c1
 pub async fn txn_iteration_edge_case<
   D: AsyncDatabase + Send + Sync,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   I,
   RI,
 >(
@@ -798,7 +794,7 @@ pub async fn txn_iteration_edge_case<
 /// Read at ts=1 -> c1
 pub async fn txn_iteration_edge_case2<
   D: AsyncDatabase + Send + Sync,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   I,
   RI,
 >(

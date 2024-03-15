@@ -7,6 +7,10 @@ homepage.workspace = true
 license.workspace = true
 description = "The structs and traits for the `mwmr`, `async-mwmr`, and `tokio-mwmr` crates."
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 cheap-clone.workspace = true
 either.workspace = true

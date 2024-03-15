@@ -12,7 +12,7 @@ use crate::error::{Error, TransactionError};
 use super::*;
 
 /// Unit test for txn simple functionality
-pub fn txn_simple<'a, D: Database, W: PendingManager<Key = D::Key, Value = D::Value>>(
+pub fn txn_simple<'a, D: Database, W: Pwm<Key = D::Key, Value = D::Value>>(
   opts: D::Options,
   backend: impl Fn() -> W,
   mut get_key: impl FnMut(usize) -> D::Key,
@@ -104,7 +104,7 @@ pub fn txn_read_after_write<'a, D: Database + Send + Sync>(
 /// Unit test for commit with callback functionality
 pub fn txn_commit_with_callback<
   D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value> + Send,
+  W: Pwm<Key = D::Key, Value = D::Value> + Send,
 >(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
@@ -190,13 +190,7 @@ pub fn txn_commit_with_callback<
 }
 
 /// Unit test for txn versions functionality
-pub fn txn_versions<
-  'b,
-  D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
-  I,
-  RI,
->(
+pub fn txn_versions<'b, D: Database + Send + Sync, W: Pwm<Key = D::Key, Value = D::Value>, I, RI>(
   opts: D::Options,
   backend: impl Fn() -> W + Send + Sync + Copy + 'static,
   mut get_key: impl FnMut(usize) -> D::Key + Send + Sync + Copy + 'static,
@@ -324,7 +318,7 @@ pub fn txn_versions<
 }
 
 /// Unit test for txn write skew functionality
-pub fn txn_write_skew<'a, D: Database, W: PendingManager<Key = D::Key, Value = D::Value>>(
+pub fn txn_write_skew<'a, D: Database, W: Pwm<Key = D::Key, Value = D::Value>>(
   opts: D::Options,
   backend: impl Fn() -> W,
   mut get_key: impl FnMut(usize) -> D::Key,
@@ -409,7 +403,7 @@ pub fn txn_conflict_get<D, W>(
   D::Key: Send,
   D::Value: Send + PartialEq,
   D::Error: Send + 'static,
-  W: PendingManager<Key = D::Key, Value = D::Value> + Send + 'static,
+  W: Pwm<Key = D::Key, Value = D::Value> + Send + 'static,
   W::Error: Send,
 {
   let set_count = Arc::new(AtomicU32::new(0));
@@ -456,7 +450,7 @@ pub fn txn_conflict_iter<D, W, I>(
   D::Key: PartialEq + Send,
   D::Value: Send + PartialEq,
   D::Error: Send + 'static,
-  W: PendingManager<Key = D::Key, Value = D::Value> + Send + 'static,
+  W: Pwm<Key = D::Key, Value = D::Value> + Send + 'static,
   W::Error: Send,
   I: Iterator<Item = (u64, D::Key, D::Value)> + Send + Sync + 'static,
 {
@@ -505,7 +499,7 @@ pub fn txn_conflict_iter<D, W, I>(
 /// Unit test for txn all versions with removed functionality
 pub fn txn_all_versions_with_removed<
   D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  W: Pwm<Key = D::Key, Value = D::Value>,
   I,
 >(
   opts: D::Options,
@@ -565,7 +559,7 @@ pub fn txn_all_versions_with_removed<
 /// Unit test for txn all versions with removed functionality 2
 pub fn txn_all_versions_with_removed2<
   D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  W: Pwm<Key = D::Key, Value = D::Value>,
   I,
 >(
   opts: D::Options,
@@ -620,7 +614,7 @@ pub fn txn_all_versions_with_removed2<
 /// Read at ts=1 -> c1
 pub fn txn_iteration_edge_case<
   D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  W: Pwm<Key = D::Key, Value = D::Value>,
   I,
   RI,
 >(
@@ -740,7 +734,7 @@ pub fn txn_iteration_edge_case<
 /// Read at ts=1 -> c1
 pub fn txn_iteration_edge_case2<
   D: Database + Send + Sync,
-  W: PendingManager<Key = D::Key, Value = D::Value>,
+  W: Pwm<Key = D::Key, Value = D::Value>,
   I,
   RI,
 >(

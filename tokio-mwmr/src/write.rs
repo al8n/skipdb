@@ -6,7 +6,7 @@ use super::*;
 
 /// WriteTransaction is used to perform writes to the database. It is created by
 /// calling [`TransactionDB::write`].
-pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPendingManager, H = std::hash::RandomState> {
+pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPwm, H = std::hash::RandomState> {
   pub(super) db: TransactionDB<D, H>,
   pub(super) read_ts: u64,
   pub(super) size: u64,
@@ -29,7 +29,7 @@ pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPendingManager, H = std::h
 impl<D, W, H> Drop for WriteTransaction<D, W, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager,
+  W: AsyncPwm,
 {
   fn drop(&mut self) {
     if !self.discarded {
@@ -41,7 +41,7 @@ where
 impl<D, W, H> WriteTransaction<D, W, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
   H: BuildHasher + Default,
 {
   /// Insert a key-value pair to the database.
@@ -234,7 +234,7 @@ where
   D: AsyncDatabase + Send + Sync,
   D::Key: Send,
   D::Value: Send,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value> + Send,
+  W: AsyncPwm<Key = D::Key, Value = D::Value> + Send,
 
   H: BuildHasher + Default + Send + Sync + 'static,
 {
@@ -306,7 +306,7 @@ where
 impl<D, W, H> WriteTransaction<D, W, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager<Key = D::Key, Value = D::Value>,
+  W: AsyncPwm<Key = D::Key, Value = D::Value>,
 
   H: BuildHasher + Default,
 {
@@ -446,7 +446,7 @@ where
 impl<D, W, H> WriteTransaction<D, W, H>
 where
   D: AsyncDatabase,
-  W: AsyncPendingManager,
+  W: AsyncPwm,
 {
   async fn done_read(&mut self) {
     if !self.done_read {

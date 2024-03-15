@@ -7,7 +7,7 @@ pub struct Marker<'a, C> {
   marker: &'a mut C,
 }
 
-impl<'a, C: ConflictManager> Marker<'a, C> {
+impl<'a, C: Cm> Marker<'a, C> {
   /// Marks a key is operated.
   pub fn mark(&mut self, k: &C::Key) {
     self.marker.mark(k);
@@ -47,8 +47,8 @@ impl<K, V, C, P> Drop for WriteTransaction<K, V, C, P> {
 
 impl<K, V, C, P> WriteTransaction<K, V, C, P>
 where
-  C: ConflictManager<Key = K>,
-  P: PendingManager<Key = K, Value = V>,
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
 {
   /// Returns the reference manager.
   pub fn manager(&self) -> Result<&P, TransactionError<C, P>> {
@@ -103,7 +103,7 @@ where
       .as_ref()
       .unwrap()
       .get(key)
-      .map_err(TransactionError::PendingManager)?
+      .map_err(TransactionError::Pwm)?
     {
       // If the value is None, it means that the key is removed.
       if e.value.is_none() {
@@ -132,16 +132,19 @@ where
   /// This method is used to create a marker for the keys that are operated.
   /// It must be used to mark keys when end user is implementing iterators to
   /// make sure the transaction manager works correctly.
-  /// 
+  ///
   /// e.g.
-  /// 
+  ///
   /// ```no_compile, rust
   /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
   /// let mut marker = txn.marker();
-  /// custom_database.iter().map(|k, v| marker.mark(&k)); 
+  /// custom_database.iter().map(|k, v| marker.mark(&k));
   /// ```
   pub fn marker(&mut self) -> Option<Marker<'_, C>> {
-    self.conflict_manager.as_mut().map(|marker| Marker { marker })
+    self
+      .conflict_manager
+      .as_mut()
+      .map(|marker| Marker { marker })
   }
 
   /// Commits the transaction, following these steps:
@@ -200,8 +203,8 @@ where
 
 impl<K, V, C, P> WriteTransaction<K, V, C, P>
 where
-  C: ConflictManager<Key = K> + Send,
-  P: PendingManager<Key = K, Value = V> + Send,
+  C: Cm<Key = K> + Send,
+  P: Pwm<Key = K, Value = V> + Send,
 {
   /// Acts like [`commit`](WriteTransaction::commit), but takes a future and a spawner, which gets run via a
   /// task to avoid blocking this function. Following these steps:
@@ -271,8 +274,8 @@ where
 
 impl<K, V, C, P> WriteTransaction<K, V, C, P>
 where
-  C: ConflictManager<Key = K> + Send,
-  P: PendingManager<Key = K, Value = V> + Send,
+  C: Cm<Key = K> + Send,
+  P: Pwm<Key = K, Value = V> + Send,
 {
   /// Acts like [`commit`](WriteTransaction::commit), but takes a callback, which gets run via a
   /// thread to avoid blocking this function. Following these steps:
@@ -343,8 +346,8 @@ where
 
 impl<K, V, C, P> WriteTransaction<K, V, C, P>
 where
-  C: ConflictManager<Key = K>,
-  P: PendingManager<Key = K, Value = V>,
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
 {
   fn insert_with_in(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
     let ent = Entry {
@@ -363,7 +366,7 @@ where
     let pending_writes = self.pending_writes.as_mut().unwrap();
     pending_writes
       .validate_entry(&ent)
-      .map_err(TransactionError::PendingManager)?;
+      .map_err(TransactionError::Pwm)?;
 
     let cnt = self.count + 1;
     // Extra bytes for the version in key.
@@ -375,10 +378,10 @@ where
     self.count = cnt;
     self.size = size;
 
-    // The txn.conflictKeys is used for conflict detection. If conflict detection
-    // is disabled, we don't need to store key hashes in this map.
+    // The conflict_manager is used for conflict detection. If conflict detection
+    // is disabled, we don't need to store key hashes in the conflict_manager.
     if let Some(ref mut conflict_manager) = self.conflict_manager {
-      conflict_manager.mark(ent.key());
+      conflict_manager.mark_conflict(ent.key());
     }
 
     // If a duplicate entry was inserted in managed mode, move it to the duplicate writes slice.
@@ -389,7 +392,7 @@ where
 
     if let Some((old_key, old_value)) = pending_writes
       .remove_entry(&ek)
-      .map_err(TransactionError::PendingManager)?
+      .map_err(TransactionError::Pwm)?
     {
       if old_value.version != eversion {
         self
@@ -399,7 +402,7 @@ where
     }
     pending_writes
       .insert(ek, ev)
-      .map_err(TransactionError::PendingManager)?;
+      .map_err(TransactionError::Pwm)?;
 
     Ok(())
   }

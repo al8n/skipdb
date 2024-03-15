@@ -1,7 +1,7 @@
 use core::ops::AddAssign;
 use std::borrow::Cow;
 
-use mwmr_core::sync::ConflictManager;
+use mwmr_core::sync::Cm;
 use parking_lot::{Mutex, MutexGuard};
 use smallvec_wrapper::TinyVec;
 
@@ -73,7 +73,7 @@ pub(super) struct Oracle<C> {
 
 impl<C> Oracle<C>
 where
-  C: ConflictManager,
+  C: Cm,
 {
   pub(super) fn new_commit_ts(
     &self,
@@ -107,23 +107,24 @@ where
           self.read_mark.done_unchecked(read_ts);
           *done_read = true;
         }
-  
+
         self.cleanup_committed_transactions(true, &mut inner);
-  
+
         // This is the general case, when user doesn't specify the read and commit ts.
         let ts = inner.next_txn_ts;
         inner.next_txn_ts += 1;
         self.txn_mark.begin_unchecked(ts);
         ts
       };
-  
+
       assert!(ts >= inner.last_cleanup_ts);
 
       // We should ensure that txns are not added to o.committedTxns slice when
       // conflict detection is disabled otherwise this slice would keep growing.
-      inner
-        .committed_txns
-        .push(CommittedTxn { ts, conflict_manager: Some(conflict_manager) });
+      inner.committed_txns.push(CommittedTxn {
+        ts,
+        conflict_manager: Some(conflict_manager),
+      });
 
       CreateCommitTimestampResult::Timestamp(ts)
     } else {
@@ -134,14 +135,14 @@ where
         }
 
         self.cleanup_committed_transactions(false, &mut inner);
-  
+
         // This is the general case, when user doesn't specify the read and commit ts.
         let ts = inner.next_txn_ts;
         inner.next_txn_ts += 1;
         self.txn_mark.begin_unchecked(ts);
         ts
       };
-  
+
       assert!(ts >= inner.last_cleanup_ts);
 
       CreateCommitTimestampResult::Timestamp(ts)
@@ -149,7 +150,11 @@ where
   }
 
   #[inline]
-  fn cleanup_committed_transactions(&self, detect_conflicts: bool, inner: &mut MutexGuard<OracleInner<C>>) {
+  fn cleanup_committed_transactions(
+    &self,
+    detect_conflicts: bool,
+    inner: &mut MutexGuard<OracleInner<C>>,
+  ) {
     if !detect_conflicts {
       // When detectConflicts is set to false, we do not store any
       // committedTxns and so there's nothing to clean up.
