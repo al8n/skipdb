@@ -916,12 +916,12 @@ pub mod future {
     /// It depends on the database implementation to decide how to handle the `pending` and construct
     /// the final conbined iterator.
     ///
-    /// The order of the items in the iterator depends on the [`Pwm`] of the [`WriteTransaction`].
+    /// The order of the items in the iterator depends on the [`Pwm`] of the [`Wtm`].
     ///
     /// e.g.
-    /// - if users create [`WriteTransaction`] with [`IndexMap`] as the [`Pwm`], the order of the
+    /// - if users create [`Wtm`] with [`IndexMap`] as the [`Pwm`], the order of the
     /// entries in the iterator will be the same as the insertion order.
-    /// - if users create [`WriteTransaction`] with [`BTreeCache`] as the [`Pwm`], the order of the
+    /// - if users create [`Wtm`] with [`BTreeCache`] as the [`Pwm`], the order of the
     /// entires in the iterator will be sorted by key.
     fn iter<'a, 'b: 'a>(
       &'a self,
@@ -935,12 +935,12 @@ pub mod future {
     /// It depends on the database implementation to decide how to handle the `pending` and construct
     /// the final conbined iterator.
     ///
-    /// The order of the items in the iterator depends on the [`Pwm`] of the [`WriteTransaction`].
+    /// The order of the items in the iterator depends on the [`Pwm`] of the [`Wtm`].
     ///
     /// e.g.
-    /// - if users create [`WriteTransaction`] with [`IndexMap`] as the [`Pwm`], the order of the
+    /// - if users create [`Wtm`] with [`IndexMap`] as the [`Pwm`], the order of the
     /// keys in the iterator will be the same as the insertion order.
-    /// - if users create [`WriteTransaction`] with [`BTreeCache`] as the [`Pwm`], the order of the
+    /// - if users create [`Wtm`] with [`BTreeCache`] as the [`Pwm`], the order of the
     /// keys in the iterator will be sorted by key.
     fn keys<'a, 'b: 'a>(
       &'a self,

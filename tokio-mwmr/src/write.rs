@@ -4,9 +4,9 @@ use self::error::{Error, TransactionError};
 
 use super::*;
 
-/// WriteTransaction is used to perform writes to the database. It is created by
+/// Wtm is used to perform writes to the database. It is created by
 /// calling [`Tm::write`].
-pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPwm, H = std::hash::RandomState> {
+pub struct Wtm<D: AsyncDatabase, W: AsyncPwm, H = std::hash::RandomState> {
   pub(super) db: Tm<D, H>,
   pub(super) read_ts: u64,
   pub(super) size: u64,
@@ -26,7 +26,7 @@ pub struct WriteTransaction<D: AsyncDatabase, W: AsyncPwm, H = std::hash::Random
   pub(super) done_read: bool,
 }
 
-impl<D, W, H> Drop for WriteTransaction<D, W, H>
+impl<D, W, H> Drop for Wtm<D, W, H>
 where
   D: AsyncDatabase,
   W: AsyncPwm,
@@ -38,7 +38,7 @@ where
   }
 }
 
-impl<D, W, H> WriteTransaction<D, W, H>
+impl<D, W, H> Wtm<D, W, H>
 where
   D: AsyncDatabase,
   W: AsyncPwm<Key = D::Key, Value = D::Value>,
@@ -229,7 +229,7 @@ where
   }
 }
 
-impl<D, W, H> WriteTransaction<D, W, H>
+impl<D, W, H> Wtm<D, W, H>
 where
   D: AsyncDatabase + Send + Sync,
   D::Key: Send,
@@ -238,7 +238,7 @@ where
 
   H: BuildHasher + Default + Send + Sync + 'static,
 {
-  /// Acts like [`commit`](WriteTransaction::commit), but takes a future and a spawner, which gets run via a
+  /// Acts like [`commit`](Wtm::commit), but takes a future and a spawner, which gets run via a
   /// task to avoid blocking this function. Following these steps:
   ///
   /// 1. If there are no writes, return immediately, a new task will be spawned, and future will be invoked.
@@ -303,7 +303,7 @@ where
   }
 }
 
-impl<D, W, H> WriteTransaction<D, W, H>
+impl<D, W, H> Wtm<D, W, H>
 where
   D: AsyncDatabase,
   W: AsyncPwm<Key = D::Key, Value = D::Value>,
@@ -443,7 +443,7 @@ where
   }
 }
 
-impl<D, W, H> WriteTransaction<D, W, H>
+impl<D, W, H> Wtm<D, W, H>
 where
   D: AsyncDatabase,
   W: AsyncPwm,

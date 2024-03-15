@@ -338,7 +338,7 @@
 //   txn.commit().unwrap();
 //   assert_eq!(1, db.inner.orc.read_ts());
 
-//   let mut get_bal = |txn: &mut WriteTransaction<D, W>, k: &D::Key| -> usize {
+//   let mut get_bal = |txn: &mut Wtm<D, W>, k: &D::Key| -> usize {
 //     let item = txn.get(k).unwrap().unwrap();
 //     match item {
 //       Item::Pending(ent) => value_to_usize(ent.value().unwrap()),

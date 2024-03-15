@@ -3,15 +3,15 @@ use pollster::FutureExt;
 
 use super::*;
 
-/// ReadTransaction is a read-only transaction.
+/// Rtm is a read-only transaction.
 ///
 /// It is created by calling [`Tm::read`].
-pub struct ReadTransaction<D: AsyncDatabase, S: AsyncSpawner, H> {
+pub struct Rtm<D: AsyncDatabase, S: AsyncSpawner, H> {
   pub(super) db: Tm<D, S, H>,
   pub(super) read_ts: u64,
 }
 
-impl<D, S, H> ReadTransaction<D, S, H>
+impl<D, S, H> Rtm<D, S, H>
 where
   D: AsyncDatabase,
   S: AsyncSpawner,
@@ -45,7 +45,7 @@ where
   }
 }
 
-impl<D, S, H> Drop for ReadTransaction<D, S, H>
+impl<D, S, H> Drop for Rtm<D, S, H>
 where
   D: AsyncDatabase,
   S: AsyncSpawner,

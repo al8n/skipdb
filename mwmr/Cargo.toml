@@ -27,7 +27,7 @@ scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
 wmark = { workspace = true, features = ["default"] }
-mwmr-core.workspace = true
+mwmr-core = { workspace = true, features = ["default"] }
 
 rand = { workspace = true, optional = true }
 

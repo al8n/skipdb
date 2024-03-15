@@ -1,4 +1,4 @@
-use self::error::WriteTransactionError;
+use self::error::WtmError;
 
 use super::*;
 
@@ -14,9 +14,9 @@ impl<'a, C: Cm> Marker<'a, C> {
   }
 }
 
-/// WriteTransaction is used to perform writes to the database. It is created by
+/// Wtm is used to perform writes to the database. It is created by
 /// calling [`Tm::write`].
-pub struct WriteTransaction<K, V, C, P> {
+pub struct Wtm<K, V, C, P> {
   pub(super) read_ts: u64,
   pub(super) size: u64,
   pub(super) count: u64,
@@ -37,7 +37,7 @@ pub struct WriteTransaction<K, V, C, P> {
   pub(super) done_read: bool,
 }
 
-impl<K, V, C, P> Drop for WriteTransaction<K, V, C, P> {
+impl<K, V, C, P> Drop for Wtm<K, V, C, P> {
   fn drop(&mut self) {
     if !self.discarded {
       self.discard();
@@ -45,7 +45,7 @@ impl<K, V, C, P> Drop for WriteTransaction<K, V, C, P> {
   }
 }
 
-impl<K, V, C, P> WriteTransaction<K, V, C, P>
+impl<K, V, C, P> Wtm<K, V, C, P>
 where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
@@ -154,6 +154,48 @@ where
       .map(|marker| Marker { marker })
   }
 
+  /// Returns the pending writes manager.
+  #[inline]
+  pub fn pwm(&self) -> Result<&P, TransactionError<C, P>> {
+    self
+      .pending_writes
+      .as_ref()
+      .ok_or(TransactionError::Discard)
+  }
+
+  /// Returns the mutable pending writes manager.
+  /// 
+  /// **Note:** This returns a mutable reference to the pending writes manager. It is the end user's
+  /// responsibility to ensure that the pending writes manager works correctly.
+  #[inline]
+  pub fn pwm_mut(&mut self) -> Result<&mut P, TransactionError<C, P>> {
+    self
+      .pending_writes
+      .as_mut()
+      .ok_or(TransactionError::Discard)
+  }
+
+  /// Returns the conflict manager.
+  #[inline]
+  pub fn cm(&self) -> Result<&C, TransactionError<C, P>> {
+    self
+      .conflict_manager
+      .as_ref()
+      .ok_or(TransactionError::Discard)
+  }
+
+  /// Returns the mutable conflict manager.
+  /// 
+  /// **Note:** This returns a mutable reference to the conflict manager. It is the end user's
+  /// responsibility to ensure that the conflic manager works correctly
+  #[inline]
+  pub fn cm_mut(&mut self) -> Result<&mut C, TransactionError<C, P>> {
+    self
+      .conflict_manager
+      .as_mut()
+      .ok_or(TransactionError::Discard)
+  }
+
   /// Commits the transaction, following these steps:
   ///
   /// 1. If there are no writes, return immediately.
@@ -172,7 +214,7 @@ where
   ///
   /// If error is nil, the transaction is successfully committed. In case of a non-nil error, the LSM
   /// tree won't be updated, so there's no need for any rollback.
-  pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WriteTransactionError<C, P, E>>
+  pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WtmError<C, P, E>>
   where
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E>,
     E: std::error::Error,
@@ -203,17 +245,17 @@ where
       .map_err(|e| {
         self.orc().done_commit(commit_ts);
         self.discard();
-        WriteTransactionError::commit(e)
+        WtmError::commit(e)
       })
   }
 }
 
-impl<K, V, C, P> WriteTransaction<K, V, C, P>
+impl<K, V, C, P> Wtm<K, V, C, P>
 where
   C: Cm<Key = K> + Send,
   P: Pwm<Key = K, Value = V> + Send,
 {
-  /// Acts like [`commit`](WriteTransaction::commit), but takes a future and a spawner, which gets run via a
+  /// Acts like [`commit`](Wtm::commit), but takes a future and a spawner, which gets run via a
   /// task to avoid blocking this function. Following these steps:
   ///
   /// 1. If there are no writes, return immediately, a new task will be spawned, and future will be invoked.
@@ -236,7 +278,7 @@ where
     apply: F,
     fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
     spawner: S,
-  ) -> Result<JH, WriteTransactionError<C, P, E>>
+  ) -> Result<JH, WtmError<C, P, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
@@ -279,12 +321,12 @@ where
   }
 }
 
-impl<K, V, C, P> WriteTransaction<K, V, C, P>
+impl<K, V, C, P> Wtm<K, V, C, P>
 where
   C: Cm<Key = K> + Send,
   P: Pwm<Key = K, Value = V> + Send,
 {
-  /// Acts like [`commit`](WriteTransaction::commit), but takes a callback, which gets run via a
+  /// Acts like [`commit`](Wtm::commit), but takes a callback, which gets run via a
   /// thread to avoid blocking this function. Following these steps:
   ///
   /// 1. If there are no writes, return immediately, callback will be invoked.
@@ -306,7 +348,7 @@ where
     &mut self,
     apply: F,
     callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<std::thread::JoinHandle<R>, WriteTransactionError<C, P, E>>
+  ) -> Result<std::thread::JoinHandle<R>, WtmError<C, P, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
@@ -315,9 +357,7 @@ where
     R: Send + 'static,
   {
     if self.discarded {
-      return Err(WriteTransactionError::transaction(
-        TransactionError::Discard,
-      ));
+      return Err(WtmError::transaction(TransactionError::Discard));
     }
 
     if self.pending_writes.as_ref().unwrap().is_empty() {
@@ -351,7 +391,7 @@ where
   }
 }
 
-impl<K, V, C, P> WriteTransaction<K, V, C, P>
+impl<K, V, C, P> Wtm<K, V, C, P>
 where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
@@ -462,7 +502,7 @@ where
   }
 }
 
-impl<K, V, C, P> WriteTransaction<K, V, C, P> {
+impl<K, V, C, P> Wtm<K, V, C, P> {
   fn done_read(&mut self) {
     if !self.done_read {
       self.done_read = true;

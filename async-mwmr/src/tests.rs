@@ -360,7 +360,7 @@ pub async fn txn_write_skew<'a, D: AsyncDatabase, W: AsyncPwm<Key = D::Key, Valu
   assert_eq!(1, db.inner.orc.read_ts().await);
 
   async fn get_bal<'a, D, W, S>(
-    txn: &mut WriteTransaction<D, W, S>,
+    txn: &mut Wtm<D, W, S>,
     k: &D::Key,
     value_to_usize: impl Fn(&D::Value) -> usize,
     item_value: impl Fn(Either<D::ItemRef<'_>, D::Item>) -> Either<&'a D::Value, D::Value>,

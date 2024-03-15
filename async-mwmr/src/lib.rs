@@ -109,10 +109,8 @@ where
 {
   /// Create a new writable transaction with
   /// the default pending writes manager to store the pending writes.
-  pub async fn write(
-    &self,
-  ) -> WriteTransaction<D, AsyncIndexMapManager<D::Key, D::Value, H>, S, H> {
-    WriteTransaction {
+  pub async fn write(&self) -> Wtm<D, AsyncIndexMapManager<D::Key, D::Value, H>, S, H> {
+    Wtm {
       db: self.clone(),
       read_ts: self.inner.orc.read_ts().await,
       size: 0,
@@ -133,8 +131,8 @@ where
 
 impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> Tm<D, S, H> {
   /// Create a new writable transaction with the given pending writes manager to store the pending writes.
-  pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> WriteTransaction<D, W, S, H> {
-    WriteTransaction {
+  pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> Wtm<D, W, S, H> {
+    Wtm {
       db: self.clone(),
       read_ts: self.inner.orc.read_ts().await,
       size: 0,
@@ -217,8 +215,8 @@ impl<D: AsyncDatabase, S: AsyncSpawner, H> Tm<D, S, H> {
   }
 
   /// Create a new writable transaction.
-  pub async fn read(&self) -> ReadTransaction<D, S, H> {
-    ReadTransaction {
+  pub async fn read(&self) -> Rtm<D, S, H> {
+    Rtm {
       db: self.clone(),
       read_ts: self.inner.orc.read_ts().await,
     }

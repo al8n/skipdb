@@ -2,15 +2,15 @@
 
 use super::*;
 
-/// ReadTransaction is a read-only transaction.
+/// Rtm is a read-only transaction.
 ///
 /// It is created by calling [`Tm::read`].
-pub struct ReadTransaction<D: AsyncDatabase, H> {
+pub struct Rtm<D: AsyncDatabase, H> {
   pub(super) db: Tm<D, H>,
   pub(super) read_ts: u64,
 }
 
-impl<D, H> ReadTransaction<D, H>
+impl<D, H> Rtm<D, H>
 where
   D: AsyncDatabase,
 {
@@ -43,7 +43,7 @@ where
   }
 }
 
-impl<D, H> Drop for ReadTransaction<D, H>
+impl<D, H> Drop for Rtm<D, H>
 where
   D: AsyncDatabase,
 {

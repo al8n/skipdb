@@ -59,14 +59,14 @@ impl<C: Cm, P: Pwm> TransactionError<C, P> {
 }
 
 /// Error type for write transaction.
-pub enum WriteTransactionError<C: Cm, P: Pwm, E: std::error::Error> {
+pub enum WtmError<C: Cm, P: Pwm, E: std::error::Error> {
   /// Returned if the transaction error occurs.
   Transaction(TransactionError<C, P>),
   /// Returned if the write error occurs.
   Commit(E),
 }
 
-impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Debug for WriteTransactionError<C, P, E> {
+impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Debug for WtmError<C, P, E> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Transaction(e) => write!(f, "Transaction({:?})", e),
@@ -75,7 +75,7 @@ impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Debug for WriteTransactionE
   }
 }
 
-impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Display for WriteTransactionError<C, P, E> {
+impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Display for WtmError<C, P, E> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Transaction(e) => write!(f, "transaction error: {e}"),
@@ -84,18 +84,16 @@ impl<C: Cm, P: Pwm, E: std::error::Error> core::fmt::Display for WriteTransactio
   }
 }
 
-impl<C: Cm, P: Pwm, E: std::error::Error> std::error::Error for WriteTransactionError<C, P, E> {}
+impl<C: Cm, P: Pwm, E: std::error::Error> std::error::Error for WtmError<C, P, E> {}
 
-impl<C: Cm, P: Pwm, E: std::error::Error> From<TransactionError<C, P>>
-  for WriteTransactionError<C, P, E>
-{
+impl<C: Cm, P: Pwm, E: std::error::Error> From<TransactionError<C, P>> for WtmError<C, P, E> {
   #[inline]
   fn from(err: TransactionError<C, P>) -> Self {
     Self::Transaction(err)
   }
 }
 
-impl<C: Cm, P: Pwm, E: std::error::Error> WriteTransactionError<C, P, E> {
+impl<C: Cm, P: Pwm, E: std::error::Error> WtmError<C, P, E> {
   /// Create a new error from the transaction error.
   #[inline]
   pub const fn transaction(err: TransactionError<C, P>) -> Self {

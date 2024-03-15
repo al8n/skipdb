@@ -101,8 +101,8 @@ where
     &self,
     pending_manager_opts: P::Options,
     conflict_manager_opts: Option<C::Options>,
-  ) -> Result<WriteTransaction<K, V, C, P>, TransactionError<C, P>> {
-    Ok(WriteTransaction {
+  ) -> Result<Wtm<K, V, C, P>, TransactionError<C, P>> {
+    Ok(Wtm {
       orc: self.inner.clone(),
       read_ts: self.inner.read_ts(),
       size: 0,
@@ -151,8 +151,8 @@ impl<K, V, C, P> Tm<K, V, C, P> {
   }
 
   /// Create a new writable transaction.
-  pub fn read(&self) -> ReadTransaction<K, V, C, P> {
-    ReadTransaction {
+  pub fn read(&self) -> Rtm<K, V, C, P> {
+    Rtm {
       db: self.clone(),
       read_ts: self.inner.read_ts(),
     }
