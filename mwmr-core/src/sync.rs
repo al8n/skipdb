@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use indexmap::IndexSet;
 use smallvec_wrapper::MediumVec;
 
@@ -14,10 +16,11 @@ pub type DefaultHasher = std::hash::DefaultHasher;
 /// 1. Contains fingerprints of keys read.
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
 pub trait Cm: Sized + 'static {
-  /// The error type returned by the pending manager.
+  /// The error type returned by the conflict manager.
   #[cfg(feature = "std")]
   type Error: std::error::Error + 'static;
 
+  /// The error type returned by the conflict manager.
   #[cfg(not(feature = "std"))]
   type Error: core::fmt::Display + 'static;
 
@@ -41,30 +44,30 @@ pub trait Cm: Sized + 'static {
 }
 
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on hash.
-pub trait CmHash: Cm {
+pub trait CmEquivalent: Cm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
-  fn mark_read_borrow_hash<Q>(&mut self, key: &Q)
+  fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
   
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
-  fn mark_conflict_borrow_hash<Q>(&mut self, key: &Q)
+  fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on the order.
-pub trait CmOrd: Cm {
+pub trait CmComparable: Cm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
-  fn mark_read_borrow_ord<Q>(&mut self, key: &Q)
+  fn mark_read_comparable<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: Ord + ?Sized;
   
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
-  fn mark_conflict_borrow_ord<Q>(&mut self, key: &Q)
+  fn mark_conflict_comparable<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: Ord + ?Sized;
@@ -158,13 +161,13 @@ where
   }
 }
 
-impl<K, S> CmHash for HashCm<K, S>
+impl<K, S> CmEquivalent for HashCm<K, S>
 where
   S: BuildHasher + 'static,
   K: core::hash::Hash + Eq + 'static,
 {
   #[inline]
-  fn mark_read_borrow_hash<Q>(&mut self, key: &Q)
+  fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
@@ -174,7 +177,7 @@ where
   }
 
   #[inline]
-  fn mark_conflict_borrow_hash<Q>(&mut self, key: &Q)
+  fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
@@ -194,8 +197,14 @@ where
 /// e.g. if you want to implement a recovery transaction manager, you can use a persistent
 /// storage to store the pending writes.
 pub trait Pwm: Sized + 'static {
-  /// The error type returned by the pending manager.
+  /// The error type returned by the conflict manager.
+  #[cfg(feature = "std")]
   type Error: std::error::Error + 'static;
+
+  /// The error type returned by the conflict manager.
+  #[cfg(not(feature = "std"))]
+  type Error: core::fmt::Display + 'static;
+
   /// The key type.
   type Key: 'static;
   /// The value type.
@@ -251,44 +260,54 @@ pub trait Pwm: Sized + 'static {
 }
 
 /// An optimized version of the [`Pwm`] trait that if your pending writes manager is depend on hash.
-pub trait PwmHash: Pwm {
+pub trait PwmEquivalent: Pwm {
   /// Optimized version of [`Pwm::get`] that accepts borrowed keys.
-  fn get_hash<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
+  fn get_equivalent<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized;
+  
+  fn get_entry_equivalent<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
   
   /// Optimized version of [`Pwm::contains_key`] that accepts borrowed keys.
-  fn contains_key_hash<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
   
   /// Optimized version of [`Pwm::remove_entry`] that accepts borrowed keys.
-  fn remove_entry_hash<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  fn remove_entry_equivalent<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`Pwm`] trait that if your pending writes manager is depend on the order.
-pub trait PwmOrd: Pwm {
+pub trait PwmComparable: Pwm {
   /// Optimized version of [`Pwm::get`] that accepts borrowed keys.
-  fn get_ord<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
+  fn get_comparable<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
+    Q: Ord + ?Sized;
+  
+  fn get_entry_comparable<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 
   /// Optimized version of [`Pwm::contains_key`] that accepts borrowed keys.
-  fn contains_key_ord<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
   
   /// Optimized version of [`Pwm::remove_entry`] that accepts borrowed keys.
-  fn remove_entry_ord<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  fn remove_entry_comparable<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 }
 
@@ -361,31 +380,38 @@ where
   }
 }
 
-impl<K, V, S> PwmHash for IndexMap<K, EntryValue<V>, S>
+impl<K, V, S> PwmEquivalent for IndexMap<K, EntryValue<V>, S>
 where
   K: Eq + core::hash::Hash + 'static,
   V: 'static,
   S: BuildHasher + Default + 'static,
 {
-  fn get_hash<Q>(&self, key: &Q) -> Result<Option<&EntryValue<V>>, Self::Error>
+  fn get_equivalent<Q>(&self, key: &Q) -> Result<Option<&EntryValue<V>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
   {
     Ok(self.get(key))
   }
 
-  fn contains_key_hash<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  fn get_entry_equivalent<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+    where
+      Self::Key: Borrow<Q>,
+      Q: core::hash::Hash + Eq + ?Sized {
+    Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
+  }
+
+  fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
   {
     Ok(self.contains_key(key))
   }
 
-  fn remove_entry_hash<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
+  fn remove_entry_equivalent<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
   {
     Ok(self.shift_remove_entry(key))
@@ -394,7 +420,7 @@ where
 
 impl<K, V> Pwm for BTreeMap<K, EntryValue<V>>
 where
-  K: Eq + core::hash::Hash + Ord + 'static,
+  K: Ord + 'static,
   V: 'static,
 {
   type Error = std::convert::Infallible;
@@ -453,32 +479,39 @@ where
   }
 }
 
-impl<K, V> PwmOrd for BTreeMap<K, EntryValue<V>>
+impl<K, V> PwmComparable for BTreeMap<K, EntryValue<V>>
 where
-  K: Eq + core::hash::Hash + Ord + 'static,
+  K: Ord + 'static,
   V: 'static,
 {
-  fn get_ord<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
+  fn get_comparable<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    Ok(self.get(key))
+    Ok(BTreeMap::get(self, key))
   }
 
-  fn contains_key_ord<Q>(&self, key: &Q) -> Result<bool, Self::Error>
-  where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized,
-  {
-    Ok(self.contains_key(key))
+  fn get_entry_comparable<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+    where
+      Self::Key: Borrow<Q>,
+      Q: Ord + ?Sized {
+    Ok(BTreeMap::get_key_value(self, key))
   }
 
-  fn remove_entry_ord<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
+  fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    Ok(self.remove_entry(key))
+    Ok(BTreeMap::contains_key(self, key))
+  }
+
+  fn remove_entry_comparable<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
+  where
+    K: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    Ok(BTreeMap::remove_entry(self, key))
   }
 }

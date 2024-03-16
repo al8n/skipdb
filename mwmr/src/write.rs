@@ -1,5 +1,7 @@
 use self::error::WtmError;
 
+use core::borrow::Borrow;
+
 use super::*;
 
 /// A marker used to mark the keys that are read.
@@ -50,6 +52,12 @@ where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
 {
+  /// Returns the version of this read transaction.
+  #[inline]
+  pub const fn version(&self) -> u64 {
+    self.read_ts
+  }
+  
   /// Returns the reference manager.
   pub fn manager(&self) -> Result<&P, TransactionError<C, P>> {
     self
@@ -87,12 +95,6 @@ where
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_conflict(k);
     }
-  }
-
-  /// Returns the version of this read transaction.
-  #[inline]
-  pub const fn version(&self) -> u64 {
-    self.read_ts
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
@@ -247,6 +249,164 @@ where
         self.discard();
         WtmError::commit(e)
       })
+  }
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: CmEquivalent<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+{
+  /// Marks a key is read.
+  pub fn mark_read_equivalent<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Eq + core::hash::Hash,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read_equivalent(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict_equivalent<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Eq + core::hash::Hash,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict_equivalent(k);
+    }
+  }
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: CmEquivalent<Key = K>,
+  P: PwmEquivalent<Key = K, Value = V>,
+{
+  /// Looks for the key in the pending writes, if such key is not in the pending writes,
+  /// the end user can read the key from the database.
+  pub fn get_equivalent<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Eq + core::hash::Hash,
+  {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    if let Some((k, e)) = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_entry_equivalent(key)
+      .map_err(TransactionError::Pwm)?
+    {
+      // If the value is None, it means that the key is removed.
+      if e.value.is_none() {
+        return Ok(None);
+      }
+
+      // Fulfill from buffer.
+      Ok(Some(EntryRef {
+        data: match &e.value {
+          Some(value) => EntryDataRef::Insert { key: k, value },
+          None => EntryDataRef::Remove(k),
+        },
+        version: e.version,
+      }))
+    } else {
+      // track reads. No need to track read if txn serviced it
+      // internally.
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read_equivalent(key);
+      }
+
+      Ok(None)
+    }
+  }
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: CmComparable<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+{
+  /// Marks a key is read.
+  pub fn mark_read_comparable<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read_comparable(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict_comparable<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict_comparable(k);
+    }
+  }
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: CmComparable<Key = K>,
+  P: PwmComparable<Key = K, Value = V>,
+{
+  /// Looks for the key in the pending writes, if such key is not in the pending writes,
+  /// the end user can read the key from the database.
+  pub fn get_comparable<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    if let Some((k, e)) = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_entry_comparable(key)
+      .map_err(TransactionError::Pwm)?
+    {
+      // If the value is None, it means that the key is removed.
+      if e.value.is_none() {
+        return Ok(None);
+      }
+
+      // Fulfill from buffer.
+      Ok(Some(EntryRef {
+        data: match &e.value {
+          Some(value) => EntryDataRef::Insert { key: k, value },
+          None => EntryDataRef::Remove(k),
+        },
+        version: e.version,
+      }))
+    } else {
+      // track reads. No need to track read if txn serviced it
+      // internally.
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read_comparable(key);
+      }
+
+      Ok(None)
+    }
   }
 }
 
