@@ -50,7 +50,7 @@ pub trait CmEquivalent: Cm {
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
-  
+
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
@@ -65,7 +65,7 @@ pub trait CmComparable: Cm {
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: Ord + ?Sized;
-  
+
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_comparable<Q>(&mut self, key: &Q)
   where
@@ -266,20 +266,26 @@ pub trait PwmEquivalent: Pwm {
   where
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
-  
-  fn get_entry_equivalent<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+
+  fn get_entry_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
-  
+
   /// Optimized version of [`Pwm::contains_key`] that accepts borrowed keys.
   fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
-  
+
   /// Optimized version of [`Pwm::remove_entry`] that accepts borrowed keys.
-  fn remove_entry_equivalent<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  fn remove_entry_equivalent<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
@@ -292,8 +298,11 @@ pub trait PwmComparable: Pwm {
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
-  
-  fn get_entry_comparable<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+
+  fn get_entry_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
@@ -303,9 +312,12 @@ pub trait PwmComparable: Pwm {
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
-  
+
   /// Optimized version of [`Pwm::remove_entry`] that accepts borrowed keys.
-  fn remove_entry_comparable<Q>(&mut self, key: &Q) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  fn remove_entry_comparable<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
@@ -394,10 +406,14 @@ where
     Ok(self.get(key))
   }
 
-  fn get_entry_equivalent<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
-    where
-      Self::Key: Borrow<Q>,
-      Q: core::hash::Hash + Eq + ?Sized {
+  fn get_entry_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
     Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
   }
 
@@ -409,7 +425,10 @@ where
     Ok(self.contains_key(key))
   }
 
-  fn remove_entry_equivalent<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
+  fn remove_entry_equivalent<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized,
@@ -492,10 +511,14 @@ where
     Ok(BTreeMap::get(self, key))
   }
 
-  fn get_entry_comparable<Q>(&self, key: &Q) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
-    where
-      Self::Key: Borrow<Q>,
-      Q: Ord + ?Sized {
+  fn get_entry_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
     Ok(BTreeMap::get_key_value(self, key))
   }
 
@@ -507,7 +530,10 @@ where
     Ok(BTreeMap::contains_key(self, key))
   }
 
-  fn remove_entry_comparable<Q>(&mut self, key: &Q) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
+  fn remove_entry_comparable<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
   where
     K: Borrow<Q>,
     Q: Ord + ?Sized,

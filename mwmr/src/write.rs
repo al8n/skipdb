@@ -47,26 +47,38 @@ impl<K, V, C, P> Drop for Wtm<K, V, C, P> {
   }
 }
 
-impl<K, V, C, P> Wtm<K, V, C, P>
-where
-  C: Cm<Key = K>,
-  P: Pwm<Key = K, Value = V>,
-{
+impl<K, V, C, P> Wtm<K, V, C, P> {
   /// Returns the version of this read transaction.
   #[inline]
   pub const fn version(&self) -> u64 {
     self.read_ts
   }
-  
-  /// Returns the reference manager.
-  pub fn manager(&self) -> Result<&P, TransactionError<C, P>> {
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+{
+  /// Returns the pending writes manager.
+  #[inline]
+  pub fn pwm(&self) -> Result<&P, TransactionError<C, P>> {
     self
       .pending_writes
       .as_ref()
       .ok_or(TransactionError::Discard)
   }
 
-  /// Insert a key-value pair to the database.
+  /// Returns the conflict manager.
+  #[inline]
+  pub fn cm(&self) -> Result<&C, TransactionError<C, P>> {
+    self
+      .conflict_manager
+      .as_ref()
+      .ok_or(TransactionError::Discard)
+  }
+
+  /// Insert a key-value pair to the transaction.
   pub fn insert(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
     self.insert_with_in(key, value)
   }
@@ -95,6 +107,27 @@ where
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_conflict(k);
     }
+  }
+
+  /// Returns `true` if the pending writes contains the key.
+  pub fn contains_key(&mut self, key: &K) -> Result<bool, TransactionError<C, P>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    let has = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .contains_key(key)
+      .map_err(TransactionError::Pwm)?;
+
+    if !has {
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read(key);
+      }
+    }
+    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
@@ -154,48 +187,6 @@ where
       .conflict_manager
       .as_mut()
       .map(|marker| Marker { marker })
-  }
-
-  /// Returns the pending writes manager.
-  #[inline]
-  pub fn pwm(&self) -> Result<&P, TransactionError<C, P>> {
-    self
-      .pending_writes
-      .as_ref()
-      .ok_or(TransactionError::Discard)
-  }
-
-  /// Returns the mutable pending writes manager.
-  /// 
-  /// **Note:** This returns a mutable reference to the pending writes manager. It is the end user's
-  /// responsibility to ensure that the pending writes manager works correctly.
-  #[inline]
-  pub fn pwm_mut(&mut self) -> Result<&mut P, TransactionError<C, P>> {
-    self
-      .pending_writes
-      .as_mut()
-      .ok_or(TransactionError::Discard)
-  }
-
-  /// Returns the conflict manager.
-  #[inline]
-  pub fn cm(&self) -> Result<&C, TransactionError<C, P>> {
-    self
-      .conflict_manager
-      .as_ref()
-      .ok_or(TransactionError::Discard)
-  }
-
-  /// Returns the mutable conflict manager.
-  /// 
-  /// **Note:** This returns a mutable reference to the conflict manager. It is the end user's
-  /// responsibility to ensure that the conflic manager works correctly
-  #[inline]
-  pub fn cm_mut(&mut self) -> Result<&mut C, TransactionError<C, P>> {
-    self
-      .conflict_manager
-      .as_mut()
-      .ok_or(TransactionError::Discard)
   }
 
   /// Commits the transaction, following these steps:
@@ -285,6 +276,34 @@ where
   C: CmEquivalent<Key = K>,
   P: PwmEquivalent<Key = K, Value = V>,
 {
+  /// Returns `true` if the pending writes contains the key.
+  pub fn contains_key_equivalent<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<bool, TransactionError<C, P>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Eq + core::hash::Hash,
+  {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    let has = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .contains_key_equivalent(key)
+      .map_err(TransactionError::Pwm)?;
+
+    if !has {
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read_equivalent(key);
+      }
+    }
+    Ok(has)
+  }
+
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
   /// the end user can read the key from the database.
   pub fn get_equivalent<'a, 'b: 'a, Q>(
@@ -364,6 +383,34 @@ where
   C: CmComparable<Key = K>,
   P: PwmComparable<Key = K, Value = V>,
 {
+  /// Returns `true` if the pending writes contains the key.
+  pub fn contains_key_comparable<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<bool, TransactionError<C, P>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    let has = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .contains_key_comparable(key)
+      .map_err(TransactionError::Pwm)?;
+
+    if !has {
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read_comparable(key);
+      }
+    }
+    Ok(has)
+  }
+
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
   /// the end user can read the key from the database.
   pub fn get_comparable<'a, 'b: 'a, Q>(
