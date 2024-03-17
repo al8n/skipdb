@@ -182,11 +182,29 @@ where
   /// let mut marker = txn.marker();
   /// custom_database.iter().map(|k, v| marker.mark(&k));
   /// ```
-  pub fn marker(&mut self) -> Option<Marker<'_, C>> {
-    self
+  pub fn marker(&mut self) -> Result<Option<Marker<'_, C>>, TransactionError<C, P>> {
+    if self.is_discard() {
+      return Err(TransactionError::Discard);
+    }
+    Ok(self
       .conflict_manager
       .as_mut()
-      .map(|marker| Marker { marker })
+      .map(|marker| Marker { marker }))
+  }
+
+  /// Returns a marker for the keys that are operated and the pending writes manager.
+  /// 
+  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
+  /// time, this method is used to solve this problem.
+  pub fn marker_with_pm(&mut self) -> Result<(Option<Marker<'_, C>>, &P), TransactionError<C, P>> {
+    if self.is_discard() {
+      return Err(TransactionError::Discard);
+    }
+
+    Ok((
+      self.conflict_manager.as_mut().map(|marker| Marker { marker }),
+      self.pending_writes.as_ref().unwrap(),
+    ))
   }
 
   /// Commits the transaction, following these steps:
@@ -277,7 +295,7 @@ where
   P: PwmEquivalent<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
-  /// 
+  ///
   /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
   /// - `Ok(Some(true))`: means the key is in the pending writes.
   /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
@@ -293,7 +311,13 @@ where
       return Err(TransactionError::Discard);
     }
 
-    match self.pending_writes.as_ref().unwrap().get_equivalent(key).map_err(TransactionError::pending)? {
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_equivalent(key)
+      .map_err(TransactionError::pending)?
+    {
       Some(ent) => {
         // If the value is None, it means that the key is removed.
         if ent.value.is_none() {
@@ -367,7 +391,7 @@ where
   P: PwmEquivalent<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
-  /// 
+  ///
   /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
   /// - `Ok(Some(true))`: means the key is in the pending writes.
   /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
@@ -383,7 +407,13 @@ where
       return Err(TransactionError::Discard);
     }
 
-    match self.pending_writes.as_ref().unwrap().get_equivalent(key).map_err(TransactionError::pending)? {
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_equivalent(key)
+      .map_err(TransactionError::pending)?
+    {
       Some(ent) => {
         // If the value is None, it means that the key is removed.
         if ent.value.is_none() {
@@ -485,7 +515,7 @@ where
   P: PwmComparable<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
-  /// 
+  ///
   /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
   /// - `Ok(Some(true))`: means the key is in the pending writes.
   /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
@@ -501,7 +531,13 @@ where
       return Err(TransactionError::Discard);
     }
 
-    match self.pending_writes.as_ref().unwrap().get_comparable(key).map_err(TransactionError::pending)? {
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_comparable(key)
+      .map_err(TransactionError::pending)?
+    {
       Some(ent) => {
         // If the value is None, it means that the key is removed.
         if ent.value.is_none() {
@@ -575,7 +611,7 @@ where
   P: PwmComparable<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
-  /// 
+  ///
   /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
   /// - `Ok(Some(true))`: means the key is in the pending writes.
   /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
@@ -591,7 +627,13 @@ where
       return Err(TransactionError::Discard);
     }
 
-    match self.pending_writes.as_ref().unwrap().get_comparable(key).map_err(TransactionError::pending)? {
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_comparable(key)
+      .map_err(TransactionError::pending)?
+    {
       Some(ent) => {
         // If the value is None, it means that the key is removed.
         if ent.value.is_none() {

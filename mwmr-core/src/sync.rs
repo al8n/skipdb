@@ -249,13 +249,16 @@ pub trait Pwm: Sized + 'static {
   /// Inserts a key-value pair into the er.
   fn insert(&mut self, key: Self::Key, value: EntryValue<Self::Value>) -> Result<(), Self::Error>;
 
-  /// Removes a key from the buffer, returning the key-value pair if the key was previously in the buffer.
+  /// Removes a key from the pending writes, returning the key-value pair if the key was previously in the pending writes.
   fn remove_entry(
     &mut self,
     key: &Self::Key,
   ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>;
 
-  /// Returns an iterator that consumes the buffer.
+  /// Returns an iterator over the pending writes.
+  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)>;
+
+  /// Returns an iterator that consumes the pending writes.
   fn into_iter(self) -> impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
 }
 
@@ -354,16 +357,20 @@ where
     self.len()
   }
 
-  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
+  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
+    Ok(())
+  }
+
+  fn max_batch_size(&self) -> u64 {
+    u64::MAX
   }
 
   fn max_batch_entries(&self) -> u64 {
     u64::MAX
   }
 
-  fn max_batch_size(&self) -> u64 {
-    u64::MAX
+  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
+    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
   }
 
   fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
@@ -383,12 +390,12 @@ where
     Ok(self.shift_remove_entry(key))
   }
 
-  fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
-    core::iter::IntoIterator::into_iter(self)
+  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)> {
+    IndexMap::iter(self)
   }
 
-  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
-    Ok(())
+  fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
+    core::iter::IntoIterator::into_iter(self)
   }
 }
 
@@ -495,6 +502,10 @@ where
 
   fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<Self::Value>)> {
     core::iter::IntoIterator::into_iter(self)
+  }
+
+  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)> {
+    BTreeMap::iter(self)
   }
 }
 
