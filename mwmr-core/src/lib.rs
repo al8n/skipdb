@@ -204,10 +204,13 @@ pub mod types {
   impl<'a, K, V> Copy for EntryRef<'a, K, V> {}
 
   impl<'a, K, V> EntryRef<'a, K, V> {
-    /// Get the data of the entry.
+    /// Get the key of the entry.
     #[inline]
-    pub const fn data(&self) -> &EntryDataRef<'a, K, V> {
-      &self.data
+    pub const fn key(&self) -> &K {
+      match self.data {
+        EntryDataRef::Insert { key, .. } => key,
+        EntryDataRef::Remove(key) => key,
+      }
     }
 
     /// Get the value of the entry, if None, it means the entry is removed.

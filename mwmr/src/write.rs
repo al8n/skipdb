@@ -277,10 +277,14 @@ where
   P: PwmEquivalent<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
+  /// 
+  /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
+  /// - `Ok(Some(true))`: means the key is in the pending writes.
+  /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
   pub fn contains_key_equivalent<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<bool, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C, P>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + core::hash::Hash,
@@ -289,19 +293,26 @@ where
       return Err(TransactionError::Discard);
     }
 
-    let has = self
-      .pending_writes
-      .as_ref()
-      .unwrap()
-      .contains_key_equivalent(key)
-      .map_err(TransactionError::Pwm)?;
+    match self.pending_writes.as_ref().unwrap().get_equivalent(key).map_err(TransactionError::pending)? {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
 
-    if !has {
-      if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark_read_equivalent(key);
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read_equivalent(key);
+        }
+
+        Ok(None)
       }
     }
-    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
@@ -356,10 +367,14 @@ where
   P: PwmEquivalent<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
+  /// 
+  /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
+  /// - `Ok(Some(true))`: means the key is in the pending writes.
+  /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
   pub fn contains_key_comparable_cm_equivalent_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<bool, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C, P>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -368,19 +383,26 @@ where
       return Err(TransactionError::Discard);
     }
 
-    let has = self
-      .pending_writes
-      .as_ref()
-      .unwrap()
-      .contains_key_equivalent(key)
-      .map_err(TransactionError::Pwm)?;
+    match self.pending_writes.as_ref().unwrap().get_equivalent(key).map_err(TransactionError::pending)? {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
 
-    if !has {
-      if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark_read_comparable(key);
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read_comparable(key);
+        }
+
+        Ok(None)
       }
     }
-    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
@@ -463,10 +485,14 @@ where
   P: PwmComparable<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
+  /// 
+  /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
+  /// - `Ok(Some(true))`: means the key is in the pending writes.
+  /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
   pub fn contains_key_comparable<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<bool, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C, P>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Ord,
@@ -475,19 +501,26 @@ where
       return Err(TransactionError::Discard);
     }
 
-    let has = self
-      .pending_writes
-      .as_ref()
-      .unwrap()
-      .contains_key_comparable(key)
-      .map_err(TransactionError::Pwm)?;
+    match self.pending_writes.as_ref().unwrap().get_comparable(key).map_err(TransactionError::pending)? {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
 
-    if !has {
-      if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark_read_comparable(key);
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read_comparable(key);
+        }
+
+        Ok(None)
       }
     }
-    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
@@ -542,10 +575,14 @@ where
   P: PwmComparable<Key = K, Value = V>,
 {
   /// Returns `true` if the pending writes contains the key.
+  /// 
+  /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
+  /// - `Ok(Some(true))`: means the key is in the pending writes.
+  /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
   pub fn contains_key_equivalent_cm_comparable_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<bool, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C, P>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -554,19 +591,26 @@ where
       return Err(TransactionError::Discard);
     }
 
-    let has = self
-      .pending_writes
-      .as_ref()
-      .unwrap()
-      .contains_key_comparable(key)
-      .map_err(TransactionError::Pwm)?;
+    match self.pending_writes.as_ref().unwrap().get_comparable(key).map_err(TransactionError::pending)? {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
 
-    if !has {
-      if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark_read_equivalent(key);
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read_equivalent(key);
+        }
+
+        Ok(None)
       }
     }
-    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,
