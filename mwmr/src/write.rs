@@ -186,14 +186,16 @@ where
     if self.is_discard() {
       return Err(TransactionError::Discard);
     }
-    Ok(self
-      .conflict_manager
-      .as_mut()
-      .map(|marker| Marker { marker }))
+    Ok(
+      self
+        .conflict_manager
+        .as_mut()
+        .map(|marker| Marker { marker }),
+    )
   }
 
   /// Returns a marker for the keys that are operated and the pending writes manager.
-  /// 
+  ///
   /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
   /// time, this method is used to solve this problem.
   pub fn marker_with_pm(&mut self) -> Result<(Option<Marker<'_, C>>, &P), TransactionError<C, P>> {
@@ -202,7 +204,10 @@ where
     }
 
     Ok((
-      self.conflict_manager.as_mut().map(|marker| Marker { marker }),
+      self
+        .conflict_manager
+        .as_mut()
+        .map(|marker| Marker { marker }),
       self.pending_writes.as_ref().unwrap(),
     ))
   }
@@ -222,9 +227,6 @@ where
   /// there is a conflict, an error will be returned and the callback will not
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
-  ///
-  /// If error is nil, the transaction is successfully committed. In case of a non-nil error, the LSM
-  /// tree won't be updated, so there's no need for any rollback.
   pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WtmError<C, P, E>>
   where
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E>,
@@ -701,6 +703,8 @@ where
   }
 }
 
+#[cfg(feature = "future")]
+#[cfg_attr(docsrs, doc(cfg(feature = "future")))]
 impl<K, V, C, P> Wtm<K, V, C, P>
 where
   C: Cm<Key = K> + Send,
@@ -721,22 +725,18 @@ where
   /// If there is a conflict, an error will be returned immediately and the no task will be spawned
   /// run. If there are no conflicts, a task will be spawned and the future will be called in the
   /// background upon successful completion of writes or any error during write.
-  ///
-  /// If error does not occur, the transaction is successfully committed. In case of an error, the DB
-  /// should not be updated (The implementors of [`Database`] must promise this), so there's no need for any rollback.
-  pub fn commit_with_task<F, E, R, S, JH>(
+  pub fn commit_with_task<F, E, R, AS>(
     &mut self,
     apply: F,
     fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-    spawner: S,
-  ) -> Result<JH, WtmError<C, P, E>>
+  ) -> Result<<AS as agnostic_lite::AsyncSpawner>::JoinHandle<R>, WtmError<C, P, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E> + Send + 'static,
     E: std::error::Error,
     R: Send + 'static,
-    S: FnOnce(core::pin::Pin<Box<dyn core::future::Future<Output = R> + Send>>) -> JH,
+    AS: agnostic_lite::AsyncSpawner,
   {
     if self.discarded {
       return Err(TransactionError::Discard.into());
@@ -745,7 +745,7 @@ where
     if self.pending_writes.as_ref().unwrap().is_empty() {
       // Nothing to commit
       self.discard();
-      return Ok(spawner(Box::pin(async move { fut(Ok(())) })));
+      return Ok(AS::spawn(async move { fut(Ok(())) }));
     }
 
     let (commit_ts, entries) = self.commit_entries().map_err(|e| match e {
@@ -757,7 +757,7 @@ where
     })?;
 
     let orc = self.orc.clone();
-    Ok(spawner(Box::pin(async move {
+    Ok(AS::spawn(async move {
       fut(
         apply(entries)
           .map(|_| {
@@ -768,7 +768,7 @@ where
             e
           }),
       )
-    })))
+    }))
   }
 }
 

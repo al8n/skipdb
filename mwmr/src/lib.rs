@@ -16,6 +16,18 @@ use core::mem;
 use error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
 
+#[cfg(feature = "future")]
+pub use agnostic_lite::AsyncSpawner;
+
+#[cfg(feature = "smol")]
+pub use agnostic_lite::SmolSpawner;
+
+#[cfg(feature = "tokio")]
+pub use agnostic_lite::TokioSpawner;
+
+#[cfg(feature = "async-std")]
+pub use agnostic_lite::AsyncStdSpawner;
+
 /// Error types for the [`mwmr`] crate.
 pub mod error;
 
