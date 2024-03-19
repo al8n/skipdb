@@ -722,7 +722,7 @@ where
   /// run. If there are no conflicts, a task will be spawned and the future will be called in the
   /// background upon successful completion of writes or any error during write.
   pub async fn commit_with_task<F, Fut, E, R>(
-    &mut self,
+    mut self,
     apply: F,
     fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
   ) -> Result<<S as AsyncSpawner>::JoinHandle<R>, WtmError<C, P, E>>
@@ -900,11 +900,10 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
   }
 
   /// Discards a created transaction. This method is very important and must be called. `commit*`
-  /// methods calls this internally, however, calling this multiple times doesn't cause any issues. So,
-  /// this can safely be called via a defer right when transaction is created.
+  /// methods calls this internally.
   ///
   /// NOTE: If any operations are run on a discarded transaction, [`TransactionError::Discard`] is returned.
-  pub async fn discard(&mut self) {
+  pub async fn discard(mut self) {
     if self.discarded {
       return;
     }

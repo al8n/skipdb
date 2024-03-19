@@ -9,7 +9,7 @@
 
 A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
 
-(For async version, please see [`tokio-mwmr`](https://crates.io/crates/tokio-mwmr) and [`async-mwmr`](https://crates.io/crates/async-mwmr))
+(For async version, please see [`async-mwmr`](https://crates.io/crates/async-mwmr))
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/mwmr-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 <img alt="LoC" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fal8n%2F4bac4a768dd5583e656aeecb44867864%2Fraw%2Fmwmr" height="22">

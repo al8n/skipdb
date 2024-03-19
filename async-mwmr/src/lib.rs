@@ -1,8 +1,7 @@
 //! A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
 //!
-//! For tokio runtime, please see [`tokio-mwmr`](https://crates.io/crates/tokio-mwmr)
+//! For sync version, please see [`mwmr`](https://crates.io/crates/mwmr)
 //!
-//! For other async runtime, [`async-mwmr`](https://crates.io/crates/async-mwmr)
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_docs)]
@@ -17,11 +16,15 @@ use error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
 
 use wmark::AsyncSpawner;
+
 #[cfg(feature = "smol")]
 pub use wmark::SmolSpawner;
 
 #[cfg(feature = "async-std")]
 pub use wmark::AsyncStdSpawner;
+
+#[cfg(feature = "tokio")]
+pub use wmark::TokioSpawner;
 
 /// Error types for the [`mwmr`] crate.
 pub mod error;
