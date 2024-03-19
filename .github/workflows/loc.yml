@@ -51,7 +51,7 @@ jobs:
           script: |
             const fs = require('fs');
             const output = fs.readFileSync('tokeit.json', 'utf8');
-            const gistId = '4bac4a768dd5583e656aeecb44867864';
+            const gistId = '327b2a8aef9003246e45c6e47fe63937';
             await github.rest.gists.update({
               gist_id: gistId,
               files: {
@@ -77,7 +77,7 @@ jobs:
           script: |
             const fs = require('fs');
             const output = fs.readFileSync('${{ matrix.crates }}/tokeit.json', 'utf8');
-            const gistId = '4bac4a768dd5583e656aeecb44867864';
+            const gistId = '327b2a8aef9003246e45c6e47fe63937';
             await github.rest.gists.update({
               gist_id: gistId,
               files: {
