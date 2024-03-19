@@ -3,14 +3,13 @@ members = [
   "mwmr-core",
   "mwmr",
   "async-mwmr",
-  "tokio-mwmr",
   "wmark",
   "txn",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 repository = "https://github.com/al8n/txn"
 homepage = "https://github.com/al8n/txn"
@@ -32,5 +31,5 @@ scopeguard = { version = "1", default-features = false }
 thiserror = "1"
 tracing = "0.1"
 
-wmark = { path = "wmark", version = "0.1.0", default-features = false }
-mwmr-core = { path = "mwmr-core", version = "0.1.0", default-features = false }
+wmark = { path = "wmark", version = "0.2", default-features = false }
+mwmr-core = { path = "mwmr-core", version = "0.2", default-features = false }

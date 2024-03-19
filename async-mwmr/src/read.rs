@@ -1,56 +1,31 @@
-use either::Either;
-use pollster::FutureExt;
-
 use super::*;
 
-/// ReadTransaction is a read-only transaction.
+/// AsyncRtm is a read-only transaction manager.
 ///
-/// It is created by calling [`TransactionDB::read`].
-pub struct ReadTransaction<D: AsyncDatabase, S: AsyncSpawner, H> {
-  pub(super) db: TransactionDB<D, S, H>,
+/// It is created by calling [`AsyncTm::read`],
+/// the read transaction will automatically notify the transaction manager when it
+/// is dropped. So, the end user doesn't need to call any cleanup function, but must
+/// hold this struct in their final read transaction implementation.
+pub struct AsyncRtm<K, V, C, P, S> {
+  pub(super) db: AsyncTm<K, V, C, P, S>,
   pub(super) read_ts: u64,
 }
 
-impl<D, S, H> ReadTransaction<D, S, H>
-where
-  D: AsyncDatabase,
-  S: AsyncSpawner,
-{
-  /// Looks for key and returns corresponding Item.
-  pub async fn get<'a: 'b, 'b>(
-    &'a self,
-    key: &'b D::Key,
-  ) -> Result<Option<Either<D::ItemRef<'a>, D::Item>>, D::Error> {
-    self.db.inner.db.get(key, self.read_ts).await
-  }
-
-  /// Returns an iterator.
-  pub async fn iter(&self, opts: IteratorOptions) -> D::Iterator<'_> {
-    self
-      .db
-      .inner
-      .db
-      .iter(core::iter::empty(), self.read_ts, opts)
-      .await
-  }
-
-  /// Returns an iterator over keys.
-  pub async fn keys(&self, opts: KeysOptions) -> D::Keys<'_> {
-    self
-      .db
-      .inner
-      .db
-      .keys(core::iter::empty(), self.read_ts, opts)
-      .await
+impl<K, V, C, P, S> AsyncRtm<K, V, C, P, S> {
+  /// Returns the version of this read transaction.
+  #[inline]
+  pub const fn version(&self) -> u64 {
+    self.read_ts
   }
 }
 
-impl<D, S, H> Drop for ReadTransaction<D, S, H>
+impl<K, V, C, P, S> AsyncRtm<K, V, C, P, S>
 where
-  D: AsyncDatabase,
   S: AsyncSpawner,
 {
-  fn drop(&mut self) {
-    self.db.inner.orc.done_read(self.read_ts).block_on();
+  /// Commit the read transaction.
+  #[inline]
+  pub async fn commit(self) {
+    self.db.inner.done_read(self.read_ts).await;
   }
 }

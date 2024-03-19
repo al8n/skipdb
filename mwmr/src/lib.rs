@@ -11,12 +11,22 @@
 
 use std::{cell::RefCell, sync::Arc};
 
-use core::{hash::BuildHasher, mem};
+use core::mem;
 
-use either::Either;
-use indexmap::{IndexMap, IndexSet};
-use smallvec_wrapper::MediumVec;
+use error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
+
+#[cfg(feature = "future")]
+pub use agnostic_lite::AsyncSpawner;
+
+#[cfg(feature = "smol")]
+pub use agnostic_lite::SmolSpawner;
+
+#[cfg(feature = "tokio")]
+pub use agnostic_lite::TokioSpawner;
+
+#[cfg(feature = "async-std")]
+pub use agnostic_lite::AsyncStdSpawner;
 
 /// Error types for the [`mwmr`] crate.
 pub mod error;
@@ -35,7 +45,7 @@ pub use write::*;
 
 pub use mwmr_core::{sync::*, types::*};
 
-/// Options for the [`TransactionDB`].
+/// Options for the [`Tm`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -77,145 +87,86 @@ impl Options {
   }
 }
 
-struct Inner<D, S = std::hash::RandomState> {
-  db: D,
-  /// Determines whether the transactions would be checked for conflicts.
-  /// The transactions can be processed at a higher rate when conflict detection is disabled.
-  opts: Options,
-  orc: Oracle<S>,
-  hasher: S,
-}
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct TransactionDB<D, S = std::hash::RandomState> {
-  inner: Arc<Inner<D, S>>,
+pub struct Tm<K, V, C, P> {
+  inner: Arc<Oracle<C>>,
+  _phantom: std::marker::PhantomData<(K, V, P)>,
 }
 
-impl<D, S> Clone for TransactionDB<D, S> {
+impl<K, V, C, P> Clone for Tm<K, V, C, P> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
+      _phantom: std::marker::PhantomData,
     }
   }
 }
 
-impl<D: Database, S: BuildHasher + Default + Clone + 'static> TransactionDB<D, S>
+impl<K, V, C, P> Tm<K, V, C, P>
 where
-  D::Key: Eq + core::hash::Hash,
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
 {
   /// Create a new writable transaction with
   /// the default pending writes manager to store the pending writes.
-  pub fn write(&self) -> WriteTransaction<D, IndexMapManager<D::Key, D::Value, S>, S> {
-    WriteTransaction {
-      db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
+  pub fn write(
+    &self,
+    pending_manager_opts: P::Options,
+    conflict_manager_opts: Option<C::Options>,
+  ) -> Result<Wtm<K, V, C, P>, TransactionError<C, P>> {
+    Ok(Wtm {
+      orc: self.inner.clone(),
+      read_ts: self.inner.read_ts(),
       size: 0,
       count: 0,
-      reads: MediumVec::new(),
-      conflict_keys: if self.inner.opts.detect_conflicts {
-        Some(IndexSet::with_hasher(self.inner.hasher.clone()))
+      conflict_manager: if let Some(opts) = conflict_manager_opts {
+        Some(C::new(opts).map_err(TransactionError::conflict)?)
       } else {
         None
       },
-      pending_writes: Some(IndexMap::with_hasher(S::default())),
+      pending_writes: Some(P::new(pending_manager_opts).map_err(TransactionError::pending)?),
       duplicate_writes: OneOrMore::new(),
       discarded: false,
       done_read: false,
-    }
-  }
-}
-
-impl<D: Database, S: Clone + 'static> TransactionDB<D, S> {
-  /// Create a new writable transaction with the given pending writes manager to store the pending writes.
-  pub fn write_by<W: PendingManager>(&self, backend: W) -> WriteTransaction<D, W, S> {
-    WriteTransaction {
-      db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
-      size: 0,
-      count: 0,
-      reads: MediumVec::new(),
-      conflict_keys: if self.inner.opts.detect_conflicts {
-        Some(IndexSet::with_hasher(self.inner.hasher.clone()))
-      } else {
-        None
-      },
-      pending_writes: Some(backend),
-      duplicate_writes: OneOrMore::new(),
-      discarded: false,
-      done_read: false,
-    }
-  }
-}
-
-impl<D: Database, S: Default> TransactionDB<D, S> {
-  /// Open the database with the given options.
-  pub fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
-    Self::with_hasher(transaction_opts, database_opts, S::default())
-  }
-}
-
-impl<D: Database, S> TransactionDB<D, S> {
-  /// Open the database with the given options.
-  pub fn with_hasher(
-    transaction_opts: Options,
-    database_opts: D::Options,
-    hasher: S,
-  ) -> Result<Self, D::Error> {
-    D::open(database_opts).map(|db| Self {
-      inner: Arc::new(Inner {
-        orc: {
-          let next_ts = db.maximum_version();
-          let orc = Oracle::new(
-            format!("{}.pending_reads", core::any::type_name::<D>()).into(),
-            format!("{}.txn_timestamps", core::any::type_name::<D>()).into(),
-            transaction_opts.detect_conflicts(),
-            next_ts,
-          );
-          orc.read_mark.done_unchecked(next_ts);
-          orc.txn_mark.done_unchecked(next_ts);
-          orc.increment_next_ts();
-          orc
-        },
-        db,
-        opts: transaction_opts,
-        hasher,
-      }),
     })
   }
+}
 
+impl<K, V, C, P> Tm<K, V, C, P> {
+  /// Create a new transaction manager with the given name (just for logging or debugging, use your crate name is enough)
+  /// and the current version (provided by the database).
+  #[inline]
+  pub fn new(name: &str, current_version: u64) -> Self {
+    Self {
+      inner: Arc::new({
+        let next_ts = current_version;
+        let orc = Oracle::new(
+          format!("{}.pending_reads", name).into(),
+          format!("{}.txn_timestamps", name).into(),
+          next_ts,
+        );
+        orc.read_mark.done_unchecked(next_ts);
+        orc.txn_mark.done_unchecked(next_ts);
+        orc.increment_next_ts();
+        orc
+      }),
+      _phantom: std::marker::PhantomData,
+    }
+  }
+}
+
+impl<K, V, C, P> Tm<K, V, C, P> {
   /// Returns a timestamp which hints that any versions under this timestamp can be discard.
   /// This is useful when users want to implement compaction/merge functionality.
   pub fn discard_hint(&self) -> u64 {
-    self.inner.orc.discard_at_or_below()
-  }
-
-  /// Returns the options of the database.
-  pub fn database_options(&self) -> &D::Options {
-    self.inner.db.options()
-  }
-
-  /// Returns the options of the transaction.
-  pub fn transaction_options(&self) -> &Options {
-    &self.inner.opts
-  }
-
-  /// Returns underlying database.
-  ///
-  /// **Note**: You should not use this method get the underlying database and read/write directly.
-  /// This method is only for you to implement advanced functionalities, such as compaction, merge, etc.
-  pub fn database(&self) -> &D {
-    &self.inner.db
+    self.inner.discard_at_or_below()
   }
 
   /// Create a new writable transaction.
-  pub fn read(&self) -> ReadTransaction<D, S> {
-    ReadTransaction {
+  pub fn read(&self) -> Rtm<K, V, C, P> {
+    Rtm {
       db: self.clone(),
-      read_ts: self.inner.orc.read_ts(),
+      read_ts: self.inner.read_ts(),
     }
-  }
-
-  #[inline]
-  fn orc(&self) -> &Oracle<S> {
-    &self.inner.orc
   }
 }
