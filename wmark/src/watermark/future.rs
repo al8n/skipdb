@@ -48,82 +48,82 @@ struct Inner {
   mark_tx: Sender<Mark>,
 }
 
+macro_rules! process_one {
+  ($this:ident,$pending:ident,$waiters:ident,$indices:ident,$idx: ident, $done: ident) => {{
+    if !$pending.contains_key(&$idx) {
+      $indices.push(Reverse($idx));
+    }
+
+    let prev = $pending.entry($idx).or_insert(0);
+    if $done {
+      (*prev) = (*prev).saturating_sub(1);
+    } else {
+      (*prev) += 1;
+    }
+
+    let mut delta = 1;
+    if $done {
+      delta = -1;
+    }
+    $pending
+      .entry($idx)
+      .and_modify(|v| *v += delta)
+      .or_insert(delta);
+
+    // Update mark by going through all indices in order; and checking if they have
+    // been done. Stop at the first index, which isn't done.
+    let done_until = $this.done_until.load(Ordering::SeqCst);
+    assert!(
+      done_until <= $idx,
+      "name: {}, done_until: {}, idx: {}",
+      $this.name,
+      done_until,
+      $idx
+    );
+
+    let mut until = done_until;
+
+    while !$indices.is_empty() {
+      let min = $indices.peek().unwrap().0;
+      if let Some(done) = $pending.get(&min) {
+        if done.gt(&0) {
+          break; // len(indices) will be > 0.
+        }
+      }
+      // Even if done is called multiple times causing it to become
+      // negative, we should still pop the index.
+      $indices.pop();
+      $pending.remove(&min);
+      until = min;
+    }
+
+    if until != done_until {
+      assert_eq!(
+        $this.done_until.compare_exchange(
+          done_until,
+          until,
+          Ordering::SeqCst,
+          Ordering::Acquire
+        ),
+        Ok(done_until)
+      );
+    }
+
+    if until - done_until <= $waiters.len() as u64 {
+      // Close channel and remove from waiters.
+      (done_until + 1..=until).for_each(|idx| {
+        let _ = $waiters.remove(&idx);
+      });
+    } else {
+      // Close and drop idx <= util channels.
+      $waiters.retain(|idx, _| *idx > until);
+    }
+  }};
+}
+
 impl Inner {
   async fn process<S>(&self, closer: AsyncCloser<S>) {
-    macro_rules! process_one {
-      ($pending:ident,$waiters:ident,$indices:ident,$idx: ident, $done: ident) => {{
-        if !$pending.contains_key(&$idx) {
-          $indices.push(Reverse($idx));
-        }
-
-        let prev = $pending.entry($idx).or_insert(0);
-        if $done {
-          (*prev) = (*prev).saturating_sub(1);
-        } else {
-          (*prev) += 1;
-        }
-
-        let mut delta = 1;
-        if $done {
-          delta = -1;
-        }
-        $pending
-          .entry($idx)
-          .and_modify(|v| *v += delta)
-          .or_insert(delta);
-
-        // Update mark by going through all indices in order; and checking if they have
-        // been done. Stop at the first index, which isn't done.
-        let done_until = self.done_until.load(Ordering::SeqCst);
-        assert!(
-          done_until <= $idx,
-          "name: {}, done_until: {}, idx: {}",
-          self.name,
-          done_until,
-          $idx
-        );
-
-        let mut until = done_until;
-
-        while !$indices.is_empty() {
-          let min = $indices.peek().unwrap().0;
-          if let Some(done) = $pending.get(&min) {
-            if done.gt(&0) {
-              break; // len(indices) will be > 0.
-            }
-          }
-          // Even if done is called multiple times causing it to become
-          // negative, we should still pop the index.
-          $indices.pop();
-          $pending.remove(&min);
-          until = min;
-        }
-
-        if until != done_until {
-          assert_eq!(
-            self.done_until.compare_exchange(
-              done_until,
-              until,
-              Ordering::SeqCst,
-              Ordering::Acquire
-            ),
-            Ok(done_until)
-          );
-        }
-
-        if until - done_until <= $waiters.len() as u64 {
-          // Close channel and remove from waiters.
-          (done_until + 1..=until).for_each(|idx| {
-            let _ = $waiters.remove(&idx);
-          });
-        } else {
-          // Close and drop idx <= util channels.
-          $waiters.retain(|idx, _| *idx > until);
-        }
-      }};
-    }
     scopeguard::defer!(closer.done(););
-
     self.inited.store(true, Ordering::SeqCst);
 
     let mut indices: BinaryHeap<Reverse<u64>> = BinaryHeap::new();
@@ -150,8 +150,8 @@ impl Inner {
             } else {
               let done = mark.done;
               match mark.index {
-                MarkIndex::Single(idx) => process_one!(pending, waiters, indices, idx, done),
-                MarkIndex::Multiple(bunch) => bunch.into_iter().for_each(|idx| process_one!(pending, waiters, indices, idx, done)),
+                MarkIndex::Single(idx) => process_one!(self, pending, waiters, indices, idx, done),
+                MarkIndex::Multiple(bunch) => bunch.into_iter().for_each(|idx| process_one!(self, pending, waiters, indices, idx, done)),
               }
             }
           },
