@@ -187,7 +187,7 @@ where
   ///
   /// e.g.
   ///
-  /// ```no_compile, rust
+  /// ```ignore, rust
   /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
   /// let mut marker = txn.marker();
   /// custom_database.iter().map(|k, v| marker.mark(&k));

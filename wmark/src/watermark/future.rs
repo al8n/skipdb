@@ -188,11 +188,11 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
   ///
   /// # Example
   ///
-  /// ```no_compile
+  /// ```ignore
   /// use wmark::*;
   ///
   /// let closer = AsyncCloser::new(1);
-  /// AsyncWaterMark::new("test".into()).init_with_thread(closer.clone(), tokio::spawn);
+  /// AsyncWaterMark::new("test".into()).init(closer.clone());
   ///
   /// closer.signal_and_wait().await;
   /// ```
