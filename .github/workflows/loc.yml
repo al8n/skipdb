@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        crates: [mwmr, async-mwmr, wmark, tokio-mwmr, mwmr-core]
+        crates: [mwmr, async-mwmr, wmark, mwmr-core]
     steps:
       - uses: actions/checkout@v3
 
@@ -64,7 +64,7 @@ jobs:
       
       - name: Count lines of code in subcrates
         run: |
-          for crate in mwmr async-mwmr wmark tokio-mwmr mwmr-core; do
+          for crate in mwmr async-mwmr wmark mwmr-core; do
             cd $crate
             tokeit
             cd ..
