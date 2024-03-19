@@ -110,24 +110,37 @@ where
   }
 
   /// Returns `true` if the pending writes contains the key.
-  pub fn contains_key(&mut self, key: &K) -> Result<bool, TransactionError<C, P>> {
+  pub fn contains_key(&mut self, key: &K) -> Result<Option<bool>, TransactionError<C, P>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
 
-    let has = self
+    match self
       .pending_writes
       .as_ref()
       .unwrap()
-      .contains_key(key)
-      .map_err(TransactionError::Pwm)?;
+      .get(key)
+      .map_err(TransactionError::pending)?
+    {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
 
-    if !has {
-      if let Some(ref mut conflict_manager) = self.conflict_manager {
-        conflict_manager.mark_read(key);
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read(key);
+        }
+
+        Ok(None)
       }
     }
-    Ok(has)
   }
 
   /// Looks for the key in the pending writes, if such key is not in the pending writes,

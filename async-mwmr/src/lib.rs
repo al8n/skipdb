@@ -1,17 +1,35 @@
 //! A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
 //!
-//! For sync version, please see [`mwmr`](https://crates.io/crates/mwmr)
+//! For tokio runtime, please see [`tokio-mwmr`](https://crates.io/crates/tokio-mwmr)
 //!
-//! For tokio version, please see [`tokio-mwmr`](https://crates.io/crates/tokio-mwmr)
+//! For other async runtime, [`async-mwmr`](https://crates.io/crates/async-mwmr)
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
-use core::hash::BuildHasher;
+use core::mem;
+
+use error::TransactionError;
+pub use smallvec_wrapper::OneOrMore;
+
+use wmark::AsyncSpawner;
+#[cfg(feature = "smol")]
+pub use wmark::SmolSpawner;
+
+#[cfg(feature = "async-std")]
+pub use wmark::AsyncStdSpawner;
+
+/// Error types for the [`mwmr`] crate.
+pub mod error;
+
+/// Generic unit tests for users to test their database implementation based on `mwmr`.
+#[cfg(any(feature = "test", test))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
+pub mod tests;
 
 mod oracle;
 use oracle::*;
@@ -20,23 +38,9 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-use indexmap::{IndexMap, IndexSet};
-
-use smallvec_wrapper::MediumVec;
-pub use smallvec_wrapper::OneOrMore;
-
 pub use mwmr_core::{future::*, types::*};
-use wmark::AsyncSpawner;
 
-/// Error types for the [`mwmr`] crate.
-pub mod error;
-
-/// Generic unit tests for users to test their database implementation based on `async-mwmr`.
-#[cfg(any(feature = "test", test))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
-pub mod tests;
-
-/// Options for the [`Tm`].
+/// Options for the [`AsyncTm`].
 #[derive(Debug, Clone)]
 pub struct Options {
   detect_conflicts: bool,
@@ -78,152 +82,103 @@ impl Options {
   }
 }
 
-struct Inner<D, S: AsyncSpawner, H = std::hash::RandomState> {
-  db: D,
-  /// Determines whether the transactions would be checked for conflicts.
-  /// The transactions can be processed at a higher rate when conflict detection is disabled.
-  opts: Options,
-  orc: Oracle<S, H>,
-  hasher: H,
-}
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct Tm<D, S: AsyncSpawner, H = std::hash::RandomState> {
-  inner: Arc<Inner<D, S, H>>,
+pub struct AsyncTm<K, V, C, P, S> {
+  inner: Arc<Oracle<C, S>>,
+  _phantom: std::marker::PhantomData<(K, V, P)>,
 }
 
-impl<D, S: AsyncSpawner, H> Clone for Tm<D, S, H> {
+impl<K, V, C, P, S> Clone for AsyncTm<K, V, C, P, S> {
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
+      _phantom: std::marker::PhantomData,
     }
   }
 }
 
-impl<D, S, H> Tm<D, S, H>
+impl<K, V, C, P, S> AsyncTm<K, V, C, P, S>
 where
-  D: AsyncDatabase,
-  D::Key: Eq + core::hash::Hash + Send + Sync + 'static,
-  D::Value: Send + Sync + 'static,
+  C: AsyncCm<Key = K>,
+  P: AsyncPwm<Key = K, Value = V>,
   S: AsyncSpawner,
-  H: BuildHasher + Default + Clone + Send + Sync + 'static,
 {
   /// Create a new writable transaction with
   /// the default pending writes manager to store the pending writes.
-  pub async fn write(&self) -> Wtm<D, AsyncIndexMapManager<D::Key, D::Value, H>, S, H> {
-    Wtm {
-      db: self.clone(),
-      read_ts: self.inner.orc.read_ts().await,
+  pub async fn write(
+    &self,
+    pending_manager_opts: P::Options,
+    conflict_manager_opts: Option<C::Options>,
+  ) -> Result<AsyncWtm<K, V, C, P, S>, TransactionError<C, P>> {
+    Ok(AsyncWtm {
+      orc: self.inner.clone(),
+      read_ts: self.inner.read_ts().await,
       size: 0,
       count: 0,
-      reads: MediumVec::new(),
-      conflict_keys: if self.inner.opts.detect_conflicts {
-        Some(IndexSet::with_hasher(self.inner.hasher.clone()))
+      conflict_manager: if let Some(opts) = conflict_manager_opts {
+        Some(C::new(opts).await.map_err(TransactionError::conflict)?)
       } else {
         None
       },
-      pending_writes: Some(IndexMap::with_hasher(H::default())),
+      pending_writes: Some(
+        P::new(pending_manager_opts)
+          .await
+          .map_err(TransactionError::pending)?,
+      ),
       duplicate_writes: OneOrMore::new(),
       discarded: false,
       done_read: false,
-    }
-  }
-}
-
-impl<D: AsyncDatabase, S: AsyncSpawner, H: Clone + 'static> Tm<D, S, H> {
-  /// Create a new writable transaction with the given pending writes manager to store the pending writes.
-  pub async fn write_by<W: AsyncPwm>(&self, backend: W) -> Wtm<D, W, S, H> {
-    Wtm {
-      db: self.clone(),
-      read_ts: self.inner.orc.read_ts().await,
-      size: 0,
-      count: 0,
-      reads: MediumVec::new(),
-      conflict_keys: if self.inner.opts.detect_conflicts {
-        Some(IndexSet::with_hasher(self.inner.hasher.clone()))
-      } else {
-        None
-      },
-      pending_writes: Some(backend),
-      duplicate_writes: OneOrMore::new(),
-      discarded: false,
-      done_read: false,
-    }
-  }
-}
-
-impl<D: AsyncDatabase, S: AsyncSpawner, H: Default> Tm<D, S, H> {
-  /// Open the database with the given options.
-  pub async fn new(transaction_opts: Options, database_opts: D::Options) -> Result<Self, D::Error> {
-    Self::with_hasher(transaction_opts, database_opts, H::default()).await
-  }
-}
-
-impl<D: AsyncDatabase, S: AsyncSpawner, H> Tm<D, S, H> {
-  /// Open the database with the given options.
-  pub async fn with_hasher(
-    transaction_opts: Options,
-    database_opts: D::Options,
-    hasher: H,
-  ) -> Result<Self, D::Error> {
-    let db = D::open(database_opts).await?;
-
-    Ok(Self {
-      inner: Arc::new(Inner {
-        orc: {
-          let next_ts = db.maximum_version();
-          let orc = Oracle::new(
-            format!("{}.pending_reads", core::any::type_name::<D>()).into(),
-            format!("{}.txn_timestamps", core::any::type_name::<D>()).into(),
-            transaction_opts.detect_conflicts(),
-            next_ts,
-          )
-          .await;
-          orc.read_mark.done_unchecked(next_ts).await;
-          orc.txn_mark.done_unchecked(next_ts).await;
-          orc.increment_next_ts().await;
-          orc
-        },
-        db,
-        opts: transaction_opts,
-        hasher,
-      }),
     })
   }
+}
 
+impl<K, V, C, P, S> AsyncTm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
+  /// Create a new transaction manager with the given name (just for logging or debugging, use your crate name is enough)
+  /// and the current version (provided by the database).
+  #[inline]
+  pub async fn new(name: &str, current_version: u64) -> Self {
+    Self {
+      inner: Arc::new({
+        let next_ts = current_version;
+        let orc = Oracle::new(
+          format!("{}.pending_reads", name).into(),
+          format!("{}.txn_timestamps", name).into(),
+          next_ts,
+        );
+        orc.read_mark.done_unchecked(next_ts).await;
+        orc.txn_mark.done_unchecked(next_ts).await;
+        orc.increment_next_ts().await;
+        orc
+      }),
+      _phantom: std::marker::PhantomData,
+    }
+  }
+
+  /// Close the transaction manager.
+  #[inline]
+  pub async fn close(&self) {
+    self.inner.stop().await;
+  }
+}
+
+impl<K, V, C, P, S> AsyncTm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   /// Returns a timestamp which hints that any versions under this timestamp can be discard.
   /// This is useful when users want to implement compaction/merge functionality.
-  pub fn discard_hint(&self) -> u64 {
-    self.inner.orc.discard_at_or_below()
-  }
-
-  /// Returns the options of the database.
-  pub fn database_options(&self) -> &D::Options {
-    self.inner.db.options()
-  }
-
-  /// Returns the options of the transaction.
-  pub fn transaction_options(&self) -> &Options {
-    &self.inner.opts
-  }
-
-  /// Returns underlying database.
-  ///
-  /// **Note**: You should not use this method get the underlying database and read/write directly.
-  /// This method is only for you to implement advanced functionalities, such as compaction, merge, etc.
-  pub fn database(&self) -> &D {
-    &self.inner.db
+  pub async fn discard_hint(&self) -> u64 {
+    self.inner.discard_at_or_below().await
   }
 
   /// Create a new writable transaction.
-  pub async fn read(&self) -> Rtm<D, S, H> {
-    Rtm {
+  pub async fn read(&self) -> AsyncRtm<K, V, C, P, S> {
+    AsyncRtm {
       db: self.clone(),
-      read_ts: self.inner.orc.read_ts().await,
+      read_ts: self.inner.read_ts().await,
     }
-  }
-
-  #[inline]
-  fn orc(&self) -> &Oracle<S, H> {
-    &self.inner.orc
   }
 }

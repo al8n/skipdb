@@ -1,4 +1,3 @@
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![forbid(unsafe_code)]
 #![allow(clippy::type_complexity)]
 
@@ -7,6 +6,8 @@ use std::{collections::BTreeMap, hash::BuildHasher};
 use indexmap::IndexMap;
 
 pub use cheap_clone::CheapClone;
+
+pub type DefaultHasher = std::hash::DefaultHasher;
 
 /// Types
 pub mod types {
@@ -227,9 +228,7 @@ pub mod types {
   impl<K: Ord, V: Eq> Ord for EntryData<K, V> {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-      self
-        .key()
-        .cmp(other.key())
+      self.key().cmp(other.key())
     }
   }
 
@@ -411,3 +410,263 @@ pub mod sync;
 
 /// Traits for asynchronous.
 pub mod future;
+
+impl<T> future::AsyncCm for T
+where
+  T: sync::Cm + Send + Sync,
+  <T as sync::Cm>::Key: Send + Sync,
+  <T as sync::Cm>::Options: Send,
+  <T as sync::Cm>::Error: Send,
+{
+  type Error = <T as sync::Cm>::Error;
+
+  type Key = <T as sync::Cm>::Key;
+
+  type Options = <T as sync::Cm>::Options;
+
+  async fn new(options: Self::Options) -> Result<Self, Self::Error> {
+    <T as sync::Cm>::new(options)
+  }
+
+  async fn mark_read(&mut self, key: &Self::Key) {
+    <T as sync::Cm>::mark_read(self, key)
+  }
+
+  async fn mark_conflict(&mut self, key: &Self::Key) {
+    <T as sync::Cm>::mark_conflict(self, key)
+  }
+
+  async fn has_conflict(&self, other: &Self) -> bool {
+    <T as sync::Cm>::has_conflict(self, other)
+  }
+}
+
+impl<T> future::AsyncCmComparable for T
+where
+  T: sync::CmComparable + Send + Sync,
+  <T as sync::Cm>::Key: Send + Sync,
+  <T as sync::Cm>::Options: Send,
+  <T as sync::Cm>::Error: Send,
+{
+  async fn mark_read_comparable<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::CmComparable>::mark_read_comparable(self, key)
+  }
+
+  async fn mark_conflict_comparable<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::CmComparable>::mark_conflict_comparable(self, key)
+  }
+}
+
+impl<T> future::AsyncCmEquivalent for T
+where
+  T: sync::CmEquivalent + Send + Sync,
+  <T as sync::Cm>::Key: Send + Sync,
+  <T as sync::Cm>::Options: Send,
+  <T as sync::Cm>::Error: Send,
+{
+  async fn mark_read_equivalent<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::CmEquivalent>::mark_read_equivalent(self, key)
+  }
+
+  async fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::CmEquivalent>::mark_conflict_equivalent(self, key)
+  }
+}
+
+impl<T> future::AsyncPwm for T
+where
+  T: sync::Pwm + Send + Sync,
+  <T as sync::Pwm>::Key: Send + Sync,
+  <T as sync::Pwm>::Value: Send + Sync,
+  <T as sync::Pwm>::Options: Send,
+  <T as sync::Pwm>::Error: Send,
+{
+  type Error = <T as sync::Pwm>::Error;
+
+  type Key = <T as sync::Pwm>::Key;
+
+  type Value = <T as sync::Pwm>::Value;
+
+  type Options = <T as sync::Pwm>::Options;
+
+  async fn new(options: Self::Options) -> Result<Self, Self::Error> {
+    <T as sync::Pwm>::new(options)
+  }
+
+  async fn is_empty(&self) -> bool {
+    <T as sync::Pwm>::is_empty(self)
+  }
+
+  async fn len(&self) -> usize {
+    <T as sync::Pwm>::len(self)
+  }
+
+  async fn validate_entry(
+    &self,
+    entry: &types::Entry<Self::Key, Self::Value>,
+  ) -> Result<(), Self::Error> {
+    <T as sync::Pwm>::validate_entry(self, entry)
+  }
+
+  fn max_batch_size(&self) -> u64 {
+    <T as sync::Pwm>::max_batch_size(self)
+  }
+
+  fn max_batch_entries(&self) -> u64 {
+    <T as sync::Pwm>::max_batch_entries(self)
+  }
+
+  fn estimate_size(&self, entry: &types::Entry<Self::Key, Self::Value>) -> u64 {
+    <T as sync::Pwm>::estimate_size(self, entry)
+  }
+
+  async fn get(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error> {
+    <T as sync::Pwm>::get(self, key)
+  }
+
+  async fn contains_key(&self, key: &Self::Key) -> Result<bool, Self::Error> {
+    <T as sync::Pwm>::contains_key(self, key)
+  }
+
+  async fn insert(
+    &mut self,
+    key: Self::Key,
+    value: types::EntryValue<Self::Value>,
+  ) -> Result<(), Self::Error> {
+    <T as sync::Pwm>::insert(self, key, value)
+  }
+
+  async fn remove_entry(
+    &mut self,
+    key: &Self::Key,
+  ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error> {
+    <T as sync::Pwm>::remove_entry(self, key)
+  }
+
+  async fn iter(&self) -> impl Iterator<Item = (&Self::Key, &types::EntryValue<Self::Value>)> {
+    <T as sync::Pwm>::iter(self)
+  }
+
+  async fn into_iter(self) -> impl Iterator<Item = (Self::Key, types::EntryValue<Self::Value>)> {
+    <T as sync::Pwm>::into_iter(self)
+  }
+}
+
+impl<T> future::AsyncPwmComparable for T
+where
+  T: sync::PwmComparable + Send + Sync,
+  <T as sync::Pwm>::Key: Send + Sync,
+  <T as sync::Pwm>::Value: Send + Sync,
+  <T as sync::Pwm>::Options: Send,
+  <T as sync::Pwm>::Error: Send,
+{
+  async fn get_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::PwmComparable>::get_comparable(self, key)
+  }
+
+  async fn get_entry_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &types::EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::PwmComparable>::get_entry_comparable(self, key)
+  }
+
+  async fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::PwmComparable>::contains_key_comparable(self, key)
+  }
+
+  async fn remove_entry_comparable<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    <T as sync::PwmComparable>::remove_entry_comparable(self, key)
+  }
+}
+
+impl<T> future::AsyncPwmEquivalent for T
+where
+  T: sync::PwmEquivalent + Send + Sync,
+  <T as sync::Pwm>::Key: Send + Sync,
+  <T as sync::Pwm>::Value: Send + Sync,
+  <T as sync::Pwm>::Options: Send,
+  <T as sync::Pwm>::Error: Send,
+{
+  async fn get_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::PwmEquivalent>::get_equivalent(self, key)
+  }
+
+  async fn get_entry_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &types::EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::PwmEquivalent>::get_entry_equivalent(self, key)
+  }
+
+  async fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::PwmEquivalent>::contains_key_equivalent(self, key)
+  }
+
+  async fn remove_entry_equivalent<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    <T as sync::PwmEquivalent>::remove_entry_equivalent(self, key)
+  }
+}

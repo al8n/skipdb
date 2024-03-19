@@ -12,7 +12,6 @@ mod btree_cm;
 pub use btree_cm::*;
 
 /// Default hasher used by the conflict manager.
-#[cfg(feature = "std")]
 pub type DefaultHasher = std::hash::DefaultHasher;
 
 /// The conflict manager that can be used to manage the conflicts in a transaction.
@@ -23,12 +22,7 @@ pub type DefaultHasher = std::hash::DefaultHasher;
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
 pub trait Cm: Sized + 'static {
   /// The error type returned by the conflict manager.
-  #[cfg(feature = "std")]
   type Error: std::error::Error + 'static;
-
-  /// The error type returned by the conflict manager.
-  #[cfg(not(feature = "std"))]
-  type Error: core::fmt::Display + 'static;
 
   /// The key type.
   type Key: 'static;
@@ -90,12 +84,7 @@ pub trait CmComparable: Cm {
 /// storage to store the pending writes.
 pub trait Pwm: Sized + 'static {
   /// The error type returned by the conflict manager.
-  #[cfg(feature = "std")]
   type Error: std::error::Error + 'static;
-
-  /// The error type returned by the conflict manager.
-  #[cfg(not(feature = "std"))]
-  type Error: core::fmt::Display + 'static;
 
   /// The key type.
   type Key: 'static;

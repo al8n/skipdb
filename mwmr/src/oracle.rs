@@ -18,36 +18,6 @@ pub(super) struct OracleInner<C> {
   pub(super) committed_txns: TinyVec<CommittedTxn<C>>,
 }
 
-// impl<C> OracleInner<C>
-// {
-//   fn has_conflict(&self, reads: &[u64], read_ts: u64) -> bool {
-//     if reads.is_empty() {
-//       return false;
-//     }
-
-//     for committed_txn in self.committed_txns.iter() {
-//       // If the committed_txn.ts is less than txn.read_ts that implies that the
-//       // committed_txn finished before the current transaction started.
-//       // We don't need to check for conflict in that case.
-//       // This change assumes linearizability. Lack of linearizability could
-//       // cause the read ts of a new txn to be lower than the commit ts of
-//       // a txn before it (@mrjn).
-//       if committed_txn.ts <= read_ts {
-//         continue;
-//       }
-
-//       for ro in reads {
-//         if let Some(conflict_keys) = &committed_txn.conflict_manager {
-//           if conflict_keys.contains(ro) {
-//             return true;
-//           }
-//         }
-//       }
-//     }
-//     false
-//   }
-// }
-
 pub(super) enum CreateCommitTimestampResult<C> {
   Timestamp(u64),
   Conflict(Option<C>),
@@ -177,7 +147,7 @@ where
   }
 }
 
-impl<S> Oracle<S> {
+impl<C> Oracle<C> {
   #[inline]
   pub fn new(
     read_mark_name: Cow<'static, str>,
