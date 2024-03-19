@@ -50,10 +50,8 @@ Copyright (c) 2024 Al Liu.
 [doc-url]: https://docs.rs/txn
 [wmark-doc-url]: https://docs.rs/wmark
 [async-mwmr-doc-url]: https://docs.rs/async-mwmr
-[tokio-mwmr-doc-url]: https://docs.rs/tokio-mwmr
 [crates-url]: https://crates.io/crates/txn
 [wmark-crates-url]: https://crates.io/crates/wmark
 [async-mwmr-crates-url]: https://crates.io/async-mwmr
-[tokio-mwmr-crates-url]: https://crates.io/tokio-mwmr
 [codecov-url]: https://app.codecov.io/gh/al8n/txn/
 [zh-cn-url]: https://github.com/al8n/txn/tree/main/README-zh_CN.md
