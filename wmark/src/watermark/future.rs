@@ -99,12 +99,9 @@ macro_rules! process_one {
 
     if until != done_until {
       assert_eq!(
-        $this.done_until.compare_exchange(
-          done_until,
-          until,
-          Ordering::SeqCst,
-          Ordering::Acquire
-        ),
+        $this
+          .done_until
+          .compare_exchange(done_until, until, Ordering::SeqCst, Ordering::Acquire),
         Ok(done_until)
       );
     }

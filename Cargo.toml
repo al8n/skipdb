@@ -4,7 +4,6 @@ members = [
   "mwmr",
   "async-mwmr",
   "wmark",
-  "txn",
 ]
 resolver = "2"
 
