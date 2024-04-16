@@ -32,7 +32,7 @@ parking_lot = { version = "0.12", optional = true }
 wg = { version = "0.8", optional = true }
 
 async-channel = { version = "2", optional = true, default-features = false }
-futures-util = { version = "=0.3.29", optional = true, default-features = false, features = ["async-await-macro"] }
+futures-util = { version = "0.3", optional = true, default-features = false, features = ["async-await-macro"] }
 
 tracing = { version = "0.1", optional = true, default-features = false }
 

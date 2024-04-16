@@ -22,7 +22,7 @@ async-std = ["agnostic-lite/async-std", "future"]
 test = ["rand"]
 
 [dependencies]
-agnostic-lite = { version = "0.1", default-features = false, optional = true }
+agnostic-lite = { version = "0.3", default-features = false, optional = true }
 cheap-clone.workspace = true
 crossbeam-channel.workspace = true
 crossbeam-utils.workspace = true

@@ -20,13 +20,13 @@ pub use smallvec_wrapper::OneOrMore;
 pub use agnostic_lite::AsyncSpawner;
 
 #[cfg(feature = "smol")]
-pub use agnostic_lite::SmolSpawner;
+pub use agnostic_lite::smol::SmolSpawner;
 
 #[cfg(feature = "tokio")]
-pub use agnostic_lite::TokioSpawner;
+pub use agnostic_lite::tokio::TokioSpawner;
 
 #[cfg(feature = "async-std")]
-pub use agnostic_lite::AsyncStdSpawner;
+pub use agnostic_lite::async_std::AsyncStdSpawner;
 
 /// Error types for the [`mwmr`] crate.
 pub mod error;
