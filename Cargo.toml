@@ -32,3 +32,7 @@ tracing = "0.1"
 
 wmark = { path = "wmark", version = "0.2", default-features = false }
 mwmr-core = { path = "mwmr-core", version = "0.2", default-features = false }
+
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

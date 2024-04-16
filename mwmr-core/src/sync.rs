@@ -41,6 +41,9 @@ pub trait Cm: Sized + 'static {
 
   /// Returns true if we have a conflict.
   fn has_conflict(&self, other: &Self) -> bool;
+
+  /// Rollback the conflict manager.
+  fn rollback(&mut self) -> Result<(), Self::Error>;
 }
 
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on hash.
@@ -141,6 +144,9 @@ pub trait Pwm: Sized + 'static {
 
   /// Returns an iterator that consumes the pending writes.
   fn into_iter(self) -> impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
+
+  /// Rollback the pending writes.
+  fn rollback(&mut self) -> Result<(), Self::Error>;
 }
 
 /// An optimized version of the [`Pwm`] trait that if your pending writes manager is depend on hash.
@@ -278,6 +284,11 @@ where
   fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
     core::iter::IntoIterator::into_iter(self)
   }
+
+  fn rollback(&mut self) -> Result<(), Self::Error> {
+    self.clear();
+    Ok(())
+  }
 }
 
 impl<K, V, S> PwmEquivalent for IndexMap<K, EntryValue<V>, S>
@@ -387,6 +398,11 @@ where
 
   fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)> {
     BTreeMap::iter(self)
+  }
+
+  fn rollback(&mut self) -> Result<(), Self::Error> {
+    self.clear();
+    Ok(())
   }
 }
 

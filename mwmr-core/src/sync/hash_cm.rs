@@ -60,6 +60,13 @@ where
     }
     false
   }
+
+  #[inline]
+  fn rollback(&mut self) -> Result<(), Self::Error> {
+    self.reads.clear();
+    self.conflict_keys.clear();
+    Ok(())
+  }
 }
 
 impl<K, S> CmEquivalent for HashCm<K, S>

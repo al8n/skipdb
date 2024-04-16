@@ -23,13 +23,7 @@ pub struct Wtm<K, V, C, P> {
   pub(super) size: u64,
   pub(super) count: u64,
   pub(super) orc: Arc<Oracle<C>>,
-
-  // // contains fingerprints of keys read.
-  // pub(super) reads: MediumVec<u64>,
-  // // contains fingerprints of keys written. This is used for conflict detection.
-  // pub(super) conflict_keys: Option<IndexSet<u64, S>>,
   pub(super) conflict_manager: Option<C>,
-
   // buffer stores any writes done by txn.
   pub(super) pending_writes: Option<P>,
   // Used in managed mode to store duplicate entries.
@@ -93,6 +87,17 @@ where
       data: EntryData::Remove(key),
       version: 0,
     })
+  }
+
+  /// Rolls back the transaction.
+  pub fn rollback(&mut self) -> Result<(), TransactionError<C, P>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    self.pending_writes.as_mut().unwrap().rollback().map_err(TransactionError::Pwm)?;
+    self.conflict_manager.as_mut().unwrap().rollback().map_err(TransactionError::Cm)?;
+    Ok(())
   }
 
   /// Marks a key is read.
