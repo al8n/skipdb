@@ -95,8 +95,18 @@ where
       return Err(TransactionError::Discard);
     }
 
-    self.pending_writes.as_mut().unwrap().rollback().map_err(TransactionError::Pwm)?;
-    self.conflict_manager.as_mut().unwrap().rollback().map_err(TransactionError::Cm)?;
+    self
+      .pending_writes
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .map_err(TransactionError::Pwm)?;
+    self
+      .conflict_manager
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .map_err(TransactionError::Cm)?;
     Ok(())
   }
 
