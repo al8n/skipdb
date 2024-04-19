@@ -153,6 +153,12 @@ impl<K, V, C, P> Tm<K, V, C, P> {
       _phantom: std::marker::PhantomData,
     }
   }
+
+  /// Returns the current read version of the transaction manager.
+  #[inline]
+  pub fn version(&self) -> u64 {
+    self.inner.read_ts()
+  }
 }
 
 impl<K, V, C, P> Tm<K, V, C, P> {

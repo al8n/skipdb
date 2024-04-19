@@ -42,10 +42,18 @@ impl<K, V, C, P> Drop for Wtm<K, V, C, P> {
 }
 
 impl<K, V, C, P> Wtm<K, V, C, P> {
-  /// Returns the version of this read transaction.
+  /// Returns the read version of this transaction.
   #[inline]
   pub const fn version(&self) -> u64 {
     self.read_ts
+  }
+
+  /// Sets the current read version of the transaction manager.
+  // This should be used only for testing purposes.
+  #[doc(hidden)]
+  #[inline]
+  pub fn __set_read_version(&mut self, version: u64) {
+    self.read_ts = version;
   }
 }
 
