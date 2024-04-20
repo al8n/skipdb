@@ -1,4 +1,5 @@
 use crossbeam_skiplist::{map::Entry as MapEntry, SkipMap};
+use mwmr_core::types::EntryRef;
 
 mod reference;
 use either::Either;

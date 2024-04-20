@@ -1,5 +1,5 @@
+use async_mwmr::{AsyncSpawner, BTreeCm};
 pub use cheap_clone::CheapClone;
-use mwmr::BTreeCm;
 
 use super::*;
 
@@ -9,16 +9,16 @@ pub use write::*;
 #[cfg(test)]
 mod tests;
 
-struct Inner<K, V> {
-  tm: Tm<K, V, BTreeCm<K>, PendingMap<K, V>>,
+struct Inner<K, V, S> {
+  tm: AsyncTm<K, V, BTreeCm<K>, PendingMap<K, V>, S>,
   map: SkipCore<K, V>,
   max_batch_size: u64,
   max_batch_entries: u64,
 }
 
-impl<K, V> Inner<K, V> {
-  fn new(name: &str, max_batch_size: u64, max_batch_entries: u64) -> Self {
-    let tm = Tm::new(name, 0);
+impl<K, V, S: AsyncSpawner> Inner<K, V, S> {
+  async fn new(name: &str, max_batch_size: u64, max_batch_entries: u64) -> Self {
+    let tm = AsyncTm::new(name, 0).await;
     Self {
       tm,
       map: SkipCore::new(),
@@ -27,8 +27,8 @@ impl<K, V> Inner<K, V> {
     }
   }
 
-  fn version(&self) -> u64 {
-    self.tm.version()
+  async fn version(&self) -> u64 {
+    self.tm.version().await
   }
 }
 
@@ -40,11 +40,11 @@ impl<K, V> Inner<K, V> {
 ///
 /// Comparing to [`EquivalentDB`](crate::equivalent::EquivalentDB), `ComparableDB` does not require key to implement [`Hash`](core::hash::Hash).
 /// But, [`EquivalentDB`](crate::equivalent::EquivalentDB) has more flexible write transaction APIs.
-pub struct ComparableDB<K, V> {
-  inner: Arc<Inner<K, V>>,
+pub struct ComparableDB<K, V, S> {
+  inner: Arc<Inner<K, V, S>>,
 }
 
-impl<K, V> AsSkipCore<K, V> for ComparableDB<K, V> {
+impl<K, V, S> AsSkipCore<K, V> for ComparableDB<K, V, S> {
   #[inline]
   #[allow(private_interfaces)]
   fn as_inner(&self) -> &SkipCore<K, V> {
@@ -52,7 +52,7 @@ impl<K, V> AsSkipCore<K, V> for ComparableDB<K, V> {
   }
 }
 
-impl<K, V> Clone for ComparableDB<K, V> {
+impl<K, V, S> Clone for ComparableDB<K, V, S> {
   #[inline]
   fn clone(&self) -> Self {
     Self {
@@ -61,56 +61,52 @@ impl<K, V> Clone for ComparableDB<K, V> {
   }
 }
 
-impl<K, V> Default for ComparableDB<K, V> {
-  /// Creates a new `ComparableDB` with the default options.
+impl<K, V, S: AsyncSpawner> ComparableDB<K, V, S> {
+  /// Creates a new `ComparableDB` with the given options.
   #[inline]
-  fn default() -> Self {
-    Self::new()
+  pub async fn new() -> Self {
+    Self::with_options(Default::default()).await
   }
 }
 
-impl<K, V> ComparableDB<K, V> {
+impl<K, V, S: AsyncSpawner> ComparableDB<K, V, S> {
   /// Creates a new `ComparableDB` with the given options.
   #[inline]
-  pub fn new() -> Self {
-    Self::with_options(Default::default())
-  }
-}
-
-impl<K, V> ComparableDB<K, V> {
-  /// Creates a new `ComparableDB` with the given options.
-  #[inline]
-  pub fn with_options(opts: Options) -> Self {
+  pub async fn with_options(opts: Options) -> Self {
     Self {
-      inner: Arc::new(Inner::new(
-        core::any::type_name::<Self>(),
-        opts.max_batch_size(),
-        opts.max_batch_entries(),
-      )),
+      inner: Arc::new(
+        Inner::new(
+          core::any::type_name::<Self>(),
+          opts.max_batch_size(),
+          opts.max_batch_entries(),
+        )
+        .await,
+      ),
     }
   }
 
   /// Returns the current read version of the database.
   #[inline]
-  pub fn version(&self) -> u64 {
-    self.inner.version()
+  pub async fn version(&self) -> u64 {
+    self.inner.version().await
   }
 
   /// Create a read transaction.
   #[inline]
-  pub fn read(&self) -> ReadTransaction<K, V, ComparableDB<K, V>, BTreeCm<K>> {
-    ReadTransaction::new(self.clone(), self.inner.tm.read())
+  pub async fn read(&self) -> ReadTransaction<K, V, ComparableDB<K, V, S>, BTreeCm<K>, S> {
+    ReadTransaction::new(self.clone(), self.inner.tm.read().await)
   }
 }
 
-impl<K, V> ComparableDB<K, V>
+impl<K, V, S> ComparableDB<K, V, S>
 where
-  K: CheapClone + Ord + 'static,
-  V: 'static,
+  K: CheapClone + Ord + Send + Sync + 'static,
+  V: Send + Sync + 'static,
+  S: AsyncSpawner,
 {
   /// Create a write transaction.
   #[inline]
-  pub fn write(&self) -> WriteTransaction<K, V> {
-    WriteTransaction::new(self.clone())
+  pub async fn write(&self) -> WriteTransaction<K, V, S> {
+    WriteTransaction::new(self.clone()).await
   }
 }

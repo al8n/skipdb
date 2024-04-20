@@ -19,13 +19,8 @@ impl<K, V, C, P, S> AsyncRtm<K, V, C, P, S> {
   }
 }
 
-impl<K, V, C, P, S> AsyncRtm<K, V, C, P, S>
-where
-  S: AsyncSpawner,
-{
-  /// Commit the read transaction.
-  #[inline]
-  pub async fn commit(self) {
-    self.db.inner.done_read(self.read_ts).await;
+impl<K, V, C, P, S> Drop for AsyncRtm<K, V, C, P, S> {
+  fn drop(&mut self) {
+    self.db.inner.done_read_blocking(self.read_ts);
   }
 }

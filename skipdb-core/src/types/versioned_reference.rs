@@ -1,5 +1,3 @@
-use mwmr::EntryRef;
-
 use super::*;
 
 /// A reference to an entry in the write transaction.

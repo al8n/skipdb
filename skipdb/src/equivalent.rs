@@ -8,7 +8,7 @@ mod tests;
 
 struct Inner<K, V, S = std::hash::RandomState> {
   tm: Tm<K, V, HashCm<K, S>, PendingMap<K, V>>,
-  map: InnerDB<K, V>,
+  map: SkipCore<K, V>,
   hasher: S,
   max_batch_size: u64,
   max_batch_entries: u64,
@@ -16,11 +16,10 @@ struct Inner<K, V, S = std::hash::RandomState> {
 
 impl<K, V, S> Inner<K, V, S> {
   fn new(name: &str, max_batch_size: u64, max_batch_entries: u64, hasher: S) -> Self {
-    let map = SkipMap::new();
     let tm = Tm::new(name, 0);
     Self {
       tm,
-      map: InnerDB(map),
+      map: SkipCore::new(),
       hasher,
       max_batch_size,
       max_batch_entries,
@@ -43,10 +42,10 @@ pub struct EquivalentDB<K, V, S = std::hash::RandomState> {
   inner: Arc<Inner<K, V, S>>,
 }
 
-impl<K, V, S> super::sealed::AsInnerDB<K, V> for EquivalentDB<K, V, S> {
+impl<K, V, S> AsSkipCore<K, V> for EquivalentDB<K, V, S> {
   #[inline]
   #[allow(private_interfaces)]
-  fn as_inner(&self) -> &InnerDB<K, V> {
+  fn as_inner(&self) -> &SkipCore<K, V> {
     &self.inner.map
   }
 }
@@ -88,8 +87,8 @@ impl<K, V, S> EquivalentDB<K, V, S> {
   pub fn with_options_and_hasher(opts: Options, hasher: S) -> Self {
     let inner = Arc::new(Inner::new(
       core::any::type_name::<Self>(),
-      opts.max_batch_size,
-      opts.max_batch_entries,
+      opts.max_batch_size(),
+      opts.max_batch_entries(),
       hasher,
     ));
     Self { inner }

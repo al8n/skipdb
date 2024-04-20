@@ -1,6 +1,7 @@
-use async_channel::{bounded, Receiver, Sender};
+use async_channel::{bounded, unbounded, Receiver, Sender};
+use atomic_refcell::AtomicRefCell as RefCell;
 use crossbeam_utils::CachePadded;
-use futures_util::{select_biased, FutureExt};
+use futures_util::FutureExt;
 use smallvec_wrapper::MediumVec;
 
 use core::{
@@ -48,91 +49,86 @@ struct Inner {
   mark_tx: Sender<Mark>,
 }
 
-macro_rules! process_one {
-  ($this:ident,$pending:ident,$waiters:ident,$indices:ident,$idx: ident, $done: ident) => {{
-    if !$pending.contains_key(&$idx) {
-      $indices.push(Reverse($idx));
-    }
-
-    let prev = $pending.entry($idx).or_insert(0);
-    if $done {
-      (*prev) = (*prev).saturating_sub(1);
-    } else {
-      (*prev) += 1;
-    }
-
-    let mut delta = 1;
-    if $done {
-      delta = -1;
-    }
-    $pending
-      .entry($idx)
-      .and_modify(|v| *v += delta)
-      .or_insert(delta);
-
-    // Update mark by going through all indices in order; and checking if they have
-    // been done. Stop at the first index, which isn't done.
-    let done_until = $this.done_until.load(Ordering::SeqCst);
-    assert!(
-      done_until <= $idx,
-      "name: {}, done_until: {}, idx: {}",
-      $this.name,
-      done_until,
-      $idx
-    );
-
-    let mut until = done_until;
-
-    while !$indices.is_empty() {
-      let min = $indices.peek().unwrap().0;
-      if let Some(done) = $pending.get(&min) {
-        if done.gt(&0) {
-          break; // len(indices) will be > 0.
-        }
-      }
-      // Even if done is called multiple times causing it to become
-      // negative, we should still pop the index.
-      $indices.pop();
-      $pending.remove(&min);
-      until = min;
-    }
-
-    if until != done_until {
-      assert_eq!(
-        $this
-          .done_until
-          .compare_exchange(done_until, until, Ordering::SeqCst, Ordering::Acquire),
-        Ok(done_until)
-      );
-    }
-
-    if until - done_until <= $waiters.len() as u64 {
-      // Close channel and remove from waiters.
-      (done_until + 1..=until).for_each(|idx| {
-        let _ = $waiters.remove(&idx);
-      });
-    } else {
-      // Close and drop idx <= util channels.
-      $waiters.retain(|idx, _| *idx > until);
-    }
-  }};
-}
-
 impl Inner {
   async fn process<S>(&self, closer: AsyncCloser<S>) {
     scopeguard::defer!(closer.done(););
+
     self.inited.store(true, Ordering::SeqCst);
 
     let mut indices: BinaryHeap<Reverse<u64>> = BinaryHeap::new();
     // pending maps raft proposal index to the number of pending mutations for this proposal.
-    let mut pending: HashMap<u64, i64> = HashMap::new();
-    let mut waiters: HashMap<u64, MediumVec<Sender<()>>> = HashMap::new();
+    let pending: RefCell<HashMap<u64, i64>> = RefCell::new(HashMap::new());
+    let waiters: RefCell<HashMap<u64, MediumVec<Sender<()>>>> = RefCell::new(HashMap::new());
+
+    let mut process_one = |idx: u64, done: bool| {
+      // If not already done, then set. Otherwise, don't undo a done entry.
+      let mut pending = pending.borrow_mut();
+      let mut waiters = waiters.borrow_mut();
+
+      if !pending.contains_key(&idx) {
+        indices.push(Reverse(idx));
+      }
+
+      let mut delta = 1;
+      if done {
+        delta = -1;
+      }
+      pending
+        .entry(idx)
+        .and_modify(|v| *v += delta)
+        .or_insert(delta);
+
+      // Update mark by going through all indices in order; and checking if they have
+      // been done. Stop at the first index, which isn't done.
+      let done_until = self.done_until.load(Ordering::SeqCst);
+      assert!(
+        done_until <= idx,
+        "name: {}, done_until: {}, idx: {}",
+        self.name,
+        done_until,
+        idx
+      );
+
+      let mut until = done_until;
+
+      while !indices.is_empty() {
+        let min = indices.peek().unwrap().0;
+        if let Some(done) = pending.get(&min) {
+          if done.gt(&0) {
+            break; // len(indices) will be > 0.
+          }
+        }
+        // Even if done is called multiple times causing it to become
+        // negative, we should still pop the index.
+        indices.pop();
+        pending.remove(&min);
+        until = min;
+      }
+
+      if until != done_until {
+        assert_eq!(
+          self
+            .done_until
+            .compare_exchange(done_until, until, Ordering::SeqCst, Ordering::Acquire),
+          Ok(done_until)
+        );
+      }
+
+      if until - done_until <= waiters.len() as u64 {
+        // Close channel and remove from waiters.
+        (done_until + 1..=until).for_each(|idx| {
+          let _ = waiters.remove(&idx);
+        });
+      } else {
+        // Close and drop idx <= util channels.
+        waiters.retain(|idx, _| *idx > until);
+      }
+    };
 
     let closer = closer.has_been_closed();
     loop {
-      select_biased! {
+      futures_util::select! {
         _ = closer.recv().fuse() => return,
-
         mark = self.mark_rx.recv().fuse() => match mark {
           Ok(mark) => {
             if let Some(wait_tx) = mark.waiter {
@@ -141,14 +137,13 @@ impl Inner {
                 if done_until >= index {
                   let _ = wait_tx; // Close channel.
                 } else {
-                  waiters.entry(index).or_default().push(wait_tx);
+                  waiters.borrow_mut().entry(index).or_default().push(wait_tx);
                 }
               }
             } else {
-              let done = mark.done;
               match mark.index {
-                MarkIndex::Single(idx) => process_one!(self, pending, waiters, indices, idx, done),
-                MarkIndex::Multiple(bunch) => bunch.into_iter().for_each(|idx| process_one!(self, pending, waiters, indices, idx, done)),
+                MarkIndex::Single(idx) => process_one(idx, mark.done),
+                MarkIndex::Multiple(indices) => indices.into_iter().for_each(|idx| process_one(idx, mark.done)),
               }
             }
           },
@@ -206,7 +201,7 @@ impl<S> AsyncWaterMark<S> {
   /// **Note**: Before using the watermark, you must call `init` to start the background thread.
   #[inline]
   pub fn new(name: Cow<'static, str>) -> Self {
-    let (mark_tx, mark_rx) = bounded(100);
+    let (mark_tx, mark_rx) = unbounded();
     Self {
       inner: Arc::new(Inner {
         done_until: CachePadded::new(AtomicU64::new(0)),

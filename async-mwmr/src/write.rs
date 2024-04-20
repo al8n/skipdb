@@ -4,18 +4,6 @@ use core::{borrow::Borrow, future::Future};
 
 use super::*;
 
-/// A marker used to mark the keys that are read.
-pub struct Marker<'a, C> {
-  marker: &'a mut C,
-}
-
-impl<'a, C: AsyncCm> Marker<'a, C> {
-  /// Marks a key is operated.
-  pub async fn mark(&mut self, k: &C::Key) {
-    self.marker.mark_read(k).await;
-  }
-}
-
 /// AsyncWtm is used to perform writes to the database. It is created by
 /// calling [`AsyncTm::write`].
 pub struct AsyncWtm<K, V, C, P, S> {
@@ -23,11 +11,6 @@ pub struct AsyncWtm<K, V, C, P, S> {
   pub(super) size: u64,
   pub(super) count: u64,
   pub(super) orc: Arc<Oracle<C, S>>,
-
-  // // contains fingerprints of keys read.
-  // pub(super) reads: MediumVec<u64>,
-  // // contains fingerprints of keys written. This is used for conflict detection.
-  // pub(super) conflict_keys: Option<IndexSet<u64, S>>,
   pub(super) conflict_manager: Option<C>,
 
   // buffer stores any writes done by txn.
@@ -45,6 +28,316 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
   pub const fn version(&self) -> u64 {
     self.read_ts
   }
+
+  /// Sets the current read version of the transaction manager.
+  // This should be used only for testing purposes.
+  #[doc(hidden)]
+  #[inline]
+  pub fn __set_read_version(&mut self, version: u64) {
+    self.read_ts = version;
+  }
+
+  /// Returns the pending writes manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  #[inline]
+  pub fn pwm(&self) -> Option<&P> {
+    self.pending_writes.as_ref()
+  }
+
+  /// Returns the conflict manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  #[inline]
+  pub fn cm(&self) -> Option<&C> {
+    self.conflict_manager.as_ref()
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: Cm<Key = K>,
+{
+  /// This method is used to create a marker for the keys that are operated.
+  /// It must be used to mark keys when end user is implementing iterators to
+  /// make sure the transaction manager works correctly.
+  ///
+  /// `None` means the transaction has already been discarded.
+  ///
+  /// e.g.
+  ///
+  /// ```ignore, rust
+  /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
+  /// let mut marker = txn.marker();
+  /// custom_database.iter().map(|k, v| marker.mark(&k));
+  /// ```
+  pub fn marker(&mut self) -> Option<Marker<'_, C>> {
+    self.conflict_manager.as_mut().map(Marker::new)
+  }
+
+  /// Returns a marker for the keys that are operated and the pending writes manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  ///
+  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
+  /// time, this method is used to solve this problem.
+  pub fn marker_with_pm(&mut self) -> Option<(Marker<'_, C>, &P)> {
+    self
+      .conflict_manager
+      .as_mut()
+      .map(|marker| (Marker::new(marker), self.pending_writes.as_ref().unwrap()))
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: AsyncCm<Key = K>,
+{
+  /// This method is used to create a marker for the keys that are operated.
+  /// It must be used to mark keys when end user is implementing iterators to
+  /// make sure the transaction manager works correctly.
+  ///
+  /// `None` means the transaction has already been discarded.
+  ///
+  /// e.g.
+  ///
+  /// ```ignore, rust
+  /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
+  /// let mut marker = txn.marker();
+  /// custom_database.iter().map(|k, v| marker.mark(&k));
+  /// ```
+  pub fn async_marker(&mut self) -> Option<AsyncMarker<'_, C>> {
+    self.conflict_manager.as_mut().map(AsyncMarker::new)
+  }
+
+  /// Returns a marker for the keys that are operated and the pending writes manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  ///
+  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
+  /// time, this method is used to solve this problem.
+  pub fn async_marker_with_pm(&mut self) -> Option<(AsyncMarker<'_, C>, &P)> {
+    self.conflict_manager.as_mut().map(|marker| {
+      (
+        AsyncMarker::new(marker),
+        self.pending_writes.as_ref().unwrap(),
+      )
+    })
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+  S: AsyncSpawner,
+{
+  /// Marks a key is read.
+  pub fn mark_read_blocking(&mut self, k: &K) {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict_blocking(&mut self, k: &K) {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict(k);
+    }
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+  S: AsyncSpawner,
+{
+  /// Rolls back the transaction.
+  #[inline]
+  pub fn rollback_blocking(&mut self) -> Result<(), TransactionError<C::Error, P::Error>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    self
+      .pending_writes
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .map_err(TransactionError::Pwm)?;
+    self
+      .conflict_manager
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .map_err(TransactionError::Cm)?;
+    Ok(())
+  }
+
+  /// Insert a key-value pair to the transaction.
+  pub fn insert_blocking(
+    &mut self,
+    key: K,
+    value: V,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
+    self.insert_with_blocking_in(key, value)
+  }
+
+  /// Removes a key.
+  ///
+  /// This is done by adding a delete marker for the key at commit timestamp.  Any
+  /// reads happening before this timestamp would be unaffected. Any reads after
+  /// this commit would see the deletion.
+  pub fn remove_blocking(&mut self, key: K) -> Result<(), TransactionError<C::Error, P::Error>> {
+    self.modify_blocking(Entry {
+      data: EntryData::Remove(key),
+      version: 0,
+    })
+  }
+
+  /// Returns `true` if the pending writes contains the key.
+  pub fn contains_key_blocking(
+    &mut self,
+    key: &K,
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get(key)
+      .map_err(TransactionError::pending)?
+    {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
+
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read(key);
+        }
+
+        Ok(None)
+      }
+    }
+  }
+
+  /// Looks for the key in the pending writes, if such key is not in the pending writes,
+  /// the end user can read the key from the database.
+  pub fn get_blocking<'a, 'b: 'a>(
+    &'a mut self,
+    key: &'b K,
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    if let Some(e) = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get(key)
+      .map_err(TransactionError::Pwm)?
+    {
+      // If the value is None, it means that the key is removed.
+      if e.value.is_none() {
+        return Ok(None);
+      }
+
+      // Fulfill from buffer.
+      Ok(Some(EntryRef {
+        data: match &e.value {
+          Some(value) => EntryDataRef::Insert { key, value },
+          None => EntryDataRef::Remove(key),
+        },
+        version: e.version,
+      }))
+    } else {
+      // track reads. No need to track read if txn serviced it
+      // internally.
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read(key);
+      }
+
+      Ok(None)
+    }
+  }
+
+  fn insert_with_blocking_in(
+    &mut self,
+    key: K,
+    value: V,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
+    let ent = Entry {
+      data: EntryData::Insert { key, value },
+      version: self.read_ts,
+    };
+
+    self.modify_blocking(ent)
+  }
+
+  fn modify_blocking(
+    &mut self,
+    ent: Entry<K, V>,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
+    let pending_writes = self.pending_writes.as_mut().unwrap();
+    pending_writes
+      .validate_entry(&ent)
+      .map_err(TransactionError::Pwm)?;
+
+    let cnt = self.count + 1;
+    // Extra bytes for the version in key.
+    let size = self.size + pending_writes.estimate_size(&ent);
+    if cnt >= pending_writes.max_batch_entries() || size >= pending_writes.max_batch_size() {
+      return Err(TransactionError::LargeTxn);
+    }
+
+    self.count = cnt;
+    self.size = size;
+
+    // The conflict_manager is used for conflict detection. If conflict detection
+    // is disabled, we don't need to store key hashes in the conflict_manager.
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict(ent.key());
+    }
+
+    // If a duplicate entry was inserted in managed mode, move it to the duplicate writes slice.
+    // Add the entry to duplicateWrites only if both the entries have different versions. For
+    // same versions, we will overwrite the existing entry.
+    let eversion = ent.version;
+    let (ek, ev) = ent.split();
+
+    if let Some((old_key, old_value)) = pending_writes
+      .remove_entry(&ek)
+      .map_err(TransactionError::Pwm)?
+    {
+      if old_value.version != eversion {
+        self
+          .duplicate_writes
+          .push(Entry::unsplit(old_key, old_value));
+      }
+    }
+    pending_writes
+      .insert(ek, ev)
+      .map_err(TransactionError::Pwm)?;
+
+    Ok(())
+  }
 }
 
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
@@ -53,26 +346,36 @@ where
   P: AsyncPwm<Key = K, Value = V>,
   S: AsyncSpawner,
 {
-  /// Returns the pending writes manager.
+  /// Rolls back the transaction.
   #[inline]
-  pub fn pwm(&self) -> Result<&P, TransactionError<C, P>> {
+  pub async fn rollback(&mut self) -> Result<(), TransactionError<C::Error, P::Error>> {
+    if self.discarded {
+      return Err(TransactionError::Discard);
+    }
+
     self
       .pending_writes
-      .as_ref()
-      .ok_or(TransactionError::Discard)
-  }
-
-  /// Returns the conflict manager.
-  #[inline]
-  pub fn cm(&self) -> Result<&C, TransactionError<C, P>> {
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .await
+      .map_err(TransactionError::Pwm)?;
     self
       .conflict_manager
-      .as_ref()
-      .ok_or(TransactionError::Discard)
+      .as_mut()
+      .unwrap()
+      .rollback()
+      .await
+      .map_err(TransactionError::Cm)?;
+    Ok(())
   }
 
   /// Insert a key-value pair to the transaction.
-  pub async fn insert(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
+  pub async fn insert(
+    &mut self,
+    key: K,
+    value: V,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
     self.insert_with_in(key, value).await
   }
 
@@ -81,7 +384,7 @@ where
   /// This is done by adding a delete marker for the key at commit timestamp.  Any
   /// reads happening before this timestamp would be unaffected. Any reads after
   /// this commit would see the deletion.
-  pub async fn remove(&mut self, key: K) -> Result<(), TransactionError<C, P>> {
+  pub async fn remove(&mut self, key: K) -> Result<(), TransactionError<C::Error, P::Error>> {
     self
       .modify(Entry {
         data: EntryData::Remove(key),
@@ -105,7 +408,10 @@ where
   }
 
   /// Returns `true` if the pending writes contains the key.
-  pub async fn contains_key(&mut self, key: &K) -> Result<Option<bool>, TransactionError<C, P>> {
+  pub async fn contains_key(
+    &mut self,
+    key: &K,
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -144,7 +450,7 @@ where
   pub async fn get<'a, 'b: 'a>(
     &'a mut self,
     key: &'b K,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>> {
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -181,47 +487,6 @@ where
     }
   }
 
-  /// This method is used to create a marker for the keys that are operated.
-  /// It must be used to mark keys when end user is implementing iterators to
-  /// make sure the transaction manager works correctly.
-  ///
-  /// e.g.
-  ///
-  /// ```ignore, rust
-  /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
-  /// let mut marker = txn.marker();
-  /// custom_database.iter().map(|k, v| marker.mark(&k));
-  /// ```
-  pub fn marker(&mut self) -> Result<Option<Marker<'_, C>>, TransactionError<C, P>> {
-    if self.is_discard() {
-      return Err(TransactionError::Discard);
-    }
-    Ok(
-      self
-        .conflict_manager
-        .as_mut()
-        .map(|marker| Marker { marker }),
-    )
-  }
-
-  /// Returns a marker for the keys that are operated and the pending writes manager.
-  ///
-  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
-  /// time, this method is used to solve this problem.
-  pub fn marker_with_pm(&mut self) -> Result<(Option<Marker<'_, C>>, &P), TransactionError<C, P>> {
-    if self.is_discard() {
-      return Err(TransactionError::Discard);
-    }
-
-    Ok((
-      self
-        .conflict_manager
-        .as_mut()
-        .map(|marker| Marker { marker }),
-      self.pending_writes.as_ref().unwrap(),
-    ))
-  }
-
   /// Commits the transaction, following these steps:
   ///
   /// 1. If there are no writes, return immediately.
@@ -237,24 +502,28 @@ where
   /// there is a conflict, an error will be returned and the callback will not
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
-  pub async fn commit<F, Fut, E>(mut self, apply: F) -> Result<(), WtmError<C, P, E>>
+  pub async fn commit<F, Fut, O, E>(
+    &mut self,
+    apply: F,
+  ) -> Result<O, WtmError<C::Error, P::Error, E>>
   where
-    Fut: Future<Output = Result<(), E>> + Send,
+    O: Send,
+    Fut: Future<Output = Result<O, E>> + Send,
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Fut,
     E: std::error::Error,
   {
     if self.pending_writes.as_ref().unwrap().is_empty().await {
       // Nothing to commit
       self.discard().await;
-      return Ok(());
+      return apply(Default::default()).await.map_err(WtmError::commit);
     }
 
     match self.commit_entries().await {
       Ok((commit_ts, entries)) => match apply(entries).await {
-        Ok(_) => {
+        Ok(output) => {
           self.orc.done_commit(commit_ts).await;
           self.discard().await;
-          Ok(())
+          Ok(output)
         }
         Err(e) => {
           self.orc.done_commit(commit_ts).await;
@@ -313,7 +582,7 @@ where
   pub async fn contains_key_equivalent<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + core::hash::Hash + Sync,
@@ -356,7 +625,7 @@ where
   pub async fn get_equivalent<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + core::hash::Hash + Sync,
@@ -412,7 +681,7 @@ where
   pub async fn contains_key_comparable_cm_equivalent_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash + Sync,
@@ -451,7 +720,7 @@ where
   pub async fn get_comparable_cm_equivalent_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash + Sync,
@@ -532,7 +801,7 @@ where
   pub async fn contains_key_comparable<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Ord + Sync,
@@ -571,7 +840,7 @@ where
   pub async fn get_comparable<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Ord + Sync,
@@ -623,7 +892,7 @@ where
   pub async fn contains_key_equivalent_cm_comparable_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash + Sync,
@@ -662,7 +931,7 @@ where
   pub async fn get_equivalent_cm_comparable_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash + Sync,
@@ -722,10 +991,10 @@ where
   /// run. If there are no conflicts, a task will be spawned and the future will be called in the
   /// background upon successful completion of writes or any error during write.
   pub async fn commit_with_task<F, Fut, E, R>(
-    mut self,
+    &mut self,
     apply: F,
     fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<<S as AsyncSpawner>::JoinHandle<R>, WtmError<C, P, E>>
+  ) -> Result<<S as AsyncSpawner>::JoinHandle<R>, WtmError<C::Error, P::Error, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
@@ -773,7 +1042,11 @@ where
   P: AsyncPwm<Key = K, Value = V>,
   S: AsyncSpawner,
 {
-  async fn insert_with_in(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
+  async fn insert_with_in(
+    &mut self,
+    key: K,
+    value: V,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
     let ent = Entry {
       data: EntryData::Insert { key, value },
       version: self.read_ts,
@@ -782,7 +1055,7 @@ where
     self.modify(ent).await
   }
 
-  async fn modify(&mut self, ent: Entry<K, V>) -> Result<(), TransactionError<C, P>> {
+  async fn modify(&mut self, ent: Entry<K, V>) -> Result<(), TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -836,7 +1109,7 @@ where
 
   async fn commit_entries(
     &mut self,
-  ) -> Result<(u64, OneOrMore<Entry<K, V>>), TransactionError<C, P>> {
+  ) -> Result<(u64, OneOrMore<Entry<K, V>>), TransactionError<C::Error, P::Error>> {
     // Ensure that the order in which we get the commit timestamp is the same as
     // the order in which we push these updates to the write channel. So, we
     // acquire a writeChLock before getting a commit timestamp, and only release
@@ -863,24 +1136,25 @@ where
       CreateCommitTimestampResult::Timestamp(commit_ts) => {
         let pending_writes = mem::take(&mut self.pending_writes).unwrap();
         let duplicate_writes = mem::take(&mut self.duplicate_writes);
-        let entries = RefCell::new(OneOrMore::with_capacity(
-          pending_writes.len().await + self.duplicate_writes.len(),
-        ));
+        let mut entries =
+          OneOrMore::with_capacity(pending_writes.len().await + self.duplicate_writes.len());
 
-        let process_entry = |mut ent: Entry<K, V>| {
+        let process_entry = |entries: &mut OneOrMore<Entry<K, V>>, mut ent: Entry<K, V>| {
           ent.version = commit_ts;
-          entries.borrow_mut().push(ent);
+          entries.push(ent);
         };
         pending_writes
           .into_iter()
           .await
-          .for_each(|(k, v)| process_entry(Entry::unsplit(k, v)));
-        duplicate_writes.into_iter().for_each(process_entry);
+          .for_each(|(k, v)| process_entry(&mut entries, Entry::unsplit(k, v)));
+        duplicate_writes
+          .into_iter()
+          .for_each(|ent| process_entry(&mut entries, ent));
 
         // CommitTs should not be zero if we're inserting transaction markers.
         assert_ne!(commit_ts, 0);
 
-        Ok((commit_ts, entries.into_inner()))
+        Ok((commit_ts, entries))
       }
     }
   }
@@ -894,6 +1168,13 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
     }
   }
 
+  fn done_read_blocking(&mut self) {
+    if !self.done_read {
+      self.done_read = true;
+      self.orc().read_mark.done_unchecked_blocking(self.read_ts);
+    }
+  }
+
   #[inline]
   fn orc(&self) -> &Oracle<C, S> {
     &self.orc
@@ -903,12 +1184,24 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
   /// methods calls this internally.
   ///
   /// NOTE: If any operations are run on a discarded transaction, [`TransactionError::Discard`] is returned.
-  pub async fn discard(mut self) {
+  pub async fn discard(&mut self) {
     if self.discarded {
       return;
     }
     self.discarded = true;
     self.done_read().await;
+  }
+
+  /// Discards a created transaction. This method is very important and must be called. `commit*`
+  /// methods calls this internally.
+  ///
+  /// NOTE: If any operations are run on a discarded transaction, [`TransactionError::Discard`] is returned.
+  pub fn discard_blocking(&mut self) {
+    if self.discarded {
+      return;
+    }
+    self.discarded = true;
+    self.done_read_blocking();
   }
 
   /// Returns true if the transaction is discarded.
@@ -918,5 +1211,10 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
   }
 }
 
-#[test]
-fn test_() {}
+impl<K, V, C, P, S> Drop for AsyncWtm<K, V, C, P, S> {
+  fn drop(&mut self) {
+    if !self.discarded {
+      self.discard_blocking();
+    }
+  }
+}

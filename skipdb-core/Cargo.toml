@@ -1,0 +1,16 @@
+[package]
+name = "skipdb-core"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+license.workspace = true
+
+[dependencies]
+crossbeam-skiplist = "0.1"
+either = "1"
+mwmr-core = { path = "../mwmr-core", version = "0.2" }
+smallvec-wrapper.workspace = true

@@ -4,18 +4,6 @@ use core::borrow::Borrow;
 
 use super::*;
 
-/// A marker used to mark the keys that are read.
-pub struct Marker<'a, C> {
-  marker: &'a mut C,
-}
-
-impl<'a, C: Cm> Marker<'a, C> {
-  /// Marks a key is operated.
-  pub fn mark(&mut self, k: &C::Key) {
-    self.marker.mark_read(k);
-  }
-}
-
 /// Wtm is used to perform writes to the database. It is created by
 /// calling [`Tm::write`].
 pub struct Wtm<K, V, C, P> {
@@ -222,12 +210,7 @@ where
     if self.is_discard() {
       return Err(TransactionError::Discard);
     }
-    Ok(
-      self
-        .conflict_manager
-        .as_mut()
-        .map(|marker| Marker { marker }),
-    )
+    Ok(self.conflict_manager.as_mut().map(Marker::new))
   }
 
   /// Returns a marker for the keys that are operated and the pending writes manager.
@@ -240,14 +223,17 @@ where
     }
 
     Ok((
-      self
-        .conflict_manager
-        .as_mut()
-        .map(|marker| Marker { marker }),
+      self.conflict_manager.as_mut().map(Marker::new),
       self.pending_writes.as_ref().unwrap(),
     ))
   }
+}
 
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+{
   /// Commits the transaction, following these steps:
   ///
   /// 1. If there are no writes, return immediately.
@@ -872,7 +858,13 @@ where
 
     Ok(())
   }
+}
 
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+{
   fn commit_entries(&mut self) -> Result<(u64, OneOrMore<Entry<K, V>>), TransactionError<C, P>> {
     // Ensure that the order in which we get the commit timestamp is the same as
     // the order in which we push these updates to the write channel. So, we
@@ -899,23 +891,24 @@ where
       CreateCommitTimestampResult::Timestamp(commit_ts) => {
         let pending_writes = mem::take(&mut self.pending_writes).unwrap();
         let duplicate_writes = mem::take(&mut self.duplicate_writes);
-        let entries = RefCell::new(OneOrMore::with_capacity(
-          pending_writes.len() + self.duplicate_writes.len(),
-        ));
+        let mut entries =
+          OneOrMore::with_capacity(pending_writes.len() + self.duplicate_writes.len());
 
-        let process_entry = |mut ent: Entry<K, V>| {
+        let process_entry = |entries: &mut OneOrMore<Entry<K, V>>, mut ent: Entry<K, V>| {
           ent.version = commit_ts;
-          entries.borrow_mut().push(ent);
+          entries.push(ent);
         };
         pending_writes
           .into_iter()
-          .for_each(|(k, v)| process_entry(Entry::unsplit(k, v)));
-        duplicate_writes.into_iter().for_each(process_entry);
+          .for_each(|(k, v)| process_entry(&mut entries, Entry::unsplit(k, v)));
+        duplicate_writes
+          .into_iter()
+          .for_each(|ent| process_entry(&mut entries, ent));
 
         // CommitTs should not be zero if we're inserting transaction markers.
         assert_ne!(commit_ts, 0);
 
-        Ok((commit_ts, entries.into_inner()))
+        Ok((commit_ts, entries))
       }
     }
   }

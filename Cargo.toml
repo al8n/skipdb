@@ -5,6 +5,8 @@ members = [
   "async-mwmr",
   "wmark",
   "skipdb",
+  "async-skipdb",
+  "skipdb-core",
 ]
 resolver = "2"
 
