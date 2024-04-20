@@ -765,14 +765,14 @@ where
     &mut self,
     apply: F,
     fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<<AS as agnostic_lite::AsyncSpawner>::JoinHandle<R>, WtmError<C, P, E>>
+  ) -> Result<<AS as wmark::AsyncSpawner>::JoinHandle<R>, WtmError<C, P, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E> + Send + 'static,
     E: std::error::Error,
     R: Send + 'static,
-    AS: agnostic_lite::AsyncSpawner,
+    AS: wmark::AsyncSpawner,
     C: 'static,
   {
     if self.discarded {

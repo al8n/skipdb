@@ -12,17 +12,16 @@ description = "A generic optimistic transaction manger, which is ACID, concurren
 
 [features]
 default = []
-future = ["agnostic-lite"]
 
-smol = ["agnostic-lite/smol", "future"]
-tokio = ["agnostic-lite/tokio", "future"]
-async-std = ["agnostic-lite/async-std", "future"]
+future = ["wmark/future"]
+smol = ["wmark/smol", "future"]
+tokio = ["wmark/tokio", "future"]
+async-std = ["wmark/async-std", "future"]
 
 # Features will export the generic unit tests implementation for database based on mwmr
 test = ["rand"]
 
 [dependencies]
-agnostic-lite = { version = "0.3", default-features = false, optional = true }
 cheap-clone.workspace = true
 crossbeam-channel.workspace = true
 crossbeam-utils.workspace = true

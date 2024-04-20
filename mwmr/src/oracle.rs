@@ -189,7 +189,6 @@ impl<C> Oracle<C> {
     if let Err(e) = self.txn_mark.wait_for_mark_unchecked(read_ts) {
       panic!("{e}");
     }
-
     read_ts
   }
 

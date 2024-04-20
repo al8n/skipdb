@@ -33,7 +33,7 @@ pub use watermark::future::AsyncWaterMark;
 
 #[cfg(feature = "future")]
 #[cfg_attr(docsrs, doc(cfg(feature = "future")))]
-pub use wg::future::AsyncSpawner;
+pub use wg::future::{AsyncSpawner, Detach};
 
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
