@@ -13,14 +13,6 @@ description = "A generic optimistic transaction manger, which is ACID, concurren
 [features]
 default = []
 
-future = ["wmark/future"]
-smol = ["wmark/smol", "future"]
-tokio = ["wmark/tokio", "future"]
-async-std = ["wmark/async-std", "future"]
-
-# Features will export the generic unit tests implementation for database based on mwmr
-test = ["rand"]
-
 [dependencies]
 cheap-clone.workspace = true
 crossbeam-channel.workspace = true
