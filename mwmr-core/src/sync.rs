@@ -20,15 +20,15 @@ pub type DefaultHasher = std::hash::DefaultHasher;
 ///
 /// 1. Contains fingerprints of keys read.
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
-pub trait Cm: Sized + 'static {
+pub trait Cm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error + 'static;
+  type Error: std::error::Error;
 
   /// The key type.
-  type Key: 'static;
+  type Key;
 
   /// The options type used to create the conflict manager.
-  type Options: 'static;
+  type Options;
 
   /// Create a new conflict manager with the given options.
   fn new(options: Self::Options) -> Result<Self, Self::Error>;
@@ -85,16 +85,16 @@ pub trait CmComparable: Cm {
 /// But, users can create their own implementations by implementing this trait.
 /// e.g. if you want to implement a recovery transaction manager, you can use a persistent
 /// storage to store the pending writes.
-pub trait Pwm: Sized + 'static {
+pub trait Pwm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error + 'static;
+  type Error: std::error::Error;
 
   /// The key type.
-  type Key: 'static;
+  type Key;
   /// The value type.
-  type Value: 'static;
+  type Value;
   /// The options type used to create the pending manager.
-  type Options: 'static;
+  type Options;
 
   /// Create a new pending manager with the given options.
   fn new(options: Self::Options) -> Result<Self, Self::Error>;

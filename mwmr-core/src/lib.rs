@@ -413,10 +413,10 @@ pub mod future;
 
 impl<T> future::AsyncCm for T
 where
-  T: sync::Cm + Send + Sync,
-  <T as sync::Cm>::Key: Send + Sync,
-  <T as sync::Cm>::Options: Send,
-  <T as sync::Cm>::Error: Send,
+  T: sync::Cm + Send + Sync + 'static,
+  <T as sync::Cm>::Key: Send + Sync + 'static,
+  <T as sync::Cm>::Options: Send + 'static,
+  <T as sync::Cm>::Error: Send + 'static,
 {
   type Error = <T as sync::Cm>::Error;
 
@@ -443,10 +443,10 @@ where
 
 impl<T> future::AsyncCmComparable for T
 where
-  T: sync::CmComparable + Send + Sync,
-  <T as sync::Cm>::Key: Send + Sync,
-  <T as sync::Cm>::Options: Send,
-  <T as sync::Cm>::Error: Send,
+  T: sync::CmComparable + Send + Sync + 'static,
+  <T as sync::Cm>::Key: Send + Sync + 'static,
+  <T as sync::Cm>::Options: Send + 'static,
+  <T as sync::Cm>::Error: Send + 'static,
 {
   async fn mark_read_comparable<Q>(&mut self, key: &Q)
   where
@@ -467,10 +467,10 @@ where
 
 impl<T> future::AsyncCmEquivalent for T
 where
-  T: sync::CmEquivalent + Send + Sync,
-  <T as sync::Cm>::Key: Send + Sync,
-  <T as sync::Cm>::Options: Send,
-  <T as sync::Cm>::Error: Send,
+  T: sync::CmEquivalent + Send + Sync + 'static,
+  <T as sync::Cm>::Key: Send + Sync + 'static,
+  <T as sync::Cm>::Options: Send + 'static,
+  <T as sync::Cm>::Error: Send + 'static,
 {
   async fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
@@ -491,11 +491,11 @@ where
 
 impl<T> future::AsyncPwm for T
 where
-  T: sync::Pwm + Send + Sync,
-  <T as sync::Pwm>::Key: Send + Sync,
-  <T as sync::Pwm>::Value: Send + Sync,
-  <T as sync::Pwm>::Options: Send,
-  <T as sync::Pwm>::Error: Send,
+  T: sync::Pwm + Send + Sync + 'static,
+  <T as sync::Pwm>::Key: Send + Sync + 'static,
+  <T as sync::Pwm>::Value: Send + Sync + 'static,
+  <T as sync::Pwm>::Options: Send + 'static,
+  <T as sync::Pwm>::Error: Send + 'static,
 {
   type Error = <T as sync::Pwm>::Error;
 
@@ -573,9 +573,9 @@ where
 
 impl<T> future::AsyncPwmComparable for T
 where
-  T: sync::PwmComparable + Send + Sync,
-  <T as sync::Pwm>::Key: Send + Sync,
-  <T as sync::Pwm>::Value: Send + Sync,
+  T: sync::PwmComparable + Send + Sync + 'static,
+  <T as sync::Pwm>::Key: Send + Sync + 'static,
+  <T as sync::Pwm>::Value: Send + Sync + 'static,
   <T as sync::Pwm>::Options: Send,
   <T as sync::Pwm>::Error: Send,
 {
@@ -623,9 +623,9 @@ where
 
 impl<T> future::AsyncPwmEquivalent for T
 where
-  T: sync::PwmEquivalent + Send + Sync,
-  <T as sync::Pwm>::Key: Send + Sync,
-  <T as sync::Pwm>::Value: Send + Sync,
+  T: sync::PwmEquivalent + Send + Sync + 'static,
+  <T as sync::Pwm>::Key: Send + Sync + 'static,
+  <T as sync::Pwm>::Value: Send + Sync + 'static,
   <T as sync::Pwm>::Options: Send,
   <T as sync::Pwm>::Error: Send,
 {

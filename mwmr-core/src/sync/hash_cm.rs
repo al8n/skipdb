@@ -19,8 +19,8 @@ impl<K, S: Clone> Clone for HashCm<K, S> {
 
 impl<K, S> Cm for HashCm<K, S>
 where
-  S: BuildHasher + 'static,
-  K: core::hash::Hash + Eq + 'static,
+  S: BuildHasher,
+  K: core::hash::Hash + Eq,
 {
   type Error = core::convert::Infallible;
   type Key = K;
@@ -71,8 +71,8 @@ where
 
 impl<K, S> CmEquivalent for HashCm<K, S>
 where
-  S: BuildHasher + 'static,
-  K: core::hash::Hash + Eq + 'static,
+  S: BuildHasher,
+  K: core::hash::Hash + Eq,
 {
   #[inline]
   fn mark_read_equivalent<Q>(&mut self, key: &Q)

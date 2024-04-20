@@ -19,7 +19,7 @@ impl<K: Clone> Clone for BTreeCm<K> {
 
 impl<K> Cm for BTreeCm<K>
 where
-  K: CheapClone + Ord + 'static,
+  K: CheapClone + Ord,
 {
   type Error = core::convert::Infallible;
   type Key = K;

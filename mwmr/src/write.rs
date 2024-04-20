@@ -773,6 +773,7 @@ where
     E: std::error::Error,
     R: Send + 'static,
     AS: agnostic_lite::AsyncSpawner,
+    C: 'static,
   {
     if self.discarded {
       return Err(TransactionError::Discard.into());
@@ -842,6 +843,7 @@ where
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E> + Send + 'static,
     E: std::error::Error,
     R: Send + 'static,
+    C: 'static,
   {
     if self.discarded {
       return Err(WtmError::transaction(TransactionError::Discard));
