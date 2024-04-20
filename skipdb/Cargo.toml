@@ -1,0 +1,39 @@
+[package]
+name = "skipdb"
+version = "0.0.0"
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/skipdb"
+description = "A blazing fast ACID, MVCC and SSI in memory database based on lock-free skiplist."
+license.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+cheap-clone = "0.1"
+crossbeam-skiplist = "0.1"
+either = "1"
+mwmr = { version = "0.2", path = "../mwmr" }
+
+[dev-dependencies]
+rand = "0.8"
+scopeguard = "1"
+crossbeam-channel = "0.5"
+wmark = "0.1"
+
+[profile.bench]
+opt-level = 3
+debug = false
+codegen-units = 1
+lto = 'thin'
+incremental = false
+debug-assertions = false
+overflow-checks = false
+rpath = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -4,17 +4,19 @@ members = [
   "mwmr",
   "async-mwmr",
   "wmark",
+  "skipdb",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.75.0"
 repository = "https://github.com/al8n/txn"
 homepage = "https://github.com/al8n/txn"
 categories = ["asynchronous", "data-structures", "concurrency", "database-implementations", "development-tools"]
 keywords = ["ssi", "transaction", "database", "optimistic", "mvcc"]
-license = "Apache-2.0/MIT"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 async-channel = "2"
