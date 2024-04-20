@@ -31,13 +31,12 @@ wmark = { workspace = true, features = ["future", "default"] }
 mwmr-core.workspace = true
 
 rand = { workspace = true, optional = true }
-futures = { version = "=0.3.29" }
+futures = "0.3"
 
 [dev-dependencies]
 rand.workspace = true
 async-std = { version = "1", features = ["attributes"] }
 
-[[test]]
-name = "async-mwmr"
-path = "tests/main.rs"
-required-features = ["test"]
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

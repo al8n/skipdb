@@ -17,6 +17,10 @@ smol = ["dep:smol", "wg/smol", "future"]
 async-std = ["dep:async-std", "wg/async-std", "future"]
 tokio = ["dep:tokio", "wg/tokio", "futures-util"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 smallvec-wrapper.workspace = true
 crossbeam-utils = { workspace = true, default-features = false }

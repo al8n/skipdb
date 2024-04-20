@@ -16,3 +16,7 @@ cheap-clone.workspace = true
 either.workspace = true
 indexmap.workspace = true
 smallvec-wrapper.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

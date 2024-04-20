@@ -29,11 +29,6 @@ pub use wmark::TokioSpawner;
 /// Error types for the [`mwmr`] crate.
 pub mod error;
 
-/// Generic unit tests for users to test their database implementation based on `mwmr`.
-#[cfg(any(feature = "test", test))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test")))]
-pub mod tests;
-
 mod oracle;
 use oracle::*;
 mod read;

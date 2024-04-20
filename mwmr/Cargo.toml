@@ -31,7 +31,6 @@ rand = { workspace = true, optional = true }
 [dev-dependencies]
 rand.workspace = true
 
-[[test]]
-name = "mwmr"
-path = "tests/main.rs"
-required-features = ["test"]
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
