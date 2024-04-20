@@ -110,7 +110,6 @@ where
     conflict_manager_opts: Option<C::Options>,
   ) -> Result<Wtm<K, V, C, P>, TransactionError<C, P>> {
     let read_ts = self.inner.read_ts();
-    println!("read_ts: {}", read_ts);
     Ok(Wtm {
       orc: self.inner.clone(),
       read_ts,

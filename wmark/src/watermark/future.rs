@@ -1,4 +1,4 @@
-use async_channel::{bounded, unbounded, Receiver, Sender};
+use async_channel::{bounded, Receiver, Sender};
 use atomic_refcell::AtomicRefCell as RefCell;
 use crossbeam_utils::CachePadded;
 use futures_util::FutureExt;
@@ -201,7 +201,7 @@ impl<S> AsyncWaterMark<S> {
   /// **Note**: Before using the watermark, you must call `init` to start the background thread.
   #[inline]
   pub fn new(name: Cow<'static, str>) -> Self {
-    let (mark_tx, mark_rx) = unbounded();
+    let (mark_tx, mark_rx) = bounded(100);
     Self {
       inner: Arc::new(Inner {
         done_until: CachePadded::new(AtomicU64::new(0)),

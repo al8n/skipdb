@@ -116,7 +116,6 @@ where
     conflict_manager_opts: Option<C::Options>,
   ) -> Result<AsyncWtm<K, V, C, P, S>, TransactionError<C::Error, P::Error>> {
     let read_ts = self.inner.read_ts().await;
-    println!("read_ts: {}", read_ts);
     Ok(AsyncWtm {
       orc: self.inner.clone(),
       read_ts,

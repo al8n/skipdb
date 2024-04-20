@@ -177,11 +177,9 @@ where
   }
 
   #[inline]
-  #[allow(clippy::let_and_return)]
   pub(super) async fn read_ts(&self) -> u64 {
     let read_ts = {
       let inner = self.inner.lock().await;
-
       let read_ts = inner.next_txn_ts - 1;
       self.read_mark.begin_unchecked(read_ts).await;
       read_ts
@@ -195,6 +193,7 @@ where
       panic!("{e}");
     }
 
+    // println!("read_ts from: {}", read_ts);
     read_ts
   }
 

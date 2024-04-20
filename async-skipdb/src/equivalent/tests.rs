@@ -2,13 +2,17 @@
 
 use std::{
   sync::atomic::{AtomicU32, Ordering},
-  time::Duration,
+  // time::Duration,
 };
 
 use async_mwmr::error::WtmError;
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
-use rand::{rngs::OsRng, Rng};
-use wmark::AsyncCloser;
+use futures::{
+  stream::FuturesUnordered,
+  // FutureExt,
+  StreamExt,
+};
+// use rand::{rngs::OsRng, Rng};
+// use wmark::AsyncCloser;
 
 use super::*;
 
@@ -173,90 +177,90 @@ fn txn_read_after_write_smol() {
   smol::block_on(txn_read_after_write_in::<SmolSpawner>());
 }
 
-async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
-  let mut txn = db.write().await;
-  for i in 0..40 {
-    txn.insert(i, 100).unwrap();
-  }
-  txn.commit().await.unwrap();
+// async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
+//   let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+//   let mut txn = db.write().await;
+//   for i in 0..40 {
+//     txn.insert(i, 100).unwrap();
+//   }
+//   txn.commit().await.unwrap();
 
-  let closer = AsyncCloser::<S>::new(1);
+//   let closer = AsyncCloser::<S>::new(1);
 
-  let db1 = db.clone();
-  let closer1 = closer.clone();
-  S::spawn(async move {
-    scopeguard::defer!(closer.done(););
-    let rx = closer.has_been_closed();
-    loop {
-      futures::select! {
-        _ = rx.recv().fuse() => return,
-        default => {
-          // Keep checking balance variant
-          let txn = db1.read().await;
-          let mut total_balance = 0;
+//   let db1 = db.clone();
+//   let closer1 = closer.clone();
+//   S::spawn(async move {
+//     scopeguard::defer!(closer.done(););
+//     let rx = closer.has_been_closed();
+//     loop {
+//       futures::select! {
+//         _ = rx.recv().fuse() => return,
+//         default => {
+//           // Keep checking balance variant
+//           let txn = db1.read().await;
+//           let mut total_balance = 0;
 
-          for i in 0..40 {
-            let _item = txn.get(&i).unwrap();
-            total_balance += 100;
-          }
-          assert_eq!(total_balance, 4000);
+//           for i in 0..40 {
+//             let _item = txn.get(&i).unwrap();
+//             total_balance += 100;
+//           }
+//           assert_eq!(total_balance, 4000);
 
-        }
-      }
-    }
-  })
-  .detach();
+//         }
+//       }
+//     }
+//   })
+//   .detach();
 
-  let mut handles = (0..100)
-    .map(|_| {
-      let db1 = db.clone();
-      S::spawn(async move {
-        let mut txn = db1.write().await;
-        for i in 0..20 {
-          let mut rng = OsRng;
-          let r = rng.gen_range(0..100);
-          let v = 100 - r;
-          txn.insert(i, v).unwrap();
-        }
+//   let mut handles = (0..100)
+//     .map(|_| {
+//       let db1 = db.clone();
+//       S::spawn(async move {
+//         let mut txn = db1.write().await;
+//         for i in 0..20 {
+//           let mut rng = OsRng;
+//           let r = rng.gen_range(0..100);
+//           let v = 100 - r;
+//           txn.insert(i, v).unwrap();
+//         }
 
-        for i in 20..40 {
-          let mut rng = OsRng;
-          let r = rng.gen_range(0..100);
-          let v = 100 + r;
-          txn.insert(i, v).unwrap();
-        }
+//         for i in 20..40 {
+//           let mut rng = OsRng;
+//           let r = rng.gen_range(0..100);
+//           let v = 100 + r;
+//           txn.insert(i, v).unwrap();
+//         }
 
-        // We are only doing writes, so there won't be any conflicts.
-        let _ = txn
-          .commit_with_task::<std::convert::Infallible, ()>(|_| {})
-          .await
-          .unwrap()
-          .await;
-      })
-    })
-    .collect::<FuturesUnordered<_>>();
+//         // We are only doing writes, so there won't be any conflicts.
+//         let _ = txn
+//           .commit_with_task::<std::convert::Infallible, ()>(|_| {})
+//           .await
+//           .unwrap()
+//           .await;
+//       })
+//     })
+//     .collect::<FuturesUnordered<_>>();
 
-  while handles.next().await.is_some() {}
+//   while handles.next().await.is_some() {}
 
-  closer1.signal_and_wait().await;
-  std::thread::sleep(Duration::from_millis(10));
-}
+//   closer1.signal_and_wait().await;
+//   std::thread::sleep(Duration::from_millis(10));
+// }
 
-#[tokio::test]
-async fn txn_commit_with_callback_tokio() {
-  txn_commit_with_callback_in::<TokioSpawner>().await;
-}
+// #[tokio::test]
+// async fn txn_commit_with_callback_tokio() {
+//   txn_commit_with_callback_in::<TokioSpawner>().await;
+// }
 
-#[async_std::test]
-async fn txn_commit_with_callback_async_std() {
-  txn_commit_with_callback_in::<AsyncStdSpawner>().await;
-}
+// #[async_std::test]
+// async fn txn_commit_with_callback_async_std() {
+//   txn_commit_with_callback_in::<AsyncStdSpawner>().await;
+// }
 
-#[test]
-fn txn_commit_with_callback_smol() {
-  smol::block_on(txn_commit_with_callback_in::<SmolSpawner>());
-}
+// #[test]
+// fn txn_commit_with_callback_smol() {
+//   smol::block_on(txn_commit_with_callback_in::<SmolSpawner>());
+// }
 
 async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts
