@@ -439,6 +439,10 @@ where
   async fn has_conflict(&self, other: &Self) -> bool {
     <T as sync::Cm>::has_conflict(self, other)
   }
+
+  async fn rollback(&mut self) -> Result<(), Self::Error> {
+    <T as sync::Cm>::rollback(self)
+  }
 }
 
 impl<T> future::AsyncCmComparable for T
@@ -505,6 +509,10 @@ where
 
   type Options = <T as sync::Pwm>::Options;
 
+  type Iter<'a> = <T as sync::Pwm>::Iter<'a> where Self: 'a;
+
+  type IntoIter = <T as sync::Pwm>::IntoIter;
+
   async fn new(options: Self::Options) -> Result<Self, Self::Error> {
     <T as sync::Pwm>::new(options)
   }
@@ -560,6 +568,10 @@ where
     key: &Self::Key,
   ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error> {
     <T as sync::Pwm>::remove_entry(self, key)
+  }
+
+  async fn rollback(&mut self) -> Result<(), Self::Error> {
+    <T as sync::Pwm>::rollback(self)
   }
 
   async fn iter(&self) -> impl Iterator<Item = (&Self::Key, &types::EntryValue<Self::Value>)> {

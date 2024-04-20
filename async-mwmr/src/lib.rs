@@ -8,14 +8,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 
-use std::{cell::RefCell, sync::Arc};
+use std::sync::Arc;
 
 use core::mem;
 
 use error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
 
-use wmark::AsyncSpawner;
+pub use wmark::{AsyncSpawner, Detach};
 
 #[cfg(feature = "smol")]
 pub use wmark::SmolSpawner;
@@ -36,7 +36,14 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-pub use mwmr_core::{future::*, types::*};
+pub use mwmr_core::{
+  future::*,
+  sync::{
+    BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, Marker, Pwm, PwmComparable,
+    PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
+  },
+  types::*,
+};
 
 /// Options for the [`AsyncTm`].
 #[derive(Debug, Clone)]
@@ -107,10 +114,11 @@ where
     &self,
     pending_manager_opts: P::Options,
     conflict_manager_opts: Option<C::Options>,
-  ) -> Result<AsyncWtm<K, V, C, P, S>, TransactionError<C, P>> {
+  ) -> Result<AsyncWtm<K, V, C, P, S>, TransactionError<C::Error, P::Error>> {
+    let read_ts = self.inner.read_ts().await;
     Ok(AsyncWtm {
       orc: self.inner.clone(),
-      read_ts: self.inner.read_ts().await,
+      read_ts,
       size: 0,
       count: 0,
       conflict_manager: if let Some(opts) = conflict_manager_opts {
@@ -153,6 +161,12 @@ where
       }),
       _phantom: std::marker::PhantomData,
     }
+  }
+
+  /// Returns the current read version of the database.
+  #[inline]
+  pub async fn version(&self) -> u64 {
+    self.inner.read_ts().await
   }
 
   /// Close the transaction manager.

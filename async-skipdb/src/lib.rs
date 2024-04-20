@@ -9,7 +9,7 @@
 
 use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
-use mwmr::{error::TransactionError, HashCm, Pwm, Rtm, Tm, Wtm};
+use async_mwmr::{error::TransactionError, AsyncRtm, AsyncTm, AsyncWtm, HashCm, Pwm};
 
 /// `EquivalentDB` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
 /// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDB`] instead.
@@ -17,9 +17,6 @@ pub mod equivalent;
 
 /// `ComparableDB` implementation, which requires `K` implements [`Ord`] and [`CheapClone`](cheap_clone::CheapClone). If your `K` implements both [`Hash`](core::hash::Hash) and [`Ord`], you are recommended to use [`EquivalentDB`](crate::equivalent::EquivalentDB) instead.
 pub mod comparable;
-
-mod read;
-pub use read::*;
 
 pub use skipdb_core::{
   iter::*,
@@ -30,3 +27,20 @@ pub use skipdb_core::{
 };
 
 use skipdb_core::{AsSkipCore, Database, PendingMap, SkipCore};
+
+mod read;
+pub use read::*;
+
+pub use async_mwmr::{AsyncSpawner, Detach};
+
+#[cfg(feature = "smol")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smol")))]
+pub use async_mwmr::SmolSpawner;
+
+#[cfg(feature = "tokio")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
+pub use async_mwmr::TokioSpawner;
+
+#[cfg(feature = "async-std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async-std")))]
+pub use async_mwmr::AsyncStdSpawner;

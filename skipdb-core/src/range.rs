@@ -1,7 +1,12 @@
-use mwmr::{Cm, EntryDataRef, EntryRef, Marker};
+use either::Either;
+use mwmr_core::{
+  sync::{Cm, Marker},
+  types::{EntryDataRef, EntryRef},
+};
 
 use super::*;
 
+use crossbeam_skiplist::map::Range as MapRange;
 use std::collections::btree_map::Range as BTreeMapRange;
 
 /// An iterator over a subset of entries of the database.
@@ -179,7 +184,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     pendings: BTreeMapRange<'a, K, EntryValue<V>>,
     committed: Range<'a, Q, R, K, V>,
     marker: Option<Marker<'a, C>>,
@@ -369,7 +374,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     db: &'a D,
     version: u64,
     pendings: BTreeMapRange<'a, K, EntryValue<V>>,

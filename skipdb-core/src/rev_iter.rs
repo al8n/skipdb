@@ -1,9 +1,17 @@
-use mwmr::{Cm, EntryDataRef, EntryRef, Marker};
+use either::Either;
+use mwmr_core::{
+  sync::{Cm, Marker},
+  types::{EntryDataRef, EntryRef},
+};
 
 use super::*;
 
-use crossbeam_skiplist::map::Iter as MapIter;
-use std::{cmp, collections::btree_map::Iter as BTreeMapIter, iter::Rev};
+use crossbeam_skiplist::map::{Entry as MapEntry, Iter as MapIter};
+use std::{
+  cmp,
+  collections::btree_map::Iter as BTreeMapIter,
+  iter::{FusedIterator, Rev},
+};
 
 /// An iterator over the entries of the database.
 pub struct RevIter<'a, K, V> {
@@ -174,7 +182,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     pendings: Rev<BTreeMapIter<'a, K, EntryValue<V>>>,
     committed: RevIter<'a, K, V>,
     marker: Option<Marker<'a, C>>,
@@ -197,7 +205,7 @@ where
 
 impl<'a, K, V, C> Iterator for WriteTransactionRevIter<'a, K, V, C>
 where
-  K: Ord + 'static + core::fmt::Debug,
+  K: Ord + 'static,
   C: Cm<Key = K>,
 {
   type Item = Ref<'a, K, V>;
@@ -294,6 +302,19 @@ impl<'a, K, V> Clone for WriteTransactionRevAllVersions<'a, K, V> {
 }
 
 impl<'a, K, V> WriteTransactionRevAllVersions<'a, K, V> {
+  /// Create a new `WriteTransactionRevAllVersions` with the given version, pending and committed entries.
+  pub fn new(
+    version: u64,
+    pending: Option<EntryRef<'a, K, V>>,
+    committed: Option<RevAllVersions<'a, K, V>>,
+  ) -> Self {
+    Self {
+      pending,
+      committed,
+      version,
+    }
+  }
+
   /// Returns the key of the entries.
   #[inline]
   pub fn key(&self) -> &K {
@@ -367,7 +388,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     db: &'a D,
     version: u64,
     pendings: Rev<BTreeMapIter<'a, K, EntryValue<V>>>,

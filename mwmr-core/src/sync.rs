@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, ops::RangeBounds};
 
 use indexmap::IndexSet;
 use smallvec_wrapper::MediumVec;
@@ -13,6 +13,26 @@ pub use btree_cm::*;
 
 /// Default hasher used by the conflict manager.
 pub type DefaultHasher = std::hash::DefaultHasher;
+
+/// A marker used to mark the keys that are read.
+pub struct Marker<'a, C> {
+  marker: &'a mut C,
+}
+
+impl<'a, C> Marker<'a, C> {
+  /// Returns a new marker.
+  #[inline]
+  pub fn new(marker: &'a mut C) -> Self {
+    Self { marker }
+  }
+}
+
+impl<'a, C: Cm> Marker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark(&mut self, k: &C::Key) {
+    self.marker.mark_read(k);
+  }
+}
 
 /// The conflict manager that can be used to manage the conflicts in a transaction.
 ///
@@ -93,6 +113,15 @@ pub trait Pwm: Sized {
   type Key;
   /// The value type.
   type Value;
+
+  /// The iterator type.
+  type Iter<'a>: Iterator<Item = (&'a Self::Key, &'a EntryValue<Self::Value>)>
+  where
+    Self: 'a;
+
+  /// The IntoIterator type.
+  type IntoIter: Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
+
   /// The options type used to create the pending manager.
   type Options;
 
@@ -140,13 +169,44 @@ pub trait Pwm: Sized {
   ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>;
 
   /// Returns an iterator over the pending writes.
-  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)>;
+  fn iter(&self) -> Self::Iter<'_>;
 
   /// Returns an iterator that consumes the pending writes.
-  fn into_iter(self) -> impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
+  fn into_iter(self) -> Self::IntoIter;
 
   /// Rollback the pending writes.
   fn rollback(&mut self) -> Result<(), Self::Error>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait PwmRange: Pwm {
+  /// The iterator type.
+  type Range<'a>: IntoIterator<Item = (&'a Self::Key, &'a EntryValue<Self::Value>)>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the pending writes.
+  fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait PwmComparableRange: PwmRange + PwmComparable {
+  /// Returns an iterator over the pending writes.
+  fn range_comparable<T, R>(&self, range: R) -> Self::Range<'_>
+  where
+    T: ?Sized + Ord,
+    Self::Key: Borrow<T> + Ord,
+    R: RangeBounds<T>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait PwmEquivalentRange: PwmRange + PwmEquivalent {
+  /// Returns an iterator over the pending writes.
+  fn range_equivalent<T, R>(&self, range: R) -> Self::Range<'_>
+  where
+    T: ?Sized + Eq + core::hash::Hash,
+    Self::Key: Borrow<T> + Eq + core::hash::Hash,
+    R: RangeBounds<T>;
 }
 
 /// An optimized version of the [`Pwm`] trait that if your pending writes manager is depend on hash.
@@ -220,13 +280,15 @@ pub type BTreeMapManager<K, V> = BTreeMap<K, EntryValue<V>>;
 
 impl<K, V, S> Pwm for IndexMap<K, EntryValue<V>, S>
 where
-  K: Eq + core::hash::Hash + 'static,
-  V: 'static,
-  S: BuildHasher + Default + 'static,
+  K: Eq + core::hash::Hash,
+  S: BuildHasher + Default,
 {
   type Error = std::convert::Infallible;
   type Key = K;
   type Value = V;
+  type Iter<'a> = indexmap::map::Iter<'a, K, EntryValue<V>> where Self: 'a;
+  type IntoIter = indexmap::map::IntoIter<K, EntryValue<V>>;
+
   type Options = Option<S>;
 
   fn new(options: Self::Options) -> Result<Self, Self::Error> {
@@ -276,12 +338,11 @@ where
   fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<V>)>, Self::Error> {
     Ok(self.shift_remove_entry(key))
   }
-
-  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)> {
+  fn iter(&self) -> Self::Iter<'_> {
     IndexMap::iter(self)
   }
 
-  fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<V>)> {
+  fn into_iter(self) -> Self::IntoIter {
     core::iter::IntoIterator::into_iter(self)
   }
 
@@ -293,9 +354,8 @@ where
 
 impl<K, V, S> PwmEquivalent for IndexMap<K, EntryValue<V>, S>
 where
-  K: Eq + core::hash::Hash + 'static,
-  V: 'static,
-  S: BuildHasher + Default + 'static,
+  K: Eq + core::hash::Hash,
+  S: BuildHasher + Default,
 {
   fn get_equivalent<Q>(&self, key: &Q) -> Result<Option<&EntryValue<V>>, Self::Error>
   where
@@ -338,12 +398,15 @@ where
 
 impl<K, V> Pwm for BTreeMap<K, EntryValue<V>>
 where
-  K: Ord + 'static,
-  V: 'static,
+  K: Ord,
 {
   type Error = std::convert::Infallible;
   type Key = K;
   type Value = V;
+
+  type Iter<'a> = std::collections::btree_map::Iter<'a, K, EntryValue<V>> where Self: 'a;
+
+  type IntoIter = std::collections::btree_map::IntoIter<K, EntryValue<V>>;
 
   type Options = ();
 
@@ -359,20 +422,20 @@ where
     self.len()
   }
 
-  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
-  }
-
-  fn max_batch_entries(&self) -> u64 {
-    u64::MAX
+  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
+    Ok(())
   }
 
   fn max_batch_size(&self) -> u64 {
     u64::MAX
   }
 
-  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
-    Ok(())
+  fn max_batch_entries(&self) -> u64 {
+    u64::MAX
+  }
+
+  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
+    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
   }
 
   fn get(&self, key: &K) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
@@ -391,13 +454,12 @@ where
   fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<Self::Value>)>, Self::Error> {
     Ok(self.remove_entry(key))
   }
-
-  fn into_iter(self) -> impl Iterator<Item = (K, EntryValue<Self::Value>)> {
-    core::iter::IntoIterator::into_iter(self)
+  fn iter(&self) -> Self::Iter<'_> {
+    BTreeMap::iter(self)
   }
 
-  fn iter(&self) -> impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)> {
-    BTreeMap::iter(self)
+  fn into_iter(self) -> Self::IntoIter {
+    core::iter::IntoIterator::into_iter(self)
   }
 
   fn rollback(&mut self) -> Result<(), Self::Error> {
@@ -406,10 +468,34 @@ where
   }
 }
 
+impl<K, V> PwmRange for BTreeMap<K, EntryValue<V>>
+where
+  K: Ord,
+{
+  type Range<'a> = std::collections::btree_map::Range<'a, K, EntryValue<V>> where Self: 'a;
+
+  fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {
+    BTreeMap::range(self, range)
+  }
+}
+
+impl<K, V> PwmComparableRange for BTreeMap<K, EntryValue<V>>
+where
+  K: Ord,
+{
+  fn range_comparable<T, R>(&self, range: R) -> Self::Range<'_>
+  where
+    T: ?Sized + Ord,
+    Self::Key: Borrow<T> + Ord,
+    R: RangeBounds<T>,
+  {
+    BTreeMap::range(self, range)
+  }
+}
+
 impl<K, V> PwmComparable for BTreeMap<K, EntryValue<V>>
 where
-  K: Ord + 'static,
-  V: 'static,
+  K: Ord,
 {
   fn get_comparable<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where

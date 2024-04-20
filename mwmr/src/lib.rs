@@ -9,7 +9,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 
-use std::{cell::RefCell, sync::Arc};
+use std::sync::Arc;
 
 use core::mem;
 
@@ -109,9 +109,10 @@ where
     pending_manager_opts: P::Options,
     conflict_manager_opts: Option<C::Options>,
   ) -> Result<Wtm<K, V, C, P>, TransactionError<C, P>> {
+    let read_ts = self.inner.read_ts();
     Ok(Wtm {
       orc: self.inner.clone(),
-      read_ts: self.inner.read_ts(),
+      read_ts,
       size: 0,
       count: 0,
       conflict_manager: if let Some(opts) = conflict_manager_opts {

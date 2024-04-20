@@ -5,6 +5,26 @@ use super::types::*;
 /// Default hasher used by the conflict manager.
 pub type DefaultHasher = std::hash::DefaultHasher;
 
+/// A marker used to mark the keys that are read.
+pub struct AsyncMarker<'a, C> {
+  marker: &'a mut C,
+}
+
+impl<'a, C> AsyncMarker<'a, C> {
+  /// Returns a new marker.
+  #[inline]
+  pub fn new(marker: &'a mut C) -> Self {
+    Self { marker }
+  }
+}
+
+impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub async fn mark(&mut self, k: &C::Key) {
+    self.marker.mark_read(k).await;
+  }
+}
+
 /// The conflict manager that can be used to manage the conflicts in a transaction.
 ///
 /// The conflict normally needs to have:
@@ -32,6 +52,9 @@ pub trait AsyncCm: Sized + Send + 'static {
 
   /// Returns true if we have a conflict.
   fn has_conflict(&self, other: &Self) -> impl Future<Output = bool> + Send;
+
+  /// Rollback the conflict manager.
+  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on hash.
@@ -77,11 +100,17 @@ pub trait AsyncPwm: Sized + 'static {
   /// The error type returned by the conflict manager.
   type Error: std::error::Error + 'static;
   /// The key type.
-  type Key: 'static;
+  type Key: Send + 'static;
   /// The value type.
-  type Value: 'static;
+  type Value: Send + 'static;
   /// The options type used to create the pending manager.
-  type Options: 'static;
+  type Options: Send + 'static;
+  /// The iterator type that borrows the pending writes.
+  type Iter<'a>: Iterator<Item = (&'a Self::Key, &'a EntryValue<Self::Value>)>
+  where
+    Self: 'a;
+  /// The iterator type that consumes the pending writes.
+  type IntoIter: Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
 
   /// Create a new pending manager with the given options.
   fn new(options: Self::Options) -> impl Future<Output = Result<Self, Self::Error>> + Send;
@@ -136,6 +165,9 @@ pub trait AsyncPwm: Sized + 'static {
     &mut self,
     key: &Self::Key,
   ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>> + Send;
+
+  /// Rollback the pending writes.
+  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 
   /// Returns an iterator over the pending writes.
   fn iter(

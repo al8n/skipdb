@@ -1,10 +1,6 @@
-use mwmr_core::future::AsyncCm;
-
-use super::AsyncPwm;
-
 /// Error type for the transaction.
 #[derive(thiserror::Error)]
-pub enum TransactionError<C: AsyncCm, P: AsyncPwm> {
+pub enum TransactionError<C: std::error::Error, P: std::error::Error> {
   /// Returned if an update function is called on a read-only transaction.
   #[error("transaction is read-only")]
   ReadOnly,
@@ -24,14 +20,14 @@ pub enum TransactionError<C: AsyncCm, P: AsyncPwm> {
 
   /// Returned if the transaction manager error occurs.
   #[error("transaction manager error: {0}")]
-  Pwm(P::Error),
+  Pwm(P),
 
   /// Returned if the conflict manager error occurs.
   #[error("conflict manager error: {0}")]
-  Cm(C::Error),
+  Cm(C),
 }
 
-impl<C: AsyncCm, P: AsyncPwm> core::fmt::Debug for TransactionError<C, P> {
+impl<C: std::error::Error, P: std::error::Error> core::fmt::Debug for TransactionError<C, P> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::ReadOnly => write!(f, "ReadOnly"),
@@ -44,29 +40,31 @@ impl<C: AsyncCm, P: AsyncPwm> core::fmt::Debug for TransactionError<C, P> {
   }
 }
 
-impl<C: AsyncCm, P: AsyncPwm> TransactionError<C, P> {
+impl<C: std::error::Error, P: std::error::Error> TransactionError<C, P> {
   /// Create a new error from the database error.
   #[inline]
-  pub const fn conflict(err: C::Error) -> Self {
+  pub const fn conflict(err: C) -> Self {
     Self::Cm(err)
   }
 
   /// Create a new error from the transaction error.
   #[inline]
-  pub const fn pending(err: P::Error) -> Self {
+  pub const fn pending(err: P) -> Self {
     Self::Pwm(err)
   }
 }
 
 /// Error type for write transaction.
-pub enum WtmError<C: AsyncCm, P: AsyncPwm, E: std::error::Error> {
+pub enum WtmError<C: std::error::Error, P: std::error::Error, E: std::error::Error> {
   /// Returned if the transaction error occurs.
   Transaction(TransactionError<C, P>),
   /// Returned if the write error occurs.
   Commit(E),
 }
 
-impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> core::fmt::Debug for WtmError<C, P, E> {
+impl<C: std::error::Error, P: std::error::Error, E: std::error::Error> core::fmt::Debug
+  for WtmError<C, P, E>
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Transaction(e) => write!(f, "Transaction({:?})", e),
@@ -75,7 +73,9 @@ impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> core::fmt::Debug for WtmErro
   }
 }
 
-impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> core::fmt::Display for WtmError<C, P, E> {
+impl<C: std::error::Error, P: std::error::Error, E: std::error::Error> core::fmt::Display
+  for WtmError<C, P, E>
+{
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Transaction(e) => write!(f, "transaction error: {e}"),
@@ -84,9 +84,12 @@ impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> core::fmt::Display for WtmEr
   }
 }
 
-impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> std::error::Error for WtmError<C, P, E> {}
+impl<C: std::error::Error, P: std::error::Error, E: std::error::Error> std::error::Error
+  for WtmError<C, P, E>
+{
+}
 
-impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> From<TransactionError<C, P>>
+impl<C: std::error::Error, P: std::error::Error, E: std::error::Error> From<TransactionError<C, P>>
   for WtmError<C, P, E>
 {
   #[inline]
@@ -95,7 +98,7 @@ impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> From<TransactionError<C, P>>
   }
 }
 
-impl<C: AsyncCm, P: AsyncPwm, E: std::error::Error> WtmError<C, P, E> {
+impl<C: std::error::Error, P: std::error::Error, E: std::error::Error> WtmError<C, P, E> {
   /// Create a new error from the transaction error.
   #[inline]
   pub const fn transaction(err: TransactionError<C, P>) -> Self {

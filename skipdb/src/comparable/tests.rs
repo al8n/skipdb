@@ -3,14 +3,9 @@ use std::{
   time::Duration,
 };
 
-use mwmr::error::{TransactionError, WtmError};
+use mwmr::error::WtmError;
 use rand::Rng;
 use wmark::Closer;
-
-use crate::{
-  WriteTransactionAllVersionsIter, WriteTransactionIter, WriteTransactionRevAllVersionsIter,
-  WriteTransactionRevIter,
-};
 
 use super::*;
 
@@ -440,7 +435,7 @@ fn txn_all_versions_with_removed() {
       .db
       .inner
       .map
-      .0
+      .by_ref()
       .get(&1)
       .unwrap()
       .value()

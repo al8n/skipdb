@@ -1,9 +1,13 @@
-use mwmr::{Cm, EntryDataRef, EntryRef, Marker};
+use either::Either;
+use mwmr_core::{
+  sync::{Cm, Marker},
+  types::{EntryDataRef, EntryRef},
+};
 
 use super::*;
 
-use crossbeam_skiplist::map::Iter as MapIter;
-use std::{cmp, collections::btree_map::Iter as BTreeMapIter};
+use crossbeam_skiplist::map::{Entry as MapEntry, Iter as MapIter};
+use std::{cmp, collections::btree_map::Iter as BTreeMapIter, iter::FusedIterator};
 
 #[derive(Copy, Clone)]
 pub(crate) enum AllVersionsCursor {
@@ -109,6 +113,19 @@ impl<'a, K, V> Clone for WriteTransactionAllVersions<'a, K, V> {
 }
 
 impl<'a, K, V> WriteTransactionAllVersions<'a, K, V> {
+  /// Create a new instance.
+  pub fn new(
+    version: u64,
+    pending: Option<EntryRef<'a, K, V>>,
+    committed: Option<AllVersions<'a, K, V>>,
+  ) -> Self {
+    Self {
+      pending,
+      committed,
+      version,
+    }
+  }
+
   /// Returns the key of the entries.
   #[inline]
   pub fn key(&self) -> &K {
@@ -243,7 +260,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     pendings: BTreeMapIter<'a, K, EntryValue<V>>,
     committed: Iter<'a, K, V>,
     marker: Option<Marker<'a, C>>,
@@ -373,7 +390,7 @@ where
     }
   }
 
-  pub(crate) fn new(
+  pub fn new(
     db: &'a D,
     version: u64,
     pendings: BTreeMapIter<'a, K, EntryValue<V>>,

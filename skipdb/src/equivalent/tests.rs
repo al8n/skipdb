@@ -442,7 +442,7 @@ fn txn_all_versions_with_removed() {
       .db
       .inner
       .map
-      .0
+      .by_ref()
       .get(&1)
       .unwrap()
       .value()

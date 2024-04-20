@@ -180,7 +180,6 @@ where
   pub(super) async fn read_ts(&self) -> u64 {
     let read_ts = {
       let inner = self.inner.lock().await;
-
       let read_ts = inner.next_txn_ts - 1;
       self.read_mark.begin_unchecked(read_ts).await;
       read_ts
@@ -194,6 +193,7 @@ where
       panic!("{e}");
     }
 
+    // println!("read_ts from: {}", read_ts);
     read_ts
   }
 
@@ -208,11 +208,6 @@ where
   }
 
   #[inline]
-  pub(super) async fn done_read(&self, read_ts: u64) {
-    self.read_mark.done_unchecked(read_ts).await;
-  }
-
-  #[inline]
   pub(super) async fn done_commit(&self, cts: u64) {
     self.txn_mark.done_unchecked(cts).await;
   }
@@ -220,6 +215,13 @@ where
   #[inline]
   pub(super) async fn stop(&self) {
     self.closer.signal_and_wait().await;
+  }
+}
+
+impl<C, S> Oracle<C, S> {
+  #[inline]
+  pub(super) fn done_read_blocking(&self, read_ts: u64) {
+    self.read_mark.done_unchecked_blocking(read_ts);
   }
 }
 

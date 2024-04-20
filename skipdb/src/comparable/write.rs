@@ -1,16 +1,4 @@
-use mwmr::{
-  error::{TransactionError, WtmError},
-  Wtm,
-};
-
-use core::borrow::Borrow;
-use std::ops::RangeBounds;
-
-use crate::{
-  Ref, WriteTransactionAllVersions, WriteTransactionAllVersionsIter,
-  WriteTransactionAllVersionsRange, WriteTransactionIter, WriteTransactionRange,
-  WriteTransactionRevAllVersions, WriteTransactionRevAllVersionsIter, WriteTransactionRevIter,
-};
+use mwmr::{error::WtmError, PwmComparableRange};
 
 use super::*;
 
@@ -181,11 +169,9 @@ where
     if committed.is_none() && pending.is_none() {
       return Ok(None);
     }
-    Ok(Some(WriteTransactionAllVersions {
-      committed,
-      pending,
-      version,
-    }))
+    Ok(Some(WriteTransactionAllVersions::new(
+      version, pending, committed,
+    )))
   }
 
   /// Get all the values in different versions for the given key. Including the removed ones.
@@ -208,11 +194,9 @@ where
     if committed.is_none() && pending.is_none() {
       return Ok(None);
     }
-    Ok(Some(WriteTransactionRevAllVersions {
-      committed,
-      pending,
-      version,
-    }))
+    Ok(Some(WriteTransactionRevAllVersions::new(
+      version, pending, committed,
+    )))
   }
 
   /// Insert a new key-value pair.
@@ -243,7 +227,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
 
     let committed = self.db.inner.map.iter(version);
-    let pendings = pm.map.iter();
+    let pendings = pm.iter();
 
     Ok(WriteTransactionIter::new(pendings, committed, marker))
   }
@@ -260,7 +244,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
 
     let committed = self.db.inner.map.rev_iter(version);
-    let pendings = pm.map.iter().rev();
+    let pendings = pm.iter().rev();
 
     Ok(WriteTransactionRevIter::new(pendings, committed, marker))
   }
@@ -277,7 +261,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
 
     let committed = self.db.inner.map.iter_all_versions(version);
-    let pendings = pm.map.iter();
+    let pendings = pm.iter();
 
     Ok(WriteTransactionAllVersionsIter::new(
       &self.db, version, pendings, committed, marker,
@@ -296,7 +280,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
 
     let committed = self.db.inner.map.rev_iter_all_versions(version);
-    let pendings = pm.map.iter();
+    let pendings = pm.iter();
 
     Ok(WriteTransactionRevAllVersionsIter::new(
       &self.db,
@@ -325,7 +309,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
     let start = range.start_bound();
     let end = range.end_bound();
-    let pendings = pm.map.range((start, end));
+    let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range(range, version);
 
     Ok(WriteTransactionRange::new(pendings, committed, marker))
@@ -349,7 +333,7 @@ where
     let (marker, pm) = self.wtm.marker_with_pm()?;
     let start = range.start_bound();
     let end = range.end_bound();
-    let pendings = pm.map.range((start, end));
+    let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range_all_versions(range, version);
 
     Ok(WriteTransactionAllVersionsRange::new(
