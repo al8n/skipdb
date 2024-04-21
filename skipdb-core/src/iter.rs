@@ -21,7 +21,7 @@ pub struct AllVersions<'a, K, V> {
   pub(crate) max_version: u64,
   pub(crate) min_version: u64,
   pub(crate) cursor: AllVersionsCursor,
-  pub(crate) entries: MapEntry<'a, K, SkipMap<u64, Option<V>>>,
+  pub(crate) entries: MapEntry<'a, K, Arc<SkipMap<u64, Option<V>>>>,
 }
 
 impl<'a, K, V> AllVersions<'a, K, V> {
@@ -173,7 +173,7 @@ impl<'a, K, V> FusedIterator for WriteTransactionAllVersions<'a, K, V> {}
 
 /// An iterator over the entries of the database.
 pub struct Iter<'a, K, V> {
-  pub(crate) iter: MapIter<'a, K, SkipMap<u64, Option<V>>>,
+  pub(crate) iter: MapIter<'a, K, Arc<SkipMap<u64, Option<V>>>>,
   pub(crate) version: u64,
 }
 
@@ -204,7 +204,7 @@ where
 }
 /// An iterator over the entries of the database.
 pub struct AllVersionsIter<'a, K, V> {
-  pub(crate) iter: crossbeam_skiplist::map::Iter<'a, K, SkipMap<u64, Option<V>>>,
+  pub(crate) iter: crossbeam_skiplist::map::Iter<'a, K, Arc<SkipMap<u64, Option<V>>>>,
   pub(crate) version: u64,
 }
 

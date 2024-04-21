@@ -15,7 +15,7 @@ use std::{
 
 /// An iterator over the entries of the database.
 pub struct RevIter<'a, K, V> {
-  pub(crate) iter: Rev<MapIter<'a, K, SkipMap<u64, Option<V>>>>,
+  pub(crate) iter: Rev<MapIter<'a, K, Arc<SkipMap<u64, Option<V>>>>>,
   pub(crate) version: u64,
 }
 
@@ -50,7 +50,7 @@ pub struct RevAllVersions<'a, K, V> {
   pub(crate) max_version: u64,
   pub(crate) min_version: u64,
   pub(crate) cursor: AllVersionsCursor,
-  pub(crate) entries: MapEntry<'a, K, SkipMap<u64, Option<V>>>,
+  pub(crate) entries: MapEntry<'a, K, Arc<SkipMap<u64, Option<V>>>>,
 }
 
 impl<'a, K, V> RevAllVersions<'a, K, V> {
@@ -126,7 +126,7 @@ impl<'a, K, V> FusedIterator for RevAllVersions<'a, K, V> {}
 
 /// An iterator over the entries of the database.
 pub struct RevAllVersionsIter<'a, K, V> {
-  pub(crate) iter: Rev<MapIter<'a, K, SkipMap<u64, Option<V>>>>,
+  pub(crate) iter: Rev<MapIter<'a, K, Arc<SkipMap<u64, Option<V>>>>>,
   pub(crate) version: u64,
 }
 

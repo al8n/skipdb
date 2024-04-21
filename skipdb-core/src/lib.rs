@@ -1,7 +1,9 @@
+#![allow(clippy::type_complexity)]
+
 use std::{
   borrow::Borrow,
   collections::BTreeMap,
-  ops::{Bound, RangeBounds},
+  ops::{Bound, RangeBounds}, sync::{atomic::{AtomicU64, AtomicUsize, Ordering}, Arc},
 };
 
 use mwmr_core::{
@@ -264,7 +266,11 @@ pub trait AsSkipCore<K, V> {
   fn as_inner(&self) -> &SkipCore<K, V>;
 }
 
-pub struct SkipCore<K, V>(SkipMap<K, SkipMap<u64, Option<V>>>);
+pub struct SkipCore<K, V> {
+  map: SkipMap<K, Arc<SkipMap<u64, Option<V>>>>,
+  all_versions_iters: SkipMap<u64, AtomicUsize>,
+  last_discard_version: AtomicU64,
+}
 
 impl<K, V> Default for SkipCore<K, V> {
   #[inline]
@@ -276,12 +282,16 @@ impl<K, V> Default for SkipCore<K, V> {
 impl<K, V> SkipCore<K, V> {
   #[inline]
   pub fn new() -> Self {
-    Self(SkipMap::new())
+    Self {
+      map: SkipMap::new(),
+      all_versions_iters: SkipMap::new(),
+      last_discard_version: AtomicU64::new(0),
+    }
   }
 
   #[inline]
-  pub fn by_ref(&self) -> &SkipMap<K, SkipMap<u64, Option<V>>> {
-    &self.0
+  pub fn by_ref(&self) -> &SkipMap<K, Arc<SkipMap<u64, Option<V>>>> {
+    &self.map
   }
 }
 
@@ -295,11 +305,11 @@ where
       let version = ent.version();
       match ent.data {
         EntryData::Insert { key, value } => {
-          let values = self.0.get_or_insert(key, SkipMap::new());
+          let values = self.map.get_or_insert(key, Arc::new(SkipMap::new()));
           values.value().insert(version, Some(value));
         }
         EntryData::Remove(key) => {
-          if let Some(values) = self.0.get(&key) {
+          if let Some(values) = self.map.get(&key) {
             let values = values.value();
             if !values.is_empty() {
               values.insert(version, None);
@@ -320,7 +330,7 @@ where
     K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    let ent = self.0.get(key)?;
+    let ent = self.map.get(key)?;
     let version = ent
       .value()
       .upper_bound(Bound::Included(&version))
@@ -340,7 +350,7 @@ where
     K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    match self.0.get(key) {
+    match self.map.get(key) {
       None => false,
       Some(values) => values
         .value()
@@ -353,12 +363,13 @@ where
     &'a self,
     key: &'b Q,
     version: u64,
+    discard_version: u64
   ) -> Option<AllVersions<'a, K, V>>
   where
     K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    self.0.get(key).and_then(move |values| {
+    self.map.get(key).and_then(move |values| {
       let ents = values.value();
       if ents.is_empty() {
         return None;
@@ -382,12 +393,13 @@ where
     &'a self,
     key: &'b Q,
     version: u64,
+    discard_version: u64
   ) -> Option<RevAllVersions<'a, K, V>>
   where
     K: Borrow<Q>,
     Q: Ord + ?Sized,
   {
-    self.0.get(key).and_then(move |values| {
+    self.map.get(key).and_then(move |values| {
       let ents = values.value();
       if ents.is_empty() {
         return None;
@@ -408,25 +420,25 @@ where
   }
 
   pub fn iter(&self, version: u64) -> Iter<'_, K, V> {
-    let iter = self.0.iter();
+    let iter = self.map.iter();
     Iter { iter, version }
   }
 
   pub fn rev_iter(&self, version: u64) -> RevIter<'_, K, V> {
-    let iter = self.0.iter();
+    let iter = self.map.iter();
     RevIter {
       iter: iter.rev(),
       version,
     }
   }
 
-  pub fn iter_all_versions(&self, version: u64) -> AllVersionsIter<'_, K, V> {
-    let iter = self.0.iter();
+  pub fn iter_all_versions(&self, version: u64, discard_version: u64) -> AllVersionsIter<'_, K, V> {
+    let iter = self.map.iter();
     AllVersionsIter { iter, version }
   }
 
-  pub fn rev_iter_all_versions(&self, version: u64) -> RevAllVersionsIter<'_, K, V> {
-    let iter = self.0.iter().rev();
+  pub fn rev_iter_all_versions(&self, version: u64, discard_version: u64) -> RevAllVersionsIter<'_, K, V> {
+    let iter = self.map.iter().rev();
     RevAllVersionsIter { iter, version }
   }
 
@@ -437,20 +449,227 @@ where
     Q: Ord + ?Sized,
   {
     Range {
-      range: self.0.range(range),
+      range: self.map.range(range),
       version,
     }
   }
 
-  pub fn range_all_versions<Q, R>(&self, range: R, version: u64) -> AllVersionsRange<'_, Q, R, K, V>
+  pub fn range_all_versions<Q, R>(&self, range: R, version: u64, discard_version: u64) -> AllVersionsRange<'_, Q, R, K, V>
   where
     K: Borrow<Q>,
     R: RangeBounds<Q>,
     Q: Ord + ?Sized,
   {
     AllVersionsRange {
-      range: self.0.range(range),
+      range: self.map.range(range),
       version,
+    }
+  }
+
+  
+}
+
+impl<K, V> SkipCore<K, V>
+where
+  K: Ord + Send + 'static,
+  V: Send + Sync + 'static,
+{
+  pub fn compact(&self, new_discard_version: u64) -> u64 {
+    let mut latest_discard_version = self.last_discard_version.load(Ordering::Acquire);
+    match self.last_discard_version.compare_exchange(latest_discard_version, new_discard_version, Ordering::SeqCst, Ordering::Acquire) {
+      Ok(_) => {},
+      // if we fail to insert the new discard version,
+      // which means there is another thread that is compacting the database.
+      // To avoid run multiple compacting at the same time, we just return.
+      Err(new_discard_version) => return new_discard_version,
+    }
+
+    // let num_iters = self.all_versions_iters.len();
+    // if num_iters <= 1 {
+    //   self.compact_fast_path(discard_version);
+    //   return;
+    // }
+    match self.all_versions_iters.front() {
+      // if there are no active all versions iterators, then we can remove all values under the discard version directly.
+      None => {
+        self.compact_without_all_versions_iterators(new_discard_version);
+        return new_discard_version;
+      },
+      Some(refs) => {
+        // if the discard version is the same as the old discard version,
+        let old_discard_version = *refs.key();
+
+        if old_discard_version == new_discard_version {
+          self.compact_without_all_versions_iterators(new_discard_version);
+          return new_discard_version;
+        }
+
+        // find the minimum discard version
+        let mut actual_discard_version = new_discard_version;
+        let mut refs = Some(refs);
+        while let Some(current) = refs {
+          let version = *current.key();
+  
+          if version > new_discard_version {
+            break;
+          }
+  
+          if current.value().load(Ordering::Acquire) > 0 {
+            actual_discard_version = version;
+            break;
+          }
+
+          refs = current.next();
+        }
+
+        // compact slow path
+
+        actual_discard_version
+      }
+    }
+  }
+
+  fn compact_in(&self, actual_discard_version: u64) {
+    for ents in self.map.iter() {
+      let values = ents.value();
+
+      let upper_bound = values.upper_bound(Bound::Included(&actual_discard_version));
+
+      if let Some(upper_bound) = upper_bound {
+        let mut prev = upper_bound.prev();
+
+        while let Some(ent) = prev {
+          prev = ent.prev();
+          ent.remove();
+        }
+      }
+
+      if values.is_empty() {
+        ents.remove();
+      }
+    }
+    // for ents in self.map.iter() {
+    //   let values = ents.value();
+    //   let num_values = values.len();
+    //   if let Some(first) = values.front() {
+    //     let min_version = *first.key();
+
+    //     // if the min version of the entry is larger than the discard version,
+    //     // then we can skip this key.
+    //     if min_version > actual_discard_version {
+    //       continue;
+    //     }
+
+    //     // if the key only has one value and the value is not none, then we just skip this key.
+    //     if num_values == 1 {
+    //       if first.value().is_some() {
+    //         continue;
+    //       }
+          
+    //       if min_version > old_discard_version {
+    //         first.remove();
+    //         continue;
+    //       }
+
+    //       continue;
+    //     }
+
+    //     // Get the range of values that are under the discard version.
+    //     let range = values.range(..actual_discard_version);
+    //     for ent in range {
+    //       let version = *ent.key();
+
+    //       // if the version of the entry is larger than the discard version of the iterator,
+    //       // then we can remove the value. Because the all versions iter will only yield
+    //       // values that are larger than or eqaul to the old_discard_version.
+    //       if version > old_discard_version {
+    //         ent.remove();
+    //       }
+    //     }
+    //   } else {
+    //     ents.remove();
+    //   }
+    // }
+  }
+
+  /// No active all versions iterators, then we can remove all values under the discard version directly.
+  fn compact_without_all_versions_iterators(&self, discard_version: u64) {
+    for ents in self.map.iter() {
+      let values = ents.value();
+      let num_values = values.len();
+      if num_values == 1 {
+        let val = values.front().unwrap();
+        let version = *val.key();
+        if val.value().is_some() {
+          continue;
+        }
+
+        if version < discard_version {
+          crossbeam_skiplist::map::Entry::remove(&ents);
+        }
+
+        continue;
+      }
+
+      for ent in values.range(..discard_version) {
+        ent.remove();
+      }
+    }
+  }
+
+  fn compact_fast_path(&self, discard_version: u64) {
+    if let Some(refs) = self.all_versions_iters.front() {
+      let old_discard_version = *refs.key();
+      if old_discard_version == discard_version {
+        self.compact_without_all_versions_iterators(discard_version);
+        return;
+      }
+
+      for ents in self.map.iter() {
+        let values = ents.value();
+        let num_values = values.len();
+        if let Some(first) = values.front() {
+          let min_version = *first.key();
+
+          // if the min version of the entry is larger than the discard version,
+          // then we can skip this key.
+          if min_version > discard_version {
+            continue;
+          }
+
+          // if the key only has one value and the value is not none, then we just skip this key.
+          if num_values == 1 {
+            if first.value().is_some() {
+              continue;
+            }
+            
+            if min_version > old_discard_version {
+              first.remove();
+              continue;
+            }
+
+            continue;
+          }
+
+          // Get the range of values that are under the discard version.
+          let range = values.range(..discard_version);
+          for ent in range {
+            let version = *ent.key();
+
+            // if the version of the entry is larger than the discard version of the iterator,
+            // then we can remove the value. Because the all versions iter will only yield
+            // values that are larger than or eqaul to the old_discard_version.
+            if version > old_discard_version {
+              ent.remove();
+            }
+          }
+        } else {
+          ents.remove();
+        }
+      }
+    } else {
+      self.compact_without_all_versions_iterators(discard_version);
+      return;
     }
   }
 }

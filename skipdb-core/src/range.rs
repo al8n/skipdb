@@ -16,7 +16,7 @@ where
   R: RangeBounds<Q>,
   Q: Ord + ?Sized,
 {
-  pub(crate) range: MapRange<'a, Q, R, K, SkipMap<u64, Option<V>>>,
+  pub(crate) range: MapRange<'a, Q, R, K, Arc<SkipMap<u64, Option<V>>>>,
   pub(crate) version: u64,
 }
 
@@ -81,7 +81,7 @@ where
   R: RangeBounds<Q>,
   Q: Ord + ?Sized,
 {
-  pub(crate) range: MapRange<'a, Q, R, K, SkipMap<u64, Option<V>>>,
+  pub(crate) range: MapRange<'a, Q, R, K, Arc<SkipMap<u64, Option<V>>>>,
   pub(crate) version: u64,
 }
 
