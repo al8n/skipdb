@@ -43,6 +43,62 @@ impl<K, V, C, P> Wtm<K, V, C, P> {
   pub fn __set_read_version(&mut self, version: u64) {
     self.read_ts = version;
   }
+
+  /// Returns the pending writes manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  #[inline]
+  pub fn pwm(&self) -> Option<&P> {
+    self.pending_writes.as_ref()
+  }
+
+  /// Returns the conflict manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  #[inline]
+  pub fn cm(&self) -> Option<&C> {
+    self.conflict_manager.as_ref()
+  }
+}
+
+impl<K, V, C, P> Wtm<K, V, C, P>
+where
+  C: Cm<Key = K>,
+{
+  /// This method is used to create a marker for the keys that are operated.
+  /// It must be used to mark keys when end user is implementing iterators to
+  /// make sure the transaction manager works correctly.
+  ///
+  /// `None` means the transaction has already been discarded.
+  pub fn marker(&mut self) -> Option<Marker<'_, C>> {
+    self.conflict_manager.as_mut().map(Marker::new)
+  }
+
+  /// Returns a marker for the keys that are operated and the pending writes manager.
+  ///
+  /// `None` means the transaction has already been discarded.
+  ///
+  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
+  pub fn marker_with_pm(&mut self) -> Option<(Marker<'_, C>, &P)> {
+    self
+      .conflict_manager
+      .as_mut()
+      .map(|marker| (Marker::new(marker), self.pending_writes.as_ref().unwrap()))
+  }
+
+  /// Marks a key is read.
+  pub fn mark_read(&mut self, k: &K) {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict(&mut self, k: &K) {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict(k);
+    }
+  }
 }
 
 impl<K, V, C, P> Wtm<K, V, C, P>
@@ -50,24 +106,6 @@ where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
 {
-  /// Returns the pending writes manager.
-  #[inline]
-  pub fn pwm(&self) -> Result<&P, TransactionError<C, P>> {
-    self
-      .pending_writes
-      .as_ref()
-      .ok_or(TransactionError::Discard)
-  }
-
-  /// Returns the conflict manager.
-  #[inline]
-  pub fn cm(&self) -> Result<&C, TransactionError<C, P>> {
-    self
-      .conflict_manager
-      .as_ref()
-      .ok_or(TransactionError::Discard)
-  }
-
   /// Insert a key-value pair to the transaction.
   pub fn insert(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
     self.insert_with_in(key, value)
@@ -104,20 +142,6 @@ where
       .rollback()
       .map_err(TransactionError::Cm)?;
     Ok(())
-  }
-
-  /// Marks a key is read.
-  pub fn mark_read(&mut self, k: &K) {
-    if let Some(ref mut conflict_manager) = self.conflict_manager {
-      conflict_manager.mark_read(k);
-    }
-  }
-
-  /// Marks a key is conflict.
-  pub fn mark_conflict(&mut self, k: &K) {
-    if let Some(ref mut conflict_manager) = self.conflict_manager {
-      conflict_manager.mark_conflict(k);
-    }
   }
 
   /// Returns `true` if the pending writes contains the key.
@@ -193,39 +217,6 @@ where
 
       Ok(None)
     }
-  }
-
-  /// This method is used to create a marker for the keys that are operated.
-  /// It must be used to mark keys when end user is implementing iterators to
-  /// make sure the transaction manager works correctly.
-  ///
-  /// e.g.
-  ///
-  /// ```ignore, rust
-  /// let mut txn = custom_database.write(conflict_manger_opts, pending_manager_opts).unwrap();
-  /// let mut marker = txn.marker();
-  /// custom_database.iter().map(|k, v| marker.mark(&k));
-  /// ```
-  pub fn marker(&mut self) -> Result<Option<Marker<'_, C>>, TransactionError<C, P>> {
-    if self.is_discard() {
-      return Err(TransactionError::Discard);
-    }
-    Ok(self.conflict_manager.as_mut().map(Marker::new))
-  }
-
-  /// Returns a marker for the keys that are operated and the pending writes manager.
-  ///
-  /// As Rust's borrow checker does not allow to borrow mutable marker and the immutable pending writes manager at the same
-  /// time, this method is used to solve this problem.
-  pub fn marker_with_pm(&mut self) -> Result<(Option<Marker<'_, C>>, &P), TransactionError<C, P>> {
-    if self.is_discard() {
-      return Err(TransactionError::Discard);
-    }
-
-    Ok((
-      self.conflict_manager.as_mut().map(Marker::new),
-      self.pending_writes.as_ref().unwrap(),
-    ))
   }
 }
 

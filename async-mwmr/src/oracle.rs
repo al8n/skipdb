@@ -203,7 +203,7 @@ where
   }
 
   #[inline]
-  pub(super) async fn discard_at_or_below(&self) -> u64 {
+  pub(super) fn discard_at_or_below(&self) -> u64 {
     self.read_mark.done_until_unchecked()
   }
 

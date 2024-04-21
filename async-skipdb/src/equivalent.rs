@@ -103,14 +103,26 @@ impl<K, V, SP: AsyncSpawner, S> EquivalentDB<K, V, SP, S> {
 
 impl<K, V, SP, S> EquivalentDB<K, V, SP, S>
 where
-  K: Ord + Eq + core::hash::Hash + Send + Sync + 'static,
-  V: Send + Sync + 'static,
-  S: BuildHasher + Clone + Send + Sync + 'static,
+  K: Ord + core::hash::Hash + Eq,
+  S: BuildHasher + Clone,
   SP: AsyncSpawner,
 {
   /// Create a write transaction.
   #[inline]
   pub async fn write(&self) -> WriteTransaction<K, V, SP, S> {
     WriteTransaction::new(self.clone()).await
+  }
+}
+
+impl<K, V, SP, S> EquivalentDB<K, V, SP, S>
+where
+  K: Ord + Eq + core::hash::Hash + Send + 'static,
+  V: Send + 'static,
+  SP: AsyncSpawner,
+{
+  /// Compact the database.
+  #[inline]
+  pub fn compact(&self) {
+    self.inner.map.compact(self.inner.tm.discard_hint());
   }
 }
