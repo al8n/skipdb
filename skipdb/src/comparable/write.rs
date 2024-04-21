@@ -1,4 +1,5 @@
 use mwmr::{error::WtmError, PwmComparableRange};
+use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
@@ -149,56 +150,6 @@ where
     }
   }
 
-  /// Get all the values in different versions for the given key. Including the removed ones.
-  #[inline]
-  pub fn get_all_versions<'a, 'b: 'a>(
-    &'a mut self,
-    key: &'b K,
-  ) -> Result<
-    Option<WriteTransactionAllVersions<'a, K, V>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
-    let version = self.wtm.version();
-    let mut pending = None;
-    if let Some(ent) = self.wtm.get(key)? {
-      pending = Some(ent);
-    }
-
-    let committed = self.db.inner.map.get_all_versions(key, version);
-
-    if committed.is_none() && pending.is_none() {
-      return Ok(None);
-    }
-    Ok(Some(WriteTransactionAllVersions::new(
-      version, pending, committed,
-    )))
-  }
-
-  /// Get all the values in different versions for the given key. Including the removed ones.
-  #[inline]
-  pub fn get_all_versions_rev<'a, 'b: 'a>(
-    &'a mut self,
-    key: &'b K,
-  ) -> Result<
-    Option<WriteTransactionRevAllVersions<'a, K, V>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
-    let version = self.wtm.version();
-    let mut pending = None;
-    if let Some(ent) = self.wtm.get(key)? {
-      pending = Some(ent);
-    }
-
-    let committed = self.db.inner.map.get_all_versions_rev(key, version);
-
-    if committed.is_none() && pending.is_none() {
-      return Ok(None);
-    }
-    Ok(Some(WriteTransactionRevAllVersions::new(
-      version, pending, committed,
-    )))
-  }
-
   /// Insert a new key-value pair.
   #[inline]
   pub fn insert(
@@ -224,12 +175,12 @@ where
     TransactionError<BTreeCm<K>, PendingMap<K, V>>,
   > {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
 
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
-    Ok(WriteTransactionIter::new(pendings, committed, marker))
+    Ok(WriteTransactionIter::new(pendings, committed, Some(marker)))
   }
 
   /// Iterate over the entries of the write transaction in reverse order.
@@ -241,53 +192,15 @@ where
     TransactionError<BTreeCm<K>, PendingMap<K, V>>,
   > {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
 
-    let committed = self.db.inner.map.rev_iter(version);
+    let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 
-    Ok(WriteTransactionRevIter::new(pendings, committed, marker))
-  }
-
-  /// Returns an iterator over the entries (all versions, including removed one) of the database.
-  #[inline]
-  pub fn iter_all_versions(
-    &mut self,
-  ) -> Result<
-    WriteTransactionAllVersionsIter<'_, K, V, BTreeCm<K>, ComparableDB<K, V>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
-    let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
-
-    let committed = self.db.inner.map.iter_all_versions(version);
-    let pendings = pm.iter();
-
-    Ok(WriteTransactionAllVersionsIter::new(
-      &self.db, version, pendings, committed, marker,
-    ))
-  }
-
-  /// Returns an iterator over the entries (all versions, including removed one) of the database.
-  #[inline]
-  pub fn iter_all_versions_rev(
-    &mut self,
-  ) -> Result<
-    WriteTransactionRevAllVersionsIter<'_, K, V, BTreeCm<K>, ComparableDB<K, V>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
-    let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
-
-    let committed = self.db.inner.map.rev_iter_all_versions(version);
-    let pendings = pm.iter();
-
-    Ok(WriteTransactionRevAllVersionsIter::new(
-      &self.db,
-      version,
-      pendings.rev(),
+    Ok(WriteTransactionRevIter::new(
+      pendings,
       committed,
-      marker,
+      Some(marker),
     ))
   }
 
@@ -306,22 +219,26 @@ where
     Q: Ord + ?Sized,
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
     let start = range.start_bound();
     let end = range.end_bound();
     let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range(range, version);
 
-    Ok(WriteTransactionRange::new(pendings, committed, marker))
+    Ok(WriteTransactionRange::new(
+      pendings,
+      committed,
+      Some(marker),
+    ))
   }
 
-  /// Returns an iterator over the subset of entries (all versions, including removed one) of the database.
+  /// Returns an iterator over the subset of entries of the database in reverse order.
   #[inline]
-  pub fn range_all_versions<'a, Q, R>(
+  pub fn range_rev<'a, Q, R>(
     &'a mut self,
     range: R,
   ) -> Result<
-    WriteTransactionAllVersionsRange<'a, Q, R, K, V, BTreeCm<K>, ComparableDB<K, V>>,
+    WriteTransactionRevRange<'a, Q, R, K, V, BTreeCm<K>>,
     TransactionError<BTreeCm<K>, PendingMap<K, V>>,
   >
   where
@@ -330,14 +247,16 @@ where
     Q: Ord + ?Sized,
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm()?;
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
     let start = range.start_bound();
     let end = range.end_bound();
-    let pendings = pm.range_comparable((start, end));
-    let committed = self.db.inner.map.range_all_versions(range, version);
+    let pendings = pm.range_comparable((start, end)).rev();
+    let committed = self.db.inner.map.range_rev(range, version);
 
-    Ok(WriteTransactionAllVersionsRange::new(
-      &self.db, version, pendings, committed, marker,
+    Ok(WriteTransactionRevRange::new(
+      pendings,
+      committed,
+      Some(marker),
     ))
   }
 }

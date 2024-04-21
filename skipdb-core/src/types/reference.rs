@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use super::*;
 
 /// A reference to an entry in the write transaction.
 #[derive(Debug)]
 pub struct CommittedRef<'a, K, V> {
-  pub(crate) ent: MapEntry<'a, K, Arc<SkipMap<u64, Option<V>>>>,
+  pub(crate) ent: MapEntry<'a, K, Values<V>>,
   pub(crate) version: u64,
 }
 

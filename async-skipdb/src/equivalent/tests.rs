@@ -65,7 +65,7 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
     assert_eq!(tx.version(), 0);
 
     tx.insert("foo", "foo1").unwrap();
-    assert_eq!(*tx.get("foo").await.unwrap().unwrap().value(), "foo1");
+    assert_eq!(*tx.get("foo").unwrap().unwrap().value(), "foo1");
     tx.commit().await.unwrap();
   }
 
@@ -102,7 +102,7 @@ async fn txn_simple_in<S: AsyncSpawner>() {
       }
     }
 
-    let item = txn.get(&8).await.unwrap().unwrap();
+    let item = txn.get(&8).unwrap().unwrap();
     assert!(!item.is_committed());
     assert_eq!(*item.value(), 8);
     drop(item);
@@ -279,7 +279,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
     txn: &'a mut WriteTransaction<u64, u64, S>,
     k: &'a u64,
   ) -> u64 {
-    let item = txn.get(k).await.unwrap().unwrap();
+    let item = txn.get(k).unwrap().unwrap();
     let val = *item.value();
     val
   }
@@ -345,7 +345,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
       let set_count1 = set_count.clone();
       S::spawn(async move {
         let mut txn = db1.write().await;
-        if txn.get(&100).await.unwrap().is_none() {
+        if txn.get(&100).unwrap().is_none() {
           txn.insert(100, 999).unwrap();
 
           #[allow(clippy::blocks_in_conditions)]
@@ -426,61 +426,13 @@ async fn txn_versions_in<S: AsyncSpawner>() {
       assert_eq!(1, count) // should only loop once.
     };
 
-  let check_all_versions = |itr: WriteTransactionAllVersionsIter<
-    '_,
-    u64,
-    u64,
-    HashCm<u64, std::hash::RandomState>,
-    EquivalentDB<u64, u64, S>,
-  >,
-                            i: u64| {
-    let mut version = i;
-
-    let mut count = 0;
-    for ents in itr {
-      for ent in ents {
-        assert_eq!(ent.key(), &k0);
-        assert_eq!(ent.version(), version);
-        assert_eq!(*ent.value().unwrap(), version);
-        count += 1;
-        version -= 1;
-      }
-    }
-
-    assert_eq!(i, count); // Should loop as many times as i.
-  };
-
-  let check_rev_all_versions = |itr: WriteTransactionRevAllVersionsIter<
-    '_,
-    u64,
-    u64,
-    HashCm<u64, std::hash::RandomState>,
-    EquivalentDB<u64, u64, S>,
-  >,
-                                i: u64| {
-    let mut version = 1;
-
-    let mut count = 0;
-    for ents in itr {
-      for ent in ents {
-        assert_eq!(ent.key(), &k0);
-        assert_eq!(ent.version(), version);
-        assert_eq!(*ent.value().unwrap(), version);
-        count += 1;
-        version += 1;
-      }
-    }
-
-    assert_eq!(i, count); // Should loop as many times as i.
-  };
-
   for i in 1..10 {
     let mut txn = db.write().await;
     txn.wtm.__set_read_version(i); // Read version at i.
 
     let v = i;
     {
-      let item = txn.get(&k0).await.unwrap().unwrap();
+      let item = txn.get(&k0).unwrap().unwrap();
       assert_eq!(v, *item.value());
     }
 
@@ -490,17 +442,10 @@ async fn txn_versions_in<S: AsyncSpawner>() {
 
     let itr = txn.iter_rev().unwrap();
     check_rev_iter(itr, i);
-
-    // Now try retrieving all versions forward and reverse.
-    let itr = txn.iter_all_versions().unwrap();
-    check_all_versions(itr, i);
-
-    let itr = txn.iter_all_versions_rev().unwrap();
-    check_rev_all_versions(itr, i);
   }
 
   let mut txn = db.write().await;
-  let item = txn.get(&k0).await.unwrap().unwrap();
+  let item = txn.get(&k0).unwrap().unwrap();
   let val = *item.value();
   assert_eq!(9, val)
 }
@@ -585,179 +530,6 @@ async fn txn_conflict_iter_async_std() {
 #[test]
 fn txn_conflict_iter_smol() {
   smol::block_on(txn_conflict_iter_in::<SmolSpawner>());
-}
-
-async fn txn_all_versions_with_removed_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
-  // write two keys
-  {
-    let mut txn = db.write().await;
-    txn.insert(1, 42).unwrap();
-    txn.insert(2, 43).unwrap();
-    txn.commit().await.unwrap();
-  }
-
-  // Delete the specific key version from underlying db directly
-  {
-    let txn = db.read().await;
-    let item = txn.get(&1).unwrap();
-    txn
-      .db
-      .inner
-      .map
-      .by_ref()
-      .get(&1)
-      .unwrap()
-      .value()
-      .insert(item.version(), None);
-    drop(item);
-  }
-
-  // Verify that deleted shows up when AllVersions is set.
-  {
-    let txn = db.read().await;
-    let itr = txn.iter_all_versions();
-
-    let mut count = 0;
-    for ents in itr {
-      count += 1;
-      if count == 1 {
-        let mut num = 0;
-        let k = *ents.key();
-        for ent in ents {
-          assert_eq!(k, 1);
-          assert!(ent.value().is_none());
-          num += 1;
-        }
-        assert_eq!(1, num);
-      } else {
-        let mut num = 0;
-        let k = *ents.key();
-        for ent in ents {
-          assert_eq!(k, 2);
-          assert_eq!(ent.value().as_deref(), Some(&43));
-          num += 1;
-        }
-        assert_eq!(1, num);
-      }
-    }
-    assert_eq!(2, count);
-  }
-
-  // Verify that deleted shows up when AllVersions is set.
-  {
-    let txn = db.read().await;
-    let itr = txn.iter_all_versions_rev();
-
-    let mut count = 0;
-    for ents in itr {
-      count += 1;
-      if count != 1 {
-        let mut num = 0;
-        let k = *ents.key();
-        for ent in ents {
-          assert_eq!(k, 1);
-          assert!(ent.value().is_none());
-          num += 1;
-        }
-        assert_eq!(1, num);
-      } else {
-        let mut num = 0;
-        let k = *ents.key();
-        for ent in ents {
-          assert_eq!(k, 2);
-          assert_eq!(ent.value().as_deref(), Some(&43));
-          num += 1;
-        }
-        assert_eq!(1, num);
-      }
-    }
-    assert_eq!(2, count);
-  }
-}
-
-#[tokio::test]
-async fn txn_all_versions_with_removed_tokio() {
-  txn_all_versions_with_removed_in::<TokioSpawner>().await;
-}
-
-#[async_std::test]
-async fn txn_all_versions_with_removed_async_std() {
-  txn_all_versions_with_removed_in::<AsyncStdSpawner>().await;
-}
-
-#[test]
-fn txn_all_versions_with_removed_smol() {
-  smol::block_on(txn_all_versions_with_removed_in::<SmolSpawner>());
-}
-
-async fn txn_all_versions_with_removed2_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
-  // Set and delete alternatively
-  {
-    for i in 0..4 {
-      let mut txn = db.write().await;
-      if i % 2 == 0 {
-        txn.insert(0, 99).unwrap();
-      } else {
-        txn.remove(0).unwrap();
-      }
-      txn.commit().await.unwrap();
-    }
-  }
-
-  // Verify that deleted shows up when AllVersions is set.
-  {
-    let txn = db.read().await;
-    let itr = txn.iter_all_versions_rev();
-
-    let mut count = 0;
-    for ents in itr {
-      for ent in ents {
-        if count % 2 == 0 {
-          assert_eq!(ent.value().as_deref(), Some(&99));
-        } else {
-          assert!(ent.value().is_none());
-        }
-        count += 1
-      }
-    }
-    assert_eq!(4, count);
-  }
-
-  // Verify that deleted shows up when AllVersions is set.
-  {
-    let txn = db.read().await;
-    let itr = txn.iter_all_versions();
-
-    let mut count = 0;
-    for ents in itr {
-      for ent in ents {
-        if count % 2 != 0 {
-          assert_eq!(ent.value().as_deref(), Some(&99));
-        } else {
-          assert!(ent.value().is_none());
-        }
-        count += 1
-      }
-    }
-    assert_eq!(4, count);
-  }
-}
-
-#[tokio::test]
-async fn txn_all_versions_with_removed2_tokio() {
-  txn_all_versions_with_removed2_in::<TokioSpawner>().await;
-}
-
-#[async_std::test]
-async fn txn_all_versions_with_removed2_async_std() {
-  txn_all_versions_with_removed2_in::<AsyncStdSpawner>().await;
-}
-
-#[test]
-fn txn_all_versions_with_removed2_smol() {
-  smol::block_on(txn_all_versions_with_removed2_in::<SmolSpawner>());
 }
 
 /// a3, a2, b4 (del), b3, c2, c1
