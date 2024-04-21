@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU8, Ordering};
+
 use crossbeam_skiplist::{map::Entry as MapEntry, SkipMap};
 use mwmr_core::types::EntryRef;
 
@@ -5,8 +7,60 @@ mod reference;
 use either::Either;
 pub use reference::*;
 
-mod versioned_reference;
-pub use versioned_reference::*;
+const UNINITIALIZED: u8 = 0;
+const LOCKED: u8 = 1;
+const UNLOCKED: u8 = 2;
+
+#[derive(Debug)]
+pub(crate) struct Values<V> {
+  pub(crate) op: AtomicU8,
+  values: SkipMap<u64, Option<V>>,
+}
+
+unsafe impl<V: Send> Send for Values<V> {}
+
+impl<V> Values<V> {
+  pub(crate) fn new() -> Self {
+    Self {
+      op: AtomicU8::new(UNINITIALIZED),
+      values: SkipMap::new(),
+    }
+  }
+
+  pub(crate) fn lock(&self) {
+    let mut current = UNLOCKED;
+    // Spin lock is ok here because the lock is expected to be held for a very short time.
+    // and it is hardly contended.
+    loop {
+      match self
+        .op
+        .compare_exchange_weak(current, LOCKED, Ordering::SeqCst, Ordering::Acquire)
+      {
+        Ok(_) => return,
+        Err(v) => current = v,
+      }
+    }
+  }
+
+  pub(crate) fn try_lock(&self) -> bool {
+    self
+      .op
+      .compare_exchange(UNLOCKED, LOCKED, Ordering::AcqRel, Ordering::Relaxed)
+      .is_ok()
+  }
+
+  pub(crate) fn unlock(&self) {
+    self.op.store(UNLOCKED, Ordering::Release);
+  }
+}
+
+impl<V> core::ops::Deref for Values<V> {
+  type Target = SkipMap<u64, Option<V>>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.values
+  }
+}
 
 /// A reference to an entry in the write transaction.
 pub struct Entry<'a, K, V> {

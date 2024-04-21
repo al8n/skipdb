@@ -114,3 +114,15 @@ where
     WriteTransaction::new(self.clone())
   }
 }
+
+impl<K, V> ComparableDB<K, V>
+where
+  K: CheapClone + Ord + Send + 'static,
+  V: Send + 'static,
+{
+  /// Compact the database.
+  #[inline]
+  pub fn compact(&self) {
+    self.inner.map.compact(self.inner.tm.discard_hint());
+  }
+}

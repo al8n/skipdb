@@ -100,13 +100,25 @@ impl<K, V, S: AsyncSpawner> ComparableDB<K, V, S> {
 
 impl<K, V, S> ComparableDB<K, V, S>
 where
-  K: CheapClone + Ord + Send + Sync + 'static,
-  V: Send + Sync + 'static,
+  K: CheapClone + Ord,
   S: AsyncSpawner,
 {
   /// Create a write transaction.
   #[inline]
   pub async fn write(&self) -> WriteTransaction<K, V, S> {
     WriteTransaction::new(self.clone()).await
+  }
+}
+
+impl<K, V, S> ComparableDB<K, V, S>
+where
+  K: CheapClone + Ord + Send + 'static,
+  V: Send + 'static,
+  S: AsyncSpawner,
+{
+  /// Compact the database.
+  #[inline]
+  pub fn compact(&self) {
+    self.inner.map.compact(self.inner.tm.discard_hint());
   }
 }

@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use async_mwmr::{error::WtmError, PwmComparableRange};
+use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
@@ -12,9 +13,8 @@ pub struct WriteTransaction<K, V, SP, S = std::hash::RandomState> {
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq + Send + Sync + 'static,
-  V: Send + Sync + 'static,
-  S: BuildHasher + Clone + Send + Sync + 'static,
+  K: Ord + core::hash::Hash + Eq,
+  S: BuildHasher + Clone,
   SP: AsyncSpawner,
 {
   #[inline]
@@ -22,7 +22,7 @@ where
     let wtm = db
       .inner
       .tm
-      .write(
+      .write_with_blocking_cm_and_pwm(
         Options::default()
           .with_max_batch_entries(db.inner.max_batch_entries)
           .with_max_batch_size(db.inner.max_batch_size),
@@ -119,9 +119,9 @@ where
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq + Send + Sync + 'static,
-  V: Send + Sync + 'static,
-  S: BuildHasher + Send + Sync + 'static,
+  K: Ord + core::hash::Hash + Eq,
+  V: 'static,
+  S: BuildHasher,
   SP: AsyncSpawner,
 {
   /// Returns the read version of the transaction.
@@ -132,13 +132,13 @@ where
 
   /// Rollback the transaction.
   #[inline]
-  pub async fn rollback(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
-    self.wtm.rollback().await
+  pub fn rollback_blocking(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
+    self.wtm.rollback_blocking()
   }
 
   /// Returns true if the given key exists in the database.
   #[inline]
-  pub async fn contains_key<Q>(
+  pub fn contains_key<Q>(
     &mut self,
     key: &Q,
   ) -> Result<bool, TransactionError<Infallible, Infallible>>
@@ -149,8 +149,7 @@ where
     let version = self.wtm.version();
     match self
       .wtm
-      .contains_key_equivalent_cm_comparable_pm(key)
-      .await?
+      .contains_key_equivalent_cm_comparable_pm_blocking(key)?
     {
       Some(true) => Ok(true),
       Some(false) => Ok(false),
@@ -160,7 +159,7 @@ where
 
   /// Get a value from the database.
   #[inline]
-  pub async fn get<'a, 'b: 'a, Q>(
+  pub fn get<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
   ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
@@ -169,7 +168,7 @@ where
     Q: core::hash::Hash + Eq + Ord + ?Sized + Sync,
   {
     let version = self.wtm.version();
-    match self.wtm.get_equivalent_cm_comparable_pm(key).await? {
+    match self.wtm.get_equivalent_cm_comparable_pm_blocking(key)? {
       Some(v) => {
         if v.value().is_some() {
           Ok(Some(v.into()))
@@ -179,65 +178,6 @@ where
       }
       None => Ok(self.db.inner.map.get(key, version).map(Into::into)),
     }
-  }
-
-  /// Get all the values in different versions for the given key. Including the removed ones.
-  ///
-  /// This function returns an iterator in higher version to lower version order.
-  #[inline]
-  pub async fn get_all_versions<'a, 'b: 'a, Q>(
-    &'a mut self,
-    key: &'b Q,
-  ) -> Result<Option<WriteTransactionAllVersions<'a, K, V>>, TransactionError<Infallible, Infallible>>
-  where
-    K: Borrow<Q>,
-    Q: core::hash::Hash + Ord + ?Sized + Sync,
-  {
-    let version = self.wtm.version();
-    let mut pending = None;
-    if let Some(ent) = self.wtm.get_equivalent_cm_comparable_pm(key).await? {
-      pending = Some(ent);
-    }
-
-    let committed = self.db.inner.map.get_all_versions(key, version);
-
-    if committed.is_none() && pending.is_none() {
-      return Ok(None);
-    }
-    Ok(Some(WriteTransactionAllVersions::new(
-      version, pending, committed,
-    )))
-  }
-
-  /// Get all the values in different versions for the given key. Including the removed ones.
-  ///
-  /// This function returns an iterator in lower version to higher version order.
-  #[inline]
-  pub async fn get_all_versions_rev<'a, 'b: 'a, Q>(
-    &'a mut self,
-    key: &'b Q,
-  ) -> Result<
-    Option<WriteTransactionRevAllVersions<'a, K, V>>,
-    TransactionError<Infallible, Infallible>,
-  >
-  where
-    K: Borrow<Q>,
-    Q: core::hash::Hash + Ord + ?Sized + Sync,
-  {
-    let version = self.wtm.version();
-    let mut pending = None;
-    if let Some(ent) = self.wtm.get_equivalent_cm_comparable_pm(key).await? {
-      pending = Some(ent);
-    }
-
-    let committed = self.db.inner.map.get_all_versions_rev(key, version);
-
-    if committed.is_none() && pending.is_none() {
-      return Ok(None);
-    }
-    Ok(Some(WriteTransactionRevAllVersions::new(
-      version, pending, committed,
-    )))
   }
 
   /// Insert a new key-value pair.
@@ -263,7 +203,10 @@ where
   ) -> Result<WriteTransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>>
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let (marker, pm) = self
+      .wtm
+      .blocking_marker_with_pm()
+      .ok_or(TransactionError::Discard)?;
 
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
@@ -280,59 +223,16 @@ where
     TransactionError<Infallible, Infallible>,
   > {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let (marker, pm) = self
+      .wtm
+      .blocking_marker_with_pm()
+      .ok_or(TransactionError::Discard)?;
 
-    let committed = self.db.inner.map.rev_iter(version);
+    let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 
     Ok(WriteTransactionRevIter::new(
       pendings,
-      committed,
-      Some(marker),
-    ))
-  }
-
-  /// Returns an iterator over the entries (all versions, including removed one) of the database.
-  #[inline]
-  pub fn iter_all_versions(
-    &mut self,
-  ) -> Result<
-    WriteTransactionAllVersionsIter<'_, K, V, HashCm<K, S>, EquivalentDB<K, V, SP, S>>,
-    TransactionError<Infallible, Infallible>,
-  > {
-    let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
-    let committed = self.db.inner.map.iter_all_versions(version);
-    let pendings = pm.iter();
-
-    Ok(WriteTransactionAllVersionsIter::new(
-      &self.db,
-      version,
-      pendings,
-      committed,
-      Some(marker),
-    ))
-  }
-
-  /// Returns an iterator over the entries (all versions, including removed one) of the database.
-  #[inline]
-  pub fn iter_all_versions_rev(
-    &mut self,
-  ) -> Result<
-    WriteTransactionRevAllVersionsIter<'_, K, V, HashCm<K, S>, EquivalentDB<K, V, SP, S>>,
-    TransactionError<Infallible, Infallible>,
-  > {
-    let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
-    let committed = self.db.inner.map.rev_iter_all_versions(version);
-    let pendings = pm.iter();
-
-    Ok(WriteTransactionRevAllVersionsIter::new(
-      &self.db,
-      version,
-      pendings.rev(),
       committed,
       Some(marker),
     ))
@@ -353,7 +253,10 @@ where
     Q: Ord + ?Sized,
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let (marker, pm) = self
+      .wtm
+      .blocking_marker_with_pm()
+      .ok_or(TransactionError::Discard)?;
     let start = range.start_bound();
     let end = range.end_bound();
     let pendings = pm.range_comparable((start, end));
@@ -366,13 +269,13 @@ where
     ))
   }
 
-  /// Returns an iterator over the subset of entries (all versions, including removed one) of the database.
+  /// Returns an iterator over the subset of entries of the database in reverse order.
   #[inline]
-  pub fn range_all_versions<'a, Q, R>(
+  pub fn range_rev<'a, Q, R>(
     &'a mut self,
     range: R,
   ) -> Result<
-    WriteTransactionAllVersionsRange<'a, Q, R, K, V, HashCm<K, S>, EquivalentDB<K, V, SP, S>>,
+    WriteTransactionRevRange<'a, Q, R, K, V, HashCm<K, S>>,
     TransactionError<Infallible, Infallible>,
   >
   where
@@ -381,16 +284,17 @@ where
     Q: Ord + ?Sized,
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let (marker, pm) = self
+      .wtm
+      .blocking_marker_with_pm()
+      .ok_or(TransactionError::Discard)?;
     let start = range.start_bound();
     let end = range.end_bound();
     let pendings = pm.range_comparable((start, end));
-    let committed = self.db.inner.map.range_all_versions(range, version);
+    let committed = self.db.inner.map.range_rev(range, version);
 
-    Ok(WriteTransactionAllVersionsRange::new(
-      &self.db,
-      version,
-      pendings,
+    Ok(WriteTransactionRevRange::new(
+      pendings.rev(),
       committed,
       Some(marker),
     ))
