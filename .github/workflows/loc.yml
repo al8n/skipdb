@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        crates: [mwmr, async-mwmr, wmark, mwmr-core, skipdb]
+        crates: [mwmr, async-mwmr, wmark, mwmr-core, skipdb, async-skipdb, skipdb-core]
     steps:
       - uses: actions/checkout@v3
 
@@ -43,14 +43,27 @@ jobs:
       - name: Count lines of code
         run: |
           tokeit
+      - name: Upload total loc to GitHub Gist
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GIST_PAT}}
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('tokeit.json', 'utf8');
+            const gistId = '327b2a8aef9003246e45c6e47fe63937';
+            await github.rest.gists.update({
+              gist_id: gistId,
+              files: {
+                "skipdb-total": {
+                  content: output
+                }
+              }
+            });
       
       - name: Count lines of code in subcrates
         run: |
-          for crate in mwmr async-mwmr wmark mwmr-core; do
-            cd $crate
-            tokeit
-            cd ..
-          done
+          tokeit
+        working-directory: ${{ matrix.crates }}
 
       - name: Upload subcrates loc to GitHub Gist
         uses: actions/github-script@v6
@@ -68,4 +81,3 @@ jobs:
                 }
               }
             });
-            console.log("Gist updated");
