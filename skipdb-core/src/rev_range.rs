@@ -1,26 +1,33 @@
 use either::Either;
 use mwmr_core::sync::{Cm, Marker};
 
+use crossbeam_skiplist::map::Range as MapRange;
+use std::{cmp, collections::btree_map::Range as BTreeMapRange, iter::Rev};
+
 use super::*;
 
-use crossbeam_skiplist::map::Iter as MapIter;
-use std::{cmp, collections::btree_map::Iter as BTreeMapIter, iter::Rev};
-
-/// An iterator over the entries of the database.
-pub struct RevIter<'a, K, V> {
-  pub(crate) iter: Rev<MapIter<'a, K, Values<V>>>,
+/// An iterator over a subset of entries of the database.
+pub struct RevRange<'a, Q, R, K, V>
+where
+  K: Ord + Borrow<Q>,
+  R: RangeBounds<Q>,
+  Q: Ord + ?Sized,
+{
+  pub(crate) range: Rev<MapRange<'a, Q, R, K, Values<V>>>,
   pub(crate) version: u64,
 }
 
-impl<'a, K, V> Iterator for RevIter<'a, K, V>
+impl<'a, Q, R, K, V> Iterator for RevRange<'a, Q, R, K, V>
 where
-  K: Ord,
+  K: Ord + Borrow<Q>,
+  R: RangeBounds<Q>,
+  Q: Ord + ?Sized,
 {
   type Item = Ref<'a, K, V>;
 
   fn next(&mut self) -> Option<Self::Item> {
     loop {
-      let ent = self.iter.next()?;
+      let ent = self.range.next()?;
       if let Some(version) = ent
         .value()
         .upper_bound(Bound::Included(&self.version))
@@ -38,20 +45,27 @@ where
   }
 }
 
-/// Iterator over the entries of the write transaction.
-pub struct WriteTransactionRevIter<'a, K, V, C> {
-  pendings: Rev<BTreeMapIter<'a, K, EntryValue<V>>>,
-  committed: RevIter<'a, K, V>,
+/// An iterator over a subset of entries of the database.
+pub struct WriteTransactionRevRange<'a, Q, R, K, V, C>
+where
+  K: Ord + Borrow<Q>,
+  R: RangeBounds<Q> + 'a,
+  Q: Ord + ?Sized,
+{
+  pub(crate) committed: RevRange<'a, Q, R, K, V>,
+  pub(crate) pendings: Rev<BTreeMapRange<'a, K, EntryValue<V>>>,
   next_pending: Option<(&'a K, &'a EntryValue<V>)>,
   next_committed: Option<Ref<'a, K, V>>,
   last_yielded_key: Option<Either<&'a K, Ref<'a, K, V>>>,
   marker: Option<Marker<'a, C>>,
 }
 
-impl<'a, K, V, C> WriteTransactionRevIter<'a, K, V, C>
+impl<'a, Q, R, K, V, C> WriteTransactionRevRange<'a, Q, R, K, V, C>
 where
+  K: Ord + Borrow<Q>,
+  Q: Ord + ?Sized,
+  R: RangeBounds<Q> + 'a,
   C: Cm<Key = K>,
-  K: Ord,
 {
   fn advance_pending(&mut self) {
     self.next_pending = self.pendings.next();
@@ -65,11 +79,11 @@ where
   }
 
   pub fn new(
-    pendings: Rev<BTreeMapIter<'a, K, EntryValue<V>>>,
-    committed: RevIter<'a, K, V>,
+    pendings: Rev<BTreeMapRange<'a, K, EntryValue<V>>>,
+    committed: RevRange<'a, Q, R, K, V>,
     marker: Option<Marker<'a, C>>,
   ) -> Self {
-    let mut iterator = WriteTransactionRevIter {
+    let mut iterator = Self {
       pendings,
       committed,
       next_pending: None,
@@ -85,9 +99,11 @@ where
   }
 }
 
-impl<'a, K, V, C> Iterator for WriteTransactionRevIter<'a, K, V, C>
+impl<'a, Q, R, K, V, C> Iterator for WriteTransactionRevRange<'a, Q, R, K, V, C>
 where
-  K: Ord + 'static,
+  K: Ord + Borrow<Q>,
+  Q: Ord + ?Sized,
+  R: RangeBounds<Q> + 'a,
   C: Cm<Key = K>,
 {
   type Item = Ref<'a, K, V>;

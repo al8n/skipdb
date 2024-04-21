@@ -119,3 +119,16 @@ where
     WriteTransaction::new(self.clone())
   }
 }
+
+impl<K, V, S> EquivalentDB<K, V, S>
+where
+  K: Ord + Eq + core::hash::Hash + Send + 'static,
+  V: Send + 'static,
+  S: BuildHasher + Clone,
+{
+  /// Compact the database.
+  #[inline]
+  pub fn compact(&self) {
+    self.inner.map.compact(self.inner.tm.discard_hint());
+  }
+}

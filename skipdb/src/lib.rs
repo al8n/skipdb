@@ -25,7 +25,7 @@ pub use skipdb_core::{
   iter::*,
   range::*,
   rev_iter::*,
-  types::{Ref, ValueRef, VersionedRef},
+  types::{Ref, ValueRef},
   Options,
 };
 
