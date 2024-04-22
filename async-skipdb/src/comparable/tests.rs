@@ -18,7 +18,7 @@ async fn begin_tx_readable_in<S: AsyncSpawner>() {
   assert_eq!(tx.version(), 0);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn begin_tx_readable_tokio() {
   begin_tx_readable_in::<TokioSpawner>().await;
@@ -42,7 +42,7 @@ async fn begin_tx_writeable_in<S: AsyncSpawner>() {
   assert_eq!(tx.version(), 0);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn begin_tx_writeable_tokio() {
   begin_tx_writeable_in::<TokioSpawner>().await;
@@ -78,7 +78,7 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn writeable_tx_tokio() {
   writeable_tx_in::<TokioSpawner>().await;
@@ -123,7 +123,7 @@ async fn txn_simple_in<S: AsyncSpawner>() {
   drop(item);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_simple_tokio() {
   txn_simple_in::<TokioSpawner>().await;
@@ -170,7 +170,7 @@ async fn txn_read_after_write_in<S: AsyncSpawner>() {
   while handles.next().await.is_some() {}
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_read_after_write_tokio() {
   txn_read_after_write_in::<TokioSpawner>().await;
@@ -335,7 +335,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   assert_eq!(2, db.version().await);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_write_skew_tokio() {
   txn_write_skew_in::<TokioSpawner>().await;
@@ -396,7 +396,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_conflict_get_tokio() {
   txn_conflict_get_in::<TokioSpawner>().await;
@@ -469,7 +469,7 @@ async fn txn_versions_in<S: AsyncSpawner>() {
   assert_eq!(9, val)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_versions_tokio() {
   txn_versions_in::<TokioSpawner>().await;
@@ -540,7 +540,7 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_conflict_iter_tokio() {
   txn_conflict_iter_in::<TokioSpawner>().await;
@@ -656,7 +656,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
   check_rev_iter(itr, &[31]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case_tokio() {
   txn_iteration_edge_case_in::<TokioSpawner>().await;
@@ -789,7 +789,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
   check_rev_iter(itr, &[31]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case2_tokio() {
   txn_iteration_edge_case2_in::<TokioSpawner>().await;

@@ -24,6 +24,8 @@ pub enum WaterMarkError {
   Uninitialized,
   /// The watermark is canceled.
   Canceled,
+  /// The channel is closed.
+  ChannelClosed,
 }
 
 impl core::fmt::Debug for WaterMarkError {
@@ -34,6 +36,7 @@ impl core::fmt::Debug for WaterMarkError {
         "watermark: uninitialized, please call init first before using any other functions"
       ),
       Self::Canceled => write!(f, "watermark: canceled"),
+      Self::ChannelClosed => write!(f, "watermark: channel closed"),
     }
   }
 }
@@ -46,6 +49,7 @@ impl core::fmt::Display for WaterMarkError {
         "watermark: uninitialized, please call init first before using any other functions"
       ),
       Self::Canceled => write!(f, "watermark: canceled"),
+      Self::ChannelClosed => write!(f, "watermark: channel closed"),
     }
   }
 }
