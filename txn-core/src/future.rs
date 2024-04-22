@@ -1,6 +1,9 @@
-use core::{borrow::Borrow, future::Future};
+use core::{borrow::Borrow, future::Future, ops::RangeBounds};
 
-use super::types::*;
+use super::{
+  sync::*,
+  types::{Entry, EntryValue},
+};
 
 /// A marker used to mark the keys that are read.
 pub struct AsyncMarker<'a, C> {
@@ -19,6 +22,57 @@ impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub async fn mark(&mut self, k: &C::Key) {
     self.marker.mark_read(k).await;
+  }
+}
+
+impl<'a, C: AsyncCmComparable> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub async fn mark_comparable<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized + Sync,
+  {
+    self.marker.mark_read_comparable(k).await;
+  }
+}
+
+impl<'a, C: AsyncCmEquivalent> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub async fn mark_equivalent<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized + Sync,
+  {
+    self.marker.mark_read_equivalent(k).await;
+  }
+}
+
+impl<'a, C: Cm> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_blocking(&mut self, k: &C::Key) {
+    self.marker.mark_read(k);
+  }
+}
+
+impl<'a, C: CmComparable> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_comparable_blocking<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_read_comparable(k);
+  }
+}
+
+impl<'a, C: CmEquivalent> AsyncMarker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_equivalent_blocking<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    self.marker.mark_read_equivalent(k);
   }
 }
 
@@ -172,14 +226,41 @@ pub trait AsyncPwm: Sized {
   fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
 
   /// Returns an iterator over the pending writes.
-  fn iter(
-    &self,
-  ) -> impl Future<Output = impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)>>;
+  fn iter(&self) -> impl Future<Output = Self::Iter<'_>>;
 
   /// Returns an iterator that consumes the pending writes.
-  fn into_iter(
-    self,
-  ) -> impl Future<Output = impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>>;
+  fn into_iter(self) -> impl Future<Output = Self::IntoIter>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait AsyncPwmRange: AsyncPwm {
+  /// The iterator type.
+  type Range<'a>: IntoIterator<Item = (&'a Self::Key, &'a EntryValue<Self::Value>)>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the pending writes.
+  fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> impl Future<Output = Self::Range<'_>>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait AsyncPwmComparableRange: AsyncPwmRange + AsyncPwmComparable {
+  /// Returns an iterator over the pending writes.
+  fn range_comparable<T, R>(&self, range: R) -> impl Future<Output = Self::Range<'_>>
+  where
+    T: ?Sized + Ord,
+    Self::Key: Borrow<T> + Ord,
+    R: RangeBounds<T>;
+}
+
+/// An trait that can be used to get a range over the pending writes.
+pub trait AsyncPwmEquivalentRange: AsyncPwmRange + AsyncPwmEquivalent {
+  /// Returns an iterator over the pending writes.
+  fn range_equivalent<T, R>(&self, range: R) -> impl Future<Output = Self::Range<'_>>
+  where
+    T: ?Sized + Eq + core::hash::Hash,
+    Self::Key: Borrow<T> + Eq + core::hash::Hash,
+    R: RangeBounds<T>;
 }
 
 /// An optimized version of the [`AsyncPwm`] trait that if your pending writes manager is depend on hash.
@@ -252,4 +333,295 @@ pub trait AsyncPwmComparable: AsyncPwm {
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
+}
+
+impl<T> AsyncCm for T
+where
+  T: Cm,
+{
+  type Error = <T as Cm>::Error;
+
+  type Key = <T as Cm>::Key;
+
+  type Options = <T as Cm>::Options;
+
+  async fn new(options: Self::Options) -> Result<Self, Self::Error> {
+    <T as Cm>::new(options)
+  }
+
+  async fn mark_read(&mut self, key: &Self::Key) {
+    <T as Cm>::mark_read(self, key)
+  }
+
+  async fn mark_conflict(&mut self, key: &Self::Key) {
+    <T as Cm>::mark_conflict(self, key)
+  }
+
+  async fn has_conflict(&self, other: &Self) -> bool {
+    <T as Cm>::has_conflict(self, other)
+  }
+
+  async fn rollback(&mut self) -> Result<(), Self::Error> {
+    <T as Cm>::rollback(self)
+  }
+}
+
+impl<T> AsyncCmComparable for T
+where
+  T: CmComparable,
+{
+  async fn mark_read_comparable<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as CmComparable>::mark_read_comparable(self, key)
+  }
+
+  async fn mark_conflict_comparable<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as CmComparable>::mark_conflict_comparable(self, key)
+  }
+}
+
+impl<T> AsyncCmEquivalent for T
+where
+  T: CmEquivalent,
+{
+  async fn mark_read_equivalent<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as CmEquivalent>::mark_read_equivalent(self, key)
+  }
+
+  async fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as CmEquivalent>::mark_conflict_equivalent(self, key)
+  }
+}
+
+impl<T> AsyncPwm for T
+where
+  T: Pwm,
+{
+  type Error = <T as Pwm>::Error;
+
+  type Key = <T as Pwm>::Key;
+
+  type Value = <T as Pwm>::Value;
+
+  type Options = <T as Pwm>::Options;
+
+  type Iter<'a> = <T as Pwm>::Iter<'a> where Self: 'a;
+
+  type IntoIter = <T as Pwm>::IntoIter;
+
+  async fn new(options: Self::Options) -> Result<Self, Self::Error> {
+    <T as Pwm>::new(options)
+  }
+
+  async fn is_empty(&self) -> bool {
+    <T as Pwm>::is_empty(self)
+  }
+
+  async fn len(&self) -> usize {
+    <T as Pwm>::len(self)
+  }
+
+  async fn validate_entry(&self, entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
+    <T as Pwm>::validate_entry(self, entry)
+  }
+
+  fn max_batch_size(&self) -> u64 {
+    <T as Pwm>::max_batch_size(self)
+  }
+
+  fn max_batch_entries(&self) -> u64 {
+    <T as Pwm>::max_batch_entries(self)
+  }
+
+  fn estimate_size(&self, entry: &Entry<Self::Key, Self::Value>) -> u64 {
+    <T as Pwm>::estimate_size(self, entry)
+  }
+
+  async fn get(&self, key: &Self::Key) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
+    <T as Pwm>::get(self, key)
+  }
+
+  async fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
+    <T as Pwm>::get_entry(self, key)
+  }
+
+  async fn contains_key(&self, key: &Self::Key) -> Result<bool, Self::Error> {
+    <T as Pwm>::contains_key(self, key)
+  }
+
+  async fn insert(
+    &mut self,
+    key: Self::Key,
+    value: EntryValue<Self::Value>,
+  ) -> Result<(), Self::Error> {
+    <T as Pwm>::insert(self, key, value)
+  }
+
+  async fn remove_entry(
+    &mut self,
+    key: &Self::Key,
+  ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error> {
+    <T as Pwm>::remove_entry(self, key)
+  }
+
+  async fn rollback(&mut self) -> Result<(), Self::Error> {
+    <T as Pwm>::rollback(self)
+  }
+
+  async fn iter(&self) -> Self::Iter<'_> {
+    <T as Pwm>::iter(self)
+  }
+
+  async fn into_iter(self) -> Self::IntoIter {
+    <T as Pwm>::into_iter(self)
+  }
+}
+
+impl<T> AsyncPwmRange for T
+where
+  T: PwmRange,
+{
+  type Range<'a> = <T as PwmRange>::Range<'a> where Self: 'a;
+
+  async fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {
+    <T as PwmRange>::range(self, range)
+  }
+}
+
+impl<C> AsyncPwmComparableRange for C
+where
+  C: PwmComparableRange,
+{
+  async fn range_comparable<T, R>(&self, range: R) -> Self::Range<'_>
+  where
+    T: ?Sized + Ord,
+    Self::Key: Borrow<T> + Ord,
+    R: RangeBounds<T>,
+  {
+    <C as PwmComparableRange>::range_comparable(self, range)
+  }
+}
+
+impl<C> AsyncPwmEquivalentRange for C
+where
+  C: PwmEquivalentRange,
+{
+  async fn range_equivalent<T, R>(&self, range: R) -> Self::Range<'_>
+  where
+    T: ?Sized + Eq + core::hash::Hash,
+    Self::Key: Borrow<T> + Eq + core::hash::Hash,
+    R: RangeBounds<T>,
+  {
+    <C as PwmEquivalentRange>::range_equivalent(self, range)
+  }
+}
+
+impl<T> AsyncPwmComparable for T
+where
+  T: PwmComparable,
+{
+  async fn get_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as PwmComparable>::get_comparable(self, key)
+  }
+
+  async fn get_entry_comparable<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as PwmComparable>::get_entry_comparable(self, key)
+  }
+
+  async fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as PwmComparable>::contains_key_comparable(self, key)
+  }
+
+  async fn remove_entry_comparable<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    <T as PwmComparable>::remove_entry_comparable(self, key)
+  }
+}
+
+impl<T> AsyncPwmEquivalent for T
+where
+  T: PwmEquivalent,
+{
+  async fn get_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as PwmEquivalent>::get_equivalent(self, key)
+  }
+
+  async fn get_entry_equivalent<Q>(
+    &self,
+    key: &Q,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as PwmEquivalent>::get_entry_equivalent(self, key)
+  }
+
+  async fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as PwmEquivalent>::contains_key_equivalent(self, key)
+  }
+
+  async fn remove_entry_equivalent<Q>(
+    &mut self,
+    key: &Q,
+  ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
+  where
+    Self::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    <T as PwmEquivalent>::remove_entry_equivalent(self, key)
+  }
 }

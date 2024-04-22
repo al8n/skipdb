@@ -46,6 +46,28 @@ impl<'a, C: Cm> Marker<'a, C> {
   }
 }
 
+impl<'a, C: CmComparable> Marker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_comparable<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_read_comparable(k);
+  }
+}
+
+impl<'a, C: CmEquivalent> Marker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_equivalent<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    self.marker.mark_read_equivalent(k);
+  }
+}
+
 /// The conflict manager that can be used to manage the conflicts in a transaction.
 ///
 /// The conflict normally needs to have:
