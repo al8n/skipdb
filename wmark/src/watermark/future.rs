@@ -127,7 +127,7 @@ impl Inner {
 
     let closer = closer.has_been_closed();
     loop {
-      futures_util::select! {
+      futures_util::select_biased! {
         _ = closer.recv().fuse() => return,
         mark = self.mark_rx.recv().fuse() => match mark {
           Ok(mark) => {
