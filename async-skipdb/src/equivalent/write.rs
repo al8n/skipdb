@@ -6,7 +6,7 @@ use skipdb_core::rev_range::WriteTransactionRevRange;
 use super::*;
 
 /// A read only transaction over the [`EquivalentDB`],
-pub struct WriteTransaction<K, V, SP, S = RandomState> {
+pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
   db: EquivalentDB<K, V, SP, S>,
   pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, PendingMap<K, V>, SP>,
 }

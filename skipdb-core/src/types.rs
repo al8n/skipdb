@@ -45,7 +45,7 @@ impl<V> Values<V> {
           }
 
           current = old;
-        },
+        }
       }
     }
   }

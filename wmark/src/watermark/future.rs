@@ -40,17 +40,18 @@ struct Mark {
 }
 
 #[derive(Debug)]
-struct Inner {
+struct Inner<S> {
   inited: AtomicBool,
   done_until: CachePadded<AtomicU64>,
   last_index: CachePadded<AtomicU64>,
   name: Cow<'static, str>,
   mark_rx: Receiver<Mark>,
   mark_tx: Sender<Mark>,
+  _spawner: core::marker::PhantomData<S>,
 }
 
-impl Inner {
-  async fn process<S>(&self, closer: AsyncCloser<S>) {
+impl<S: AsyncSpawner> Inner<S> {
+  async fn process(&self, closer: AsyncCloser<S>) {
     scopeguard::defer!(closer.done(););
 
     self.inited.store(true, Ordering::SeqCst);
@@ -159,8 +160,8 @@ impl Inner {
   }
 }
 
-/// AsyncWaterMark is used to keep track of the minimum un-finished index. Typically, an index k becomes
-/// finished or "done" according to a AsyncWaterMark once `done(k)` has been called
+/// WaterMark is used to keep track of the minimum un-finished index. Typically, an index k becomes
+/// finished or "done" according to a WaterMark once `done(k)` has been called
 ///  1. as many times as `begin(k)` has, AND
 ///  2. a positive number of times.
 ///
@@ -170,33 +171,13 @@ impl Inner {
 /// Since `done_until` and `last_index` addresses are passed to sync/atomic packages, we ensure that they
 /// are 64-bit aligned by putting them at the beginning of the structure.
 #[derive(Debug, Clone)]
-pub struct AsyncWaterMark<S> {
-  inner: Arc<Inner>,
-  _spawner: core::marker::PhantomData<S>,
+#[repr(transparent)]
+pub struct AsyncWaterMark<S: AsyncSpawner> {
+  inner: Arc<Inner<S>>,
 }
 
 impl<S: AsyncSpawner> AsyncWaterMark<S> {
-  /// Initializes a AsyncWaterMark struct. MUST be called before using it.
-  ///
-  /// # Example
-  ///
-  /// ```ignore
-  /// use wmark::*;
-  ///
-  /// let closer = AsyncCloser::new(1);
-  /// AsyncWaterMark::new("test".into()).init(closer.clone());
-  ///
-  /// closer.signal_and_wait().await;
-  /// ```
-  #[inline]
-  pub fn init(&self, closer: AsyncCloser<S>) {
-    let w = self.clone();
-    S::spawn_detach(async move { w.inner.process(closer).await })
-  }
-}
-
-impl<S> AsyncWaterMark<S> {
-  /// Create a new AsyncWaterMark with the given name.
+  /// Create a new WaterMark with the given name.
   ///
   /// **Note**: Before using the watermark, you must call `init` to start the background thread.
   #[inline]
@@ -210,8 +191,8 @@ impl<S> AsyncWaterMark<S> {
         mark_rx,
         mark_tx,
         inited: AtomicBool::new(false),
+        _spawner: core::marker::PhantomData,
       }),
-      _spawner: core::marker::PhantomData,
     }
   }
 
@@ -219,6 +200,15 @@ impl<S> AsyncWaterMark<S> {
   #[inline(always)]
   pub fn name(&self) -> &str {
     self.inner.name.as_ref()
+  }
+
+  /// Initializes a WaterMark struct. MUST be called before using it.
+  #[inline]
+  pub fn init(&self, closer: AsyncCloser<S>) {
+    let inner = self.inner.clone();
+    S::spawn_detach(async move {
+      inner.process(closer).await;
+    });
   }
 
   /// Sets the last index to the given value.
@@ -341,6 +331,24 @@ impl<S> AsyncWaterMark<S> {
       .unwrap() // unwrap is safe because self also holds a receiver
   }
 
+  /// Same as `done` but does not check if the watermark is initialized.
+  ///
+  /// This function is not marked as unsafe, because it will not cause unsafe behavior
+  /// but it will make the watermark has wrong behavior, if you are not using
+  /// watermark correctly.
+  #[inline]
+  pub fn done_unchecked_blocking(&self, index: u64) {
+    self
+      .inner
+      .mark_tx
+      .send_blocking(Mark {
+        index: MarkIndex::Single(index),
+        waiter: None,
+        done: true,
+      })
+      .unwrap() // unwrap is safe because self also holds a receiver
+  }
+
   /// Same as `done_many` but does not check if the watermark is initialized.
   ///
   /// This function is not marked as unsafe, because it will not cause unsafe behavior
@@ -357,24 +365,6 @@ impl<S> AsyncWaterMark<S> {
         done: true,
       })
       .await
-      .unwrap() // unwrap is safe because self also holds a receiver
-  }
-
-  /// Same as `done` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn done_unchecked_blocking(&self, index: u64) {
-    self
-      .inner
-      .mark_tx
-      .send_blocking(Mark {
-        index: MarkIndex::Single(index),
-        waiter: None,
-        done: true,
-      })
       .unwrap() // unwrap is safe because self also holds a receiver
   }
 

@@ -88,12 +88,18 @@ impl Options {
 }
 
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
-pub struct AsyncTm<K, V, C, P, S> {
+pub struct AsyncTm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   inner: Arc<Oracle<C, S>>,
   _phantom: std::marker::PhantomData<(K, V, P)>,
 }
 
-impl<K, V, C, P, S> Clone for AsyncTm<K, V, C, P, S> {
+impl<K, V, C, P, S> Clone for AsyncTm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   fn clone(&self) -> Self {
     Self {
       inner: self.inner.clone(),
