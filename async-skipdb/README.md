@@ -5,7 +5,7 @@
 
 Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 
-`skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
+`async-skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/skipdb-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 [<img alt="Build" src="https://img.shields.io/github/actions/workflow/status/al8n/skipdb/ci.yml?logo=Github-Actions&style=for-the-badge" height="22">][CI-url]
@@ -32,12 +32,12 @@ Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 
 ```toml
 [dependencies]
-skipdb = "0.0.0"
+async-skipdb = "0.1"
 ```
 
 #### License
 
-`skipdb` is under the terms of both the MIT license and the
+`async-skipdb` is under the terms of both the MIT license and the
 Apache License (Version 2.0).
 
 See [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-MIT](LICENSE-MIT) for details.

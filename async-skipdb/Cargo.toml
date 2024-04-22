@@ -1,11 +1,11 @@
 [package]
 name = "async-skipdb"
-version = "0.0.0"
+version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
-documentation = "https://docs.rs/skipdb"
+documentation = "https://docs.rs/async-skipdb"
 description = "A blazing fast ACID, MVCC and SSI in memory database based on lock-free skiplist."
 license.workspace = true
 
@@ -22,13 +22,12 @@ crossbeam-skiplist = "0.1"
 either = "1"
 async-txn = { workspace = true, features = ["default"] }
 scopeguard.workspace = true
-skipdb-core = { path = "../skipdb-core" }
+skipdb-core.workspace = true
 
 [dev-dependencies]
 futures = "0.3"
 rand = "0.8"
 scopeguard = "1"
-crossbeam-channel = "0.5"
 wmark = { workspace = true, features = ["future"] }
 tokio = { version = "1", features = ["full"] }
 async-std = { version = "1", features = ["attributes"] }

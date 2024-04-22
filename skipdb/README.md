@@ -32,7 +32,7 @@ Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 
 ```toml
 [dependencies]
-skipdb = "0.0.0"
+skipdb = "0.1"
 ```
 
 #### License

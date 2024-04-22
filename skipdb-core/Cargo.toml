@@ -1,6 +1,6 @@
 [package]
 name = "skipdb-core"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
@@ -8,6 +8,7 @@ homepage.workspace = true
 categories.workspace = true
 keywords.workspace = true
 license.workspace = true
+description = "The core for `skipdb` and `async-skipdb` crates"
 
 [dependencies]
 crossbeam-skiplist = "0.1"
