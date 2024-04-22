@@ -2,8 +2,8 @@ use core::ops::AddAssign;
 use std::borrow::Cow;
 
 use futures::lock::{Mutex, MutexGuard};
-use mwmr_core::future::AsyncCm;
 use smallvec_wrapper::TinyVec;
+use txn_core::future::AsyncCm;
 
 use wmark::{AsyncCloser, AsyncSpawner, AsyncWaterMark};
 

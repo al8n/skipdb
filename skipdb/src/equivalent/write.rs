@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
-use mwmr::{error::WtmError, HashCmOptions, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
+use txn::{error::WtmError, HashCmOptions, PwmComparableRange};
 
 use super::*;
 

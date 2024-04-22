@@ -9,7 +9,7 @@
 
 use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
-use mwmr::{error::TransactionError, HashCm, Pwm, Rtm, Tm, Wtm};
+use txn::{error::TransactionError, HashCm, Pwm, Rtm, Tm, Wtm};
 
 /// `EquivalentDB` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
 /// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDB`] instead.

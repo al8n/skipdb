@@ -1,11 +1,11 @@
 [package]
-name = "mwmr-core"
+name = "txn-core"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 license.workspace = true
-description = "The structs and traits for the `mwmr`, `async-mwmr`, and `tokio-mwmr` crates."
+description = "The structs and traits for the `txn` and `async-txn` crates."
 
 [features]
 default = ["std"]

@@ -1,4 +1,4 @@
-use async_mwmr::{AsyncSpawner, BTreeCm};
+use async_txn::{AsyncSpawner, BTreeCm};
 pub use cheap_clone::CheapClone;
 
 use super::*;

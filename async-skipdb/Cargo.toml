@@ -12,15 +12,15 @@ license.workspace = true
 [features]
 default = []
 
-tokio = ["async-mwmr/tokio"]
-smol = ["async-mwmr/smol"]
-async-std = ["async-mwmr/async-std"]
+tokio = ["async-txn/tokio"]
+smol = ["async-txn/smol"]
+async-std = ["async-txn/async-std"]
 
 [dependencies]
 cheap-clone = "0.1"
 crossbeam-skiplist = "0.1"
 either = "1"
-async-mwmr = { version = "0.2", path = "../async-mwmr" }
+async-txn = { workspace = true, features = ["default"] }
 scopeguard.workspace = true
 skipdb-core = { path = "../skipdb-core" }
 
@@ -29,7 +29,7 @@ futures = "0.3"
 rand = "0.8"
 scopeguard = "1"
 crossbeam-channel = "0.5"
-wmark = { version = "0.1", features = ["future"] }
+wmark = { workspace = true, features = ["future"] }
 tokio = { version = "1", features = ["full"] }
 async-std = { version = "1", features = ["attributes"] }
 smol = "2"

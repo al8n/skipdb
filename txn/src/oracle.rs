@@ -1,9 +1,9 @@
 use core::ops::AddAssign;
 use std::borrow::Cow;
 
-use mwmr_core::sync::Cm;
 use parking_lot::{Mutex, MutexGuard};
 use smallvec_wrapper::TinyVec;
+use txn_core::sync::Cm;
 
 use wmark::{Closer, WaterMark};
 

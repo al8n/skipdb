@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crossbeam_skiplist::{map::Entry as MapEntry, SkipMap};
-use mwmr_core::types::EntryRef;
+use txn_core::types::EntryRef;
 
 mod reference;
 use either::Either;

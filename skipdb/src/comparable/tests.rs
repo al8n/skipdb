@@ -3,8 +3,8 @@ use std::{
   time::Duration,
 };
 
-use mwmr::error::WtmError;
 use rand::Rng;
+use txn::error::WtmError;
 use wmark::Closer;
 
 use super::*;

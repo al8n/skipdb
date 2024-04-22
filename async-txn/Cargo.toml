@@ -1,5 +1,5 @@
 [package]
-name = "async-mwmr"
+name = "async-txn"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -10,7 +10,7 @@ description = "A runtime agnostic, WASM/WASI friendly, multi-writer-multi-reader
 [features]
 default = []
 
-# Features will export the generic unit tests implementation for database based on mwmr
+# Features will export the generic unit tests implementation for database based on txn
 test = ["rand"]
 
 async-std = ["wmark/async-std"]
@@ -28,7 +28,7 @@ scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
 wmark = { workspace = true, features = ["future", "default"] }
-mwmr-core.workspace = true
+txn-core.workspace = true
 
 rand = { workspace = true, optional = true }
 futures = "0.3"

@@ -7,11 +7,11 @@ use std::{
   sync::atomic::{AtomicU64, Ordering},
 };
 
-use mwmr_core::{
+use smallvec_wrapper::OneOrMore;
+use txn_core::{
   sync::{Pwm, PwmComparable, PwmComparableRange, PwmRange},
   types::{Entry, EntryData, EntryValue},
 };
-use smallvec_wrapper::OneOrMore;
 
 use crossbeam_skiplist::SkipMap;
 

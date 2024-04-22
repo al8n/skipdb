@@ -1,5 +1,5 @@
-use mwmr::{error::WtmError, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
+use txn::{error::WtmError, PwmComparableRange};
 
 use std::convert::Infallible;
 

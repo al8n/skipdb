@@ -1,6 +1,6 @@
 //! A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
 //!
-//! For sync version, please see [`mwmr`](https://crates.io/crates/mwmr)
+//! For sync version, please see [`txn`](https://crates.io/crates/txn)
 //!
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
@@ -26,8 +26,8 @@ pub use wmark::AsyncStdSpawner;
 #[cfg(feature = "tokio")]
 pub use wmark::TokioSpawner;
 
-/// Error types for the [`async-mwmr`] crate.
-pub use mwmr_core::error;
+/// Error types for the [`async-txn`] crate.
+pub use txn_core::error;
 
 mod oracle;
 use oracle::*;
@@ -36,7 +36,7 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-pub use mwmr_core::{
+pub use txn_core::{
   future::*,
   sync::{
     BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, Marker, Pwm, PwmComparable,

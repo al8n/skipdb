@@ -1,5 +1,5 @@
 use either::Either;
-use mwmr_core::sync::{Cm, Marker};
+use txn_core::sync::{Cm, Marker};
 
 use super::*;
 

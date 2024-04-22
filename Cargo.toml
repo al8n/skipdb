@@ -1,8 +1,8 @@
 [workspace]
 members = [
-  "mwmr-core",
-  "mwmr",
-  "async-mwmr",
+  "txn-core",
+  "txn",
+  "async-txn",
   "wmark",
   "skipdb",
   "async-skipdb",
@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
 repository = "https://github.com/al8n/skipdb"
@@ -34,8 +34,10 @@ scopeguard = { version = "1", default-features = false }
 thiserror = "1"
 tracing = "0.1"
 
-wmark = { path = "wmark", version = "0.2", default-features = false }
-mwmr-core = { path = "mwmr-core", version = "0.2", default-features = false }
+wmark = { path = "wmark", version = "0.1", default-features = false }
+txn-core = { path = "txn-core", version = "0.1", default-features = false }
+txn = { path = "txn", version = "0.1", default-features = false }
+async-txn = { path = "async-txn", version = "0.1", default-features = false }
 
 [workspace.metadata.docs.rs]
 all-features = true

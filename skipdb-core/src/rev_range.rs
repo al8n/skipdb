@@ -1,5 +1,5 @@
 use either::Either;
-use mwmr_core::sync::{Cm, Marker};
+use txn_core::sync::{Cm, Marker};
 
 use crossbeam_skiplist::map::Range as MapRange;
 use std::{cmp, collections::btree_map::Range as BTreeMapRange, iter::Rev};

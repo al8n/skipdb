@@ -1,8 +1,6 @@
 //! A generic optimistic transaction manger, which is ACID, concurrent with SSI (Serializable Snapshot Isolation).
 //!
-//! For tokio runtime, please see [`tokio-mwmr`](https://crates.io/crates/tokio-mwmr)
-//!
-//! For other async runtime, [`async-mwmr`](https://crates.io/crates/async-mwmr)
+//! For other async runtime, [`async-txn`](https://crates.io/crates/async-txn)
 #![allow(clippy::type_complexity)]
 #![forbid(unsafe_code)]
 #![deny(warnings, missing_docs)]
@@ -13,23 +11,11 @@ use std::sync::Arc;
 
 use core::mem;
 
-use mwmr_core::error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
+use txn_core::error::TransactionError;
 
-#[cfg(feature = "future")]
-pub use wmark::AsyncSpawner;
-
-#[cfg(feature = "smol")]
-pub use wmark::SmolSpawner;
-
-#[cfg(feature = "tokio")]
-pub use wmark::TokioSpawner;
-
-#[cfg(feature = "async-std")]
-pub use wmark::AsyncStdSpawner;
-
-/// Error types for the [`mwmr`] crate.
-pub use mwmr_core::error;
+/// Error types for the [`txn`] crate.
+pub use txn_core::error;
 
 mod oracle;
 use oracle::*;
@@ -38,7 +24,7 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-pub use mwmr_core::{sync::*, types::*};
+pub use txn_core::{sync::*, types::*};
 
 /// Options for the [`Tm`].
 #[derive(Debug, Clone)]

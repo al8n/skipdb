@@ -12,5 +12,5 @@ license.workspace = true
 [dependencies]
 crossbeam-skiplist = "0.1"
 either = "1"
-mwmr-core = { path = "../mwmr-core", version = "0.2" }
+txn-core.workspace = true
 smallvec-wrapper.workspace = true

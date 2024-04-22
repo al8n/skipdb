@@ -16,7 +16,7 @@ default = []
 cheap-clone = "0.1"
 crossbeam-skiplist = "0.1"
 either = "1"
-mwmr = { version = "0.2", path = "../mwmr" }
+txn = { workspace = true, features = ["default"] }
 skipdb-core = { path = "../skipdb-core" }
 
 [dev-dependencies]

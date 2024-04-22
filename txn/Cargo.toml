@@ -1,5 +1,5 @@
 [package]
-name = "mwmr"
+name = "txn"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -24,7 +24,7 @@ scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
 wmark = { workspace = true, features = ["default"] }
-mwmr-core = { workspace = true, features = ["default"] }
+txn-core = { workspace = true, features = ["default"] }
 
 rand = { workspace = true, optional = true }
 

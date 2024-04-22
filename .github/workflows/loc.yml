@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        crates: [mwmr, async-mwmr, wmark, mwmr-core, skipdb, async-skipdb, skipdb-core]
+        crates: [txn, async-txn, wmark, txn-core, skipdb, async-skipdb, skipdb-core]
     steps:
       - uses: actions/checkout@v3
 
@@ -40,9 +40,9 @@ jobs:
         run: |
           cargo install tokeit --force
       
-      - name: Count lines of code
+      - name: Count total lines of code
         run: |
-          tokeit
+          tokeit -l "Total lines of code"
       - name: Upload total loc to GitHub Gist
         uses: actions/github-script@v6
         with:
