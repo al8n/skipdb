@@ -74,7 +74,7 @@ where
 
       let ts = {
         if !*done_read {
-          self.read_mark.done_unchecked(read_ts);
+          self.read_mark.done(read_ts).unwrap();
           *done_read = true;
         }
 
@@ -83,7 +83,7 @@ where
         // This is the general case, when user doesn't specify the read and commit ts.
         let ts = inner.next_txn_ts;
         inner.next_txn_ts += 1;
-        self.txn_mark.begin_unchecked(ts);
+        self.txn_mark.begin(ts).unwrap();
         ts
       };
 
@@ -100,7 +100,7 @@ where
     } else {
       let ts = {
         if !*done_read {
-          self.read_mark.done_unchecked(read_ts);
+          self.read_mark.done(read_ts).unwrap();
           *done_read = true;
         }
 
@@ -109,7 +109,7 @@ where
         // This is the general case, when user doesn't specify the read and commit ts.
         let ts = inner.next_txn_ts;
         inner.next_txn_ts += 1;
-        self.txn_mark.begin_unchecked(ts);
+        self.txn_mark.begin(ts).unwrap();
         ts
       };
 
@@ -131,7 +131,7 @@ where
       return;
     }
 
-    let max_read_ts = self.read_mark.done_until_unchecked();
+    let max_read_ts = self.read_mark.done_until().unwrap();
 
     assert!(max_read_ts >= inner.last_cleanup_ts);
 
@@ -155,7 +155,7 @@ impl<C> Oracle<C> {
     next_txn_ts: u64,
   ) -> Self {
     let closer = Closer::new(2);
-    let orc = Self {
+    let mut orc = Self {
       write_serialize_lock: Mutex::new(()),
       inner: Mutex::new(OracleInner {
         next_txn_ts,
@@ -178,7 +178,7 @@ impl<C> Oracle<C> {
       let inner = self.inner.lock();
 
       let read_ts = inner.next_txn_ts - 1;
-      self.read_mark.begin_unchecked(read_ts);
+      self.read_mark.begin(read_ts).unwrap();
       read_ts
     };
 
@@ -186,7 +186,7 @@ impl<C> Oracle<C> {
     // timestamp and are going through the write to value log and LSM tree
     // process. Not waiting here could mean that some txns which have been
     // committed would not be read.
-    if let Err(e) = self.txn_mark.wait_for_mark_unchecked(read_ts) {
+    if let Err(e) = self.txn_mark.wait_for_mark(read_ts) {
       panic!("{e}");
     }
     read_ts
@@ -199,17 +199,17 @@ impl<C> Oracle<C> {
 
   #[inline]
   pub(super) fn discard_at_or_below(&self) -> u64 {
-    self.read_mark.done_until_unchecked()
+    self.read_mark.done_until().unwrap()
   }
 
   #[inline]
   pub(super) fn done_read(&self, read_ts: u64) {
-    self.read_mark.done_unchecked(read_ts);
+    self.read_mark.done(read_ts).unwrap();
   }
 
   #[inline]
   pub(super) fn done_commit(&self, cts: u64) {
-    self.txn_mark.done_unchecked(cts);
+    self.txn_mark.done(cts).unwrap();
   }
 
   #[inline]

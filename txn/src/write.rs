@@ -918,7 +918,7 @@ impl<K, V, C, P> Wtm<K, V, C, P> {
   fn done_read(&mut self) {
     if !self.done_read {
       self.done_read = true;
-      self.orc().read_mark.done_unchecked(self.read_ts);
+      self.orc().read_mark.done(self.read_ts).unwrap();
     }
   }
 

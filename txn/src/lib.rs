@@ -127,8 +127,8 @@ impl<K, V, C, P> Tm<K, V, C, P> {
           format!("{}.txn_timestamps", name).into(),
           next_ts,
         );
-        orc.read_mark.done_unchecked(next_ts);
-        orc.txn_mark.done_unchecked(next_ts);
+        orc.read_mark.done(next_ts).unwrap();
+        orc.txn_mark.done(next_ts).unwrap();
         orc.increment_next_ts();
         orc
       }),

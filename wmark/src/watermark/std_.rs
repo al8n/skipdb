@@ -7,7 +7,7 @@ use std::{
   cmp::Reverse,
   collections::{BinaryHeap, HashMap},
   sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicU64, Ordering},
     Arc,
   },
 };
@@ -31,19 +31,16 @@ struct Mark {
 
 #[derive(Debug)]
 struct Inner {
-  inited: AtomicBool,
   done_until: CachePadded<AtomicU64>,
   last_index: CachePadded<AtomicU64>,
   name: Cow<'static, str>,
-  mark_rx: Receiver<Mark>,
   mark_tx: Sender<Mark>,
+  mark_rx: Receiver<Mark>,
 }
 
 impl Inner {
   fn process(&self, closer: Closer) {
     scopeguard::defer!(closer.done(););
-
-    self.inited.store(true, Ordering::SeqCst);
 
     let mut indices: BinaryHeap<Reverse<u64>> = BinaryHeap::new();
     // pending maps raft proposal index to the number of pending mutations for this proposal.
@@ -159,10 +156,10 @@ impl Inner {
 ///
 /// Since `done_until` and `last_index` addresses are passed to sync/atomic packages, we ensure that they
 /// are 64-bit aligned by putting them at the beginning of the structure.
-#[derive(Debug, Clone)]
-#[repr(transparent)]
+#[derive(Debug)]
 pub struct WaterMark {
   inner: Arc<Inner>,
+  initialized: bool,
 }
 
 impl WaterMark {
@@ -177,10 +174,10 @@ impl WaterMark {
         done_until: CachePadded::new(AtomicU64::new(0)),
         last_index: CachePadded::new(AtomicU64::new(0)),
         name,
-        mark_rx,
         mark_tx,
-        inited: AtomicBool::new(false),
+        mark_rx,
       }),
+      initialized: false,
     }
   }
 
@@ -192,228 +189,143 @@ impl WaterMark {
 
   /// Initializes a WaterMark struct. MUST be called before using it.
   #[inline]
-  pub fn init(&self, closer: Closer) {
+  pub fn init(&mut self, closer: Closer) {
+    if self.initialized {
+      return;
+    }
+
     let inner = self.inner.clone();
     std::thread::spawn(move || {
       inner.process(closer);
     });
   }
 
-  /// Same as `init` but allows you to specify the thread spawner.
-  ///
-  /// # Example
-  ///
-  /// ```rust
-  /// use wmark::*;
-  ///
-  ///
-  /// let closer = Closer::new(1);
-  /// WaterMark::new("test".into()).init_with(closer.clone(), std::thread::spawn);
-  ///
-  /// closer.signal_and_wait();
-  /// ```
-  #[inline]
-  pub fn init_with<R, S>(&self, closer: Closer, spawner: S) -> R
-  where
-    S: FnOnce(Box<dyn FnOnce() + Send + Sync + 'static>) -> R + Send + Sync + 'static,
-  {
-    let inner = self.inner.clone();
-    (spawner)(Box::new(move || {
-      inner.process(closer);
-    }))
-  }
-
   /// Sets the last index to the given value.
   #[inline]
   pub fn begin(&self, index: u64) -> Result<()> {
-    self.check().map(|_| self.begin_unchecked(index))
+    self.check().map(|_| {
+      self.inner.last_index.store(index, Ordering::SeqCst);
+      self
+        .inner
+        .mark_tx
+        .send(Mark {
+          index: MarkIndex::Single(index),
+          waiter: None,
+          done: false,
+        })
+        .unwrap()
+    })
   }
 
   /// Works like [`begin`] but accepts multiple indices.
   #[inline]
   pub fn begin_many(&self, indices: MediumVec<u64>) -> Result<()> {
-    self.check().map(|_| self.begin_many_unchecked(indices))
+    if indices.is_empty() {
+      return Ok(());
+    }
+
+    self.check().map(|_| {
+      let last_index = *indices.last().unwrap();
+      self.inner.last_index.store(last_index, Ordering::SeqCst);
+      self
+        .inner
+        .mark_tx
+        .send(Mark {
+          index: MarkIndex::Multiple(indices),
+          waiter: None,
+          done: false,
+        })
+        .unwrap()
+    })
   }
 
   /// Sets a single index as done.
   #[inline]
   pub fn done(&self, index: u64) -> Result<()> {
-    self.check().map(|_| self.done_unchecked(index))
+    self.check().map(|_| {
+      self
+        .inner
+        .mark_tx
+        .send(Mark {
+          index: MarkIndex::Single(index),
+          waiter: None,
+          done: true,
+        })
+        .unwrap() // unwrap is safe because self also holds a receiver
+    })
   }
 
   /// Sets multiple indices as done.
   #[inline]
   pub fn done_many(&self, indices: MediumVec<u64>) -> Result<()> {
-    self.check().map(|_| self.done_many_unchecked(indices))
+    self.check().map(|_| {
+      self
+        .inner
+        .mark_tx
+        .send(Mark {
+          index: MarkIndex::Multiple(indices),
+          waiter: None,
+          done: true,
+        })
+        .unwrap() // unwrap is safe because self also holds a receiver
+    })
   }
 
   /// Returns the maximum index that has the property that all indices
   /// less than or equal to it are done.
   #[inline]
   pub fn done_until(&self) -> Result<u64> {
-    self.check().map(|_| self.done_until_unchecked())
+    self
+      .check()
+      .map(|_| self.inner.done_until.load(Ordering::SeqCst))
   }
 
   /// Sets the maximum index that has the property that all indices
   /// less than or equal to it are done.
   #[inline]
   pub fn set_done_util(&self, val: u64) -> Result<()> {
-    self.check().map(|_| self.set_done_until_unchecked(val))
+    self
+      .check()
+      .map(|_| self.inner.done_until.store(val, Ordering::SeqCst))
   }
 
   /// Returns the last index for which `begin` has been called.
   #[inline]
   pub fn last_index(&self) -> Result<u64> {
-    self.check().map(|_| self.last_index_unchecked())
+    self
+      .check()
+      .map(|_| self.inner.last_index.load(Ordering::SeqCst))
   }
 
   /// Waits until the given index is marked as done.
   #[inline]
   pub fn wait_for_mark(&self, index: u64) -> Result<()> {
-    self
-      .check()
-      .and_then(|_| self.wait_for_mark_unchecked(index))
-  }
+    self.check().map(|_| {
+      if self.inner.done_until.load(Ordering::SeqCst) >= index {
+        return;
+      }
 
-  /// Same as `begin` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn begin_unchecked(&self, index: u64) {
-    self.inner.last_index.store(index, Ordering::SeqCst);
-    self
-      .inner
-      .mark_tx
-      .send(Mark {
-        index: MarkIndex::Single(index),
-        waiter: None,
-        done: false,
-      })
-      .unwrap() // unwrap is safe because self also holds a receiver
-  }
+      let (wait_tx, wait_rx) = bounded(1);
+      self
+        .inner
+        .mark_tx
+        .send(Mark {
+          index: MarkIndex::Single(index),
+          waiter: Some(wait_tx),
+          done: false,
+        })
+        .unwrap(); // unwrap is safe because self also holds a receiver
 
-  /// Same as `begin_many` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn begin_many_unchecked(&self, indices: MediumVec<u64>) {
-    let last_index = *indices.last().unwrap();
-    self.inner.last_index.store(last_index, Ordering::SeqCst);
-    self
-      .inner
-      .mark_tx
-      .send(Mark {
-        index: MarkIndex::Multiple(indices),
-        waiter: None,
-        done: false,
-      })
-      .unwrap() // unwrap is safe because self also holds a receiver
-  }
-
-  /// Same as `done` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn done_unchecked(&self, index: u64) {
-    self
-      .inner
-      .mark_tx
-      .send(Mark {
-        index: MarkIndex::Single(index),
-        waiter: None,
-        done: true,
-      })
-      .unwrap() // unwrap is safe because self also holds a receiver
-  }
-
-  /// Same as `done_many` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn done_many_unchecked(&self, indices: MediumVec<u64>) {
-    self
-      .inner
-      .mark_tx
-      .send(Mark {
-        index: MarkIndex::Multiple(indices),
-        waiter: None,
-        done: true,
-      })
-      .unwrap() // unwrap is safe because self also holds a receiver
-  }
-
-  /// Same as `done_until` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn done_until_unchecked(&self) -> u64 {
-    self.inner.done_until.load(Ordering::SeqCst)
-  }
-
-  /// Same as `set_done_until` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn set_done_until_unchecked(&self, val: u64) {
-    self.inner.done_until.store(val, Ordering::SeqCst)
-  }
-
-  /// Same as `last_index` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn last_index_unchecked(&self) -> u64 {
-    self.inner.last_index.load(Ordering::SeqCst)
-  }
-
-  /// Same as `wait_for_mark` but does not check if the watermark is initialized.
-  ///
-  /// This function is not marked as unsafe, because it will not cause unsafe behavior
-  /// but it will make the watermark has wrong behavior, if you are not using
-  /// watermark correctly.
-  #[inline]
-  pub fn wait_for_mark_unchecked(&self, index: u64) -> Result<()> {
-    if self.inner.done_until.load(Ordering::SeqCst) >= index {
-      return Ok(());
-    }
-
-    let (wait_tx, wait_rx) = bounded(1);
-    self
-      .inner
-      .mark_tx
-      .send(Mark {
-        index: MarkIndex::Single(index),
-        waiter: Some(wait_tx),
-        done: false,
-      })
-      .unwrap(); // unwrap is safe because self also holds a receiver
-
-    let _ = wait_rx.recv();
-    Ok(())
+      let _ = wait_rx.recv();
+    })
   }
 
   #[inline(always)]
   fn check(&self) -> Result<()> {
-    self
-      .inner
-      .inited
-      .load(Ordering::SeqCst)
-      .then_some(())
-      .ok_or(WaterMarkError::Uninitialized)
+    if !self.initialized {
+      return Err(WaterMarkError::Uninitialized);
+    }
+    Ok(())
   }
 }
 
@@ -427,8 +339,8 @@ mod tests {
   {
     let closer = Closer::new(1);
 
-    let watermark = WaterMark::new("watermark".into());
-    watermark.init_with(closer.clone(), std::thread::spawn);
+    let mut watermark = WaterMark::new("watermark".into());
+    watermark.init(closer.clone());
 
     f(&watermark);
 
@@ -443,36 +355,40 @@ mod tests {
   #[test]
   fn test_begin_done() {
     init_and_close(|watermark| {
-      watermark.begin_unchecked(1);
-      watermark.begin_many_unchecked([2, 3].into_iter().collect());
+      watermark.begin(1).unwrap();
+      watermark.begin_many([2, 3].into_iter().collect()).unwrap();
 
-      watermark.done_unchecked(1);
-      watermark.done_many_unchecked([2, 3].into_iter().collect());
+      watermark.done(1).unwrap();
+      watermark.done_many([2, 3].into_iter().collect()).unwrap();
     });
   }
 
   #[test]
   fn test_wait_for_mark() {
     init_and_close(|watermark| {
-      watermark.begin_many_unchecked([1, 2, 3].into_iter().collect());
-      watermark.done_many_unchecked([2, 3].into_iter().collect());
+      watermark
+        .begin_many([1, 2, 3].into_iter().collect())
+        .unwrap();
+      watermark.done_many([2, 3].into_iter().collect()).unwrap();
 
-      assert_eq!(watermark.done_until_unchecked(), 0);
+      assert_eq!(watermark.done_until().unwrap(), 0);
 
-      watermark.done_unchecked(1);
-      watermark.wait_for_mark_unchecked(1).unwrap();
-      watermark.wait_for_mark_unchecked(3).unwrap();
-      assert_eq!(watermark.done_until_unchecked(), 3);
+      watermark.done(1).unwrap();
+      watermark.wait_for_mark(1).unwrap();
+      watermark.wait_for_mark(3).unwrap();
+      assert_eq!(watermark.done_until().unwrap(), 3);
     });
   }
 
   #[test]
   fn test_last_index() {
     init_and_close(|watermark| {
-      watermark.begin_many_unchecked([1, 2, 3].into_iter().collect());
-      watermark.done_many_unchecked([2, 3].into_iter().collect());
+      watermark
+        .begin_many([1, 2, 3].into_iter().collect())
+        .unwrap();
+      watermark.done_many([2, 3].into_iter().collect()).unwrap();
 
-      assert_eq!(watermark.last_index_unchecked(), 3);
+      assert_eq!(watermark.last_index().unwrap(), 3);
     });
   }
 
