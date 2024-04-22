@@ -194,6 +194,7 @@ impl WaterMark {
       return;
     }
 
+    self.initialized = true;
     let inner = self.inner.clone();
     std::thread::spawn(move || {
       inner.process(closer);

@@ -1,4 +1,3 @@
-// use async_channel::{bounded, Receiver, Sender};
 use atomic_refcell::AtomicRefCell as RefCell;
 use crossbeam_utils::CachePadded;
 use futures_channel::{
@@ -327,7 +326,7 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
         waiter: Some(wait_tx),
         done: false,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)?; // unwrap is safe because self also holds a receiver
+      .map_err(|_| WaterMarkError::ChannelClosed)?;
 
     let _ = wait_rx.await;
     Ok(())

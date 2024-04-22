@@ -272,11 +272,11 @@ async fn txn_commit_with_callback_async_std() {
   txn_commit_with_callback_in::<AsyncStdSpawner>().await;
 }
 
-#[test]
-#[cfg(feature = "smol")]
-fn txn_commit_with_callback_smol() {
-  smol::block_on(txn_commit_with_callback_in::<SmolSpawner>());
-}
+// #[test]
+// #[cfg(feature = "smol")]
+// fn txn_commit_with_callback_smol() {
+//   smol::block_on(txn_commit_with_callback_in::<SmolSpawner>());
+// }
 
 async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts

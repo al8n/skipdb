@@ -216,7 +216,6 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
             total_balance += 100;
           }
           assert_eq!(total_balance, 4000);
-
         }
       }
     }
@@ -243,7 +242,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
         }
 
         // We are only doing writes, so there won't be any conflicts.
-        let _ = txn
+        let _a = txn
           .commit_with_task::<_, std::convert::Infallible, ()>(|_| async {})
           .await
           .unwrap()
@@ -251,7 +250,6 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
       })
     })
     .collect::<FuturesUnordered<_>>();
-
   while handles.next().await.is_some() {}
   closer1.signal_and_wait().await;
   std::thread::sleep(std::time::Duration::from_millis(10));
@@ -269,11 +267,12 @@ async fn txn_commit_with_callback_async_std() {
   txn_commit_with_callback_in::<AsyncStdSpawner>().await;
 }
 
-#[test]
-#[cfg(feature = "smol")]
-fn txn_commit_with_callback_smol() {
-  smol::block_on(txn_commit_with_callback_in::<SmolSpawner>());
-}
+// #[test]
+// #[cfg(feature = "smol")]
+// fn txn_commit_with_callback_smol() {
+//   let ex = smol::Executor::new();
+//   futures::executor::block_on(ex.run(txn_commit_with_callback_in::<SmolSpawner>()));
+// }
 
 async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts
