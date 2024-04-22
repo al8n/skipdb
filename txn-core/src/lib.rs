@@ -1,4 +1,6 @@
+//! Core traits and types for [`txn`](https://crates.io/crates/txn) and [async-txn](https://crates.io/crates/async-txn) crates.
 #![forbid(unsafe_code)]
+#![deny(missing_docs, warnings)]
 #![allow(clippy::type_complexity)]
 
 use std::{collections::BTreeMap, hash::BuildHasher};
@@ -7,6 +9,7 @@ use indexmap::IndexMap;
 
 pub use cheap_clone::CheapClone;
 
+/// The default hasher
 pub type DefaultHasher = std::hash::DefaultHasher;
 
 /// Types
@@ -15,134 +18,12 @@ pub mod types {
 
   use super::*;
 
-  /// Key is a versioned key
-  #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-  pub struct Key<K> {
-    key: K,
-    version: u64,
-  }
-
-  impl<K> Key<K> {
-    /// Create a new key with default version.
-    pub fn new(key: K) -> Key<K> {
-      Key { key, version: 0 }
-    }
-
-    /// Returns the key.
-    #[inline]
-    pub const fn key(&self) -> &K {
-      &self.key
-    }
-
-    /// Returns the version of the key.
-    #[inline]
-    pub const fn version(&self) -> u64 {
-      self.version
-    }
-
-    /// Set the version of the key.
-    #[inline]
-    pub fn set_version(&mut self, version: u64) {
-      self.version = version;
-    }
-
-    /// Set the version of the key.
-    #[inline]
-    pub const fn with_version(mut self, version: u64) -> Self {
-      self.version = version;
-      self
-    }
-
-    /// Consumes the key and returns the key and the version.
-    #[inline]
-    pub fn into_components(self) -> (K, u64) {
-      (self.key, self.version)
-    }
-  }
-
-  impl<K: Ord> PartialOrd for Key<K> {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-      Some(self.cmp(other))
-    }
-  }
-
-  impl<K: Ord> Ord for Key<K> {
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-      self
-        .key
-        .cmp(&other.key)
-        .then_with(|| Reverse(self.version).cmp(&Reverse(other.version)))
-    }
-  }
-
-  impl<K> core::borrow::Borrow<K> for Key<K> {
-    #[inline]
-    fn borrow(&self) -> &K {
-      &self.key
-    }
-  }
-
-  /// A reference to a key.
-  #[derive(Debug, PartialEq, Eq, Hash)]
-  pub struct KeyRef<'a, K: 'a> {
-    /// The key.
-    pub key: &'a K,
-    /// The version of the key.
-    pub version: u64,
-  }
-
-  impl<'a, K> Clone for KeyRef<'a, K> {
-    fn clone(&self) -> Self {
-      *self
-    }
-  }
-
-  impl<'a, K> Copy for KeyRef<'a, K> {}
-
-  impl<'a, K: 'a> KeyRef<'a, K> {
-    /// Returns the key.
-    pub fn key(&self) -> &K {
-      self.key
-    }
-
-    /// Returns the version of the key.
-    ///
-    /// This version is useful when you want to implement MVCC.
-    pub fn version(&self) -> u64 {
-      self.version
-    }
-  }
-
-  impl<'a, K: Ord> PartialOrd for KeyRef<'a, K> {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-      Some(self.cmp(other))
-    }
-  }
-
-  impl<'a, K: Ord> Ord for KeyRef<'a, K> {
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-      self
-        .key
-        .cmp(other.key)
-        .then_with(|| Reverse(self.version).cmp(&Reverse(other.version)))
-    }
-  }
-
-  impl<'a, K> core::borrow::Borrow<K> for KeyRef<'a, K> {
-    #[inline]
-    fn borrow(&self) -> &K {
-      self.key
-    }
-  }
-
   /// The reference of the [`Entry`].
   #[derive(Debug, PartialEq, Eq, Hash)]
   pub struct EntryRef<'a, K, V> {
+    /// The data reference of the entry.
     pub data: EntryDataRef<'a, K, V>,
+    /// The version of the entry.
     pub version: u64,
   }
 
@@ -271,7 +152,9 @@ pub mod types {
   /// An entry can be persisted to the database.
   #[derive(Debug, PartialEq, Eq, Hash)]
   pub struct Entry<K, V> {
+    /// The version of the entry.
     pub version: u64,
+    /// The data of the entry.
     pub data: EntryData<K, V>,
   }
 
@@ -539,6 +422,13 @@ where
     key: &Self::Key,
   ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error> {
     <T as sync::Pwm>::get(self, key)
+  }
+
+  async fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &types::EntryValue<Self::Value>)>, Self::Error> {
+    <T as sync::Pwm>::get_entry(self, key)
   }
 
   async fn contains_key(&self, key: &Self::Key) -> Result<bool, Self::Error> {

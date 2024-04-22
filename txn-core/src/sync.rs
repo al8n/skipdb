@@ -156,6 +156,12 @@ pub trait Pwm: Sized {
   /// Returns a reference to the value corresponding to the key.
   fn get(&self, key: &Self::Key) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>;
 
+  /// Returns a reference to the key-value pair corresponding to the key.
+  fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>;
+
   /// Returns true if the pending manager contains the key.
   fn contains_key(&self, key: &Self::Key) -> Result<bool, Self::Error>;
 
@@ -217,6 +223,7 @@ pub trait PwmEquivalent: Pwm {
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
 
+  /// Optimized version of [`Pwm::get_entry`] that accepts borrowed keys.
   fn get_entry_equivalent<Q>(
     &self,
     key: &Q,
@@ -249,6 +256,7 @@ pub trait PwmComparable: Pwm {
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 
+  /// Optimized version of [`Pwm::get`] that accepts borrowed keys.
   fn get_entry_comparable<Q>(
     &self,
     key: &Q,
@@ -324,6 +332,13 @@ where
 
   fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
     Ok(self.get(key))
+  }
+
+  fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
+    Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
   }
 
   fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
@@ -440,6 +455,13 @@ where
 
   fn get(&self, key: &K) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
     Ok(self.get(key))
+  }
+
+  fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
+    Ok(self.get_key_value(key))
   }
 
   fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {

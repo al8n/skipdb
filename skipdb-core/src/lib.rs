@@ -165,6 +165,13 @@ where
     Ok(self.map.get(key))
   }
 
+  fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
+    Ok(self.map.get_key_value(key))
+  }
+
   fn insert(&mut self, key: Self::Key, value: EntryValue<Self::Value>) -> Result<(), Self::Error> {
     self.map.insert(key, value);
     Ok(())

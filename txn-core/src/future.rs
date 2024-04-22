@@ -149,6 +149,12 @@ pub trait AsyncPwm: Sized {
     key: &Self::Key,
   ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>>;
 
+  /// Returns a reference to the key-value pair corresponding to the key.
+  fn get_entry(
+    &self,
+    key: &Self::Key,
+  ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>>;
+
   /// Returns true if the pending manager contains the key.
   fn contains_key(&self, key: &Self::Key) -> impl Future<Output = Result<bool, Self::Error>>;
 
@@ -190,6 +196,7 @@ pub trait AsyncPwmEquivalent: AsyncPwm {
     Self::Key: Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized;
 
+  /// Optimized version of [`AsyncPwm::get_entry`] that accepts borrowed keys.
   fn get_entry_equivalent<Q>(
     &self,
     key: &Q,
@@ -225,6 +232,7 @@ pub trait AsyncPwmComparable: AsyncPwm {
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 
+  /// Optimized version of [`AsyncPwm::get_entry`] that accepts borrowed keys.
   fn get_entry_comparable<Q>(
     &self,
     key: &Q,

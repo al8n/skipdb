@@ -3,8 +3,11 @@ use smallvec_wrapper::MediumVec;
 use super::*;
 
 /// Options for the [`HashCm`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HashCmOptions<S> {
+  /// The hasher used by the conflict manager.
   pub hasher: S,
+  /// The initialized capacity of the conflict manager.
   pub capacity: Option<usize>,
 }
 
