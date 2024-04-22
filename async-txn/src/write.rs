@@ -273,25 +273,25 @@ where
   {
     if self.pending_writes.as_ref().unwrap().is_empty().await {
       // Nothing to commit
-      self.discard().await;
+      self.discard();
       return apply(Default::default()).await.map_err(WtmError::commit);
     }
 
     match self.commit_entries().await {
       Ok((commit_ts, entries)) => match apply(entries).await {
         Ok(output) => {
-          self.orc.done_commit(commit_ts).await;
-          self.discard().await;
+          self.orc.done_commit(commit_ts);
+          self.discard();
           Ok(output)
         }
         Err(e) => {
-          self.orc.done_commit(commit_ts).await;
-          self.discard().await;
+          self.orc.done_commit(commit_ts);
+          self.discard();
           Err(WtmError::commit(e))
         }
       },
       Err(e) => {
-        self.discard().await;
+        self.discard();
         Err(WtmError::transaction(e))
       }
     }
@@ -770,7 +770,7 @@ where
 
     if self.pending_writes.as_ref().unwrap().is_empty().await {
       // Nothing to commit
-      self.discard().await;
+      self.discard();
       return Ok(S::spawn(async move { fut(Ok(())).await }));
     }
 
@@ -780,11 +780,11 @@ where
         Ok(S::spawn(async move {
           match apply(entries).await {
             Ok(_) => {
-              orc.done_commit(commit_ts).await;
+              orc.done_commit(commit_ts);
               fut(Ok(())).await
             }
             Err(e) => {
-              orc.done_commit(commit_ts).await;
+              orc.done_commit(commit_ts);
               fut(Err(e)).await
             }
           }
@@ -793,7 +793,7 @@ where
       Err(e) => match e {
         TransactionError::Conflict => Err(WtmError::transaction(e)),
         _ => {
-          self.discard().await;
+          self.discard();
           Err(WtmError::transaction(e))
         }
       },
@@ -929,17 +929,10 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   S: AsyncSpawner,
 {
-  async fn done_read(&mut self) {
+  fn done_read(&mut self) {
     if !self.done_read {
       self.done_read = true;
-      self.orc().read_mark.done_unchecked(self.read_ts).await;
-    }
-  }
-
-  fn done_read_blocking(&mut self) {
-    if !self.done_read {
-      self.done_read = true;
-      self.orc().read_mark.done_unchecked_blocking(self.read_ts);
+      self.orc().read_mark.done(self.read_ts).unwrap();
     }
   }
 
@@ -952,24 +945,12 @@ where
   /// methods calls this internally.
   ///
   /// NOTE: If any operations are run on a discarded transaction, [`TransactionError::Discard`] is returned.
-  pub async fn discard(&mut self) {
+  pub fn discard(&mut self) {
     if self.discarded {
       return;
     }
     self.discarded = true;
-    self.done_read().await;
-  }
-
-  /// Discards a created transaction. This method is very important and must be called. `commit*`
-  /// methods calls this internally.
-  ///
-  /// NOTE: If any operations are run on a discarded transaction, [`TransactionError::Discard`] is returned.
-  pub fn discard_blocking(&mut self) {
-    if self.discarded {
-      return;
-    }
-    self.discarded = true;
-    self.done_read_blocking();
+    self.done_read();
   }
 
   /// Returns true if the transaction is discarded.
@@ -985,7 +966,7 @@ where
 {
   fn drop(&mut self) {
     if !self.discarded {
-      self.discard_blocking();
+      self.discard();
     }
   }
 }

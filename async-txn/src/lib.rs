@@ -192,8 +192,8 @@ where
           format!("{}.txn_timestamps", name).into(),
           next_ts,
         );
-        orc.read_mark.done_unchecked(next_ts).await;
-        orc.txn_mark.done_unchecked(next_ts).await;
+        orc.read_mark.done(next_ts).unwrap();
+        orc.txn_mark.done(next_ts).unwrap();
         orc.increment_next_ts().await;
         orc
       }),

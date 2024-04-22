@@ -149,10 +149,13 @@ impl<S: AsyncSpawner> AsyncCloser<S> {
     self.inner.wg.block_wait::<S>();
   }
 
-  /// Calls [`AsyncCloser::signal`], then [`AsyncCloser::wait`].
+  /// Like [`AsyncCloser::signal_and_wait`], but spawns and detach the waiting in a new task.
   #[inline]
-  pub fn signal_and_wait_blocking(&self) {
+  pub fn signal_and_wait_detach(&self) {
     self.signal();
-    self.block_wait();
+    let wg = self.inner.wg.clone();
+    S::spawn_detach(async move {
+      wg.wait().await;
+    })
   }
 }

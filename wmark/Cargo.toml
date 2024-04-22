@@ -9,9 +9,9 @@ description = "Helpful structs to implement optimistic SSI (Serializable Snapsho
 
 [features]
 default = ["std"]
-std = ["parking_lot", "wg", "crossbeam-channel", "async-channel?/default", "thiserror", "crossbeam-utils/default", "scopeguard/use_std"]
+std = ["parking_lot", "wg", "crossbeam-channel", "async-channel?/default", "futures-channel?/default", "thiserror", "crossbeam-utils/default", "scopeguard/use_std"]
 core = ["crossbeam-queue/alloc", "hashbrown/allocator-api2"]
-future = ["wg/future", "async-channel", "futures-util"]
+future = ["wg/future", "async-channel", "futures-util", "futures-channel"]
 
 smol = ["dep:smol", "wg/smol", "future"]
 async-std = ["dep:async-std", "wg/async-std", "future"]
@@ -38,6 +38,7 @@ wg = { version = "0.8", optional = true }
 
 async-channel = { version = "2", optional = true, default-features = false }
 futures-util = { version = "0.3", optional = true, default-features = false, features = ["async-await-macro"] }
+futures-channel = { version = "0.3", optional = true, default-features = false, features = ["alloc"] }
 
 tracing = { version = "0.1", optional = true, default-features = false }
 

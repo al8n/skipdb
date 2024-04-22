@@ -30,6 +30,6 @@ where
   S: AsyncSpawner,
 {
   fn drop(&mut self) {
-    self.db.inner.done_read_blocking(self.read_ts);
+    self.db.inner.done_read(self.read_ts)
   }
 }
