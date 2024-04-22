@@ -253,12 +253,11 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
     .collect::<FuturesUnordered<_>>();
 
   while handles.next().await.is_some() {}
-
   closer1.signal_and_wait().await;
   std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
 #[cfg(feature = "tokio")]
 async fn txn_commit_with_callback_tokio() {
   txn_commit_with_callback_in::<TokioSpawner>().await;

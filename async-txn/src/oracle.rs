@@ -197,7 +197,6 @@ where
       panic!("{e}");
     }
 
-    println!("read_ts from: {}", read_ts);
     read_ts
   }
 

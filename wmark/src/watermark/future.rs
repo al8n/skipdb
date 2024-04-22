@@ -319,7 +319,6 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
   /// watermark correctly.
   #[inline]
   pub async fn done_unchecked(&self, index: u64) {
-    println!("done {index}");
     self
       .inner
       .mark_tx

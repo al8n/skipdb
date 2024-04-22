@@ -321,7 +321,6 @@ impl WaterMark {
   /// watermark correctly.
   #[inline]
   pub fn done_unchecked(&self, index: u64) {
-    println!("done {}", index);
     self
       .inner
       .mark_tx
