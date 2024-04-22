@@ -18,6 +18,7 @@ smol = ["wmark/smol"]
 tokio = ["wmark/tokio"]
 
 [dependencies]
+async-lock = "3"
 async-channel.workspace = true
 cheap-clone.workspace = true
 crossbeam-utils.workspace = true

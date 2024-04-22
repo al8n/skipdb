@@ -4,7 +4,7 @@ use txn_core::sync::{Cm, Marker};
 use super::*;
 
 use crossbeam_skiplist::map::Range as MapRange;
-use std::{cmp, collections::btree_map::Range as BTreeMapRange};
+use core::cmp;
 
 /// An iterator over a subset of entries of the database.
 pub struct Range<'a, Q, R, K, V>

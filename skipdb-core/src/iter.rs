@@ -4,7 +4,7 @@ use txn_core::sync::{Cm, Marker};
 use super::*;
 
 use crossbeam_skiplist::map::Iter as MapIter;
-use std::{cmp, collections::btree_map::Iter as BTreeMapIter};
+use core::cmp;
 
 /// An iterator over the entries of the database.
 pub struct Iter<'a, K, V> {

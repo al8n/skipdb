@@ -1,11 +1,16 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+#![deny(warnings)]
 #![allow(clippy::type_complexity)]
 
-use std::{
+extern crate alloc;
+
+use core::{
   borrow::Borrow,
-  collections::BTreeMap,
   ops::{Bound, RangeBounds},
   sync::atomic::{AtomicU64, Ordering},
 };
+
+use alloc::collections::{BTreeMap, btree_map::{IntoIter as BTreeMapIntoIter, Iter as BTreeMapIter, Range as BTreeMapRange}};
 
 use smallvec_wrapper::OneOrMore;
 use txn_core::{
@@ -123,8 +128,8 @@ where
 
   type Options = Options;
 
-  type Iter<'a> = std::collections::btree_map::Iter<'a, K, EntryValue<V>> where Self: 'a;
-  type IntoIter = std::collections::btree_map::IntoIter<K, EntryValue<V>>;
+  type Iter<'a> = BTreeMapIter<'a, K, EntryValue<V>> where Self: 'a;
+  type IntoIter = BTreeMapIntoIter<K, EntryValue<V>>;
 
   fn new(options: Self::Options) -> Result<Self, Self::Error> {
     Ok(Self {
@@ -201,7 +206,7 @@ impl<K, V> PwmRange for PendingMap<K, V>
 where
   K: Ord,
 {
-  type Range<'a> = std::collections::btree_map::Range<'a, K, EntryValue<V>> where Self: 'a;
+  type Range<'a> = BTreeMapRange<'a, K, EntryValue<V>> where Self: 'a;
 
   fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {
     self.map.range(range)

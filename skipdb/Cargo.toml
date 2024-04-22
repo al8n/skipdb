@@ -14,10 +14,8 @@ default = []
 
 [dependencies]
 cheap-clone = "0.1"
-crossbeam-skiplist = "0.1"
-either = "1"
 txn = { workspace = true, features = ["default"] }
-skipdb-core.workspace = true
+skipdb-core = { workspace = true, features = ["default"] }
 
 [dev-dependencies]
 rand = "0.8"

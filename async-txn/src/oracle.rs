@@ -1,7 +1,7 @@
 use core::ops::AddAssign;
 use std::borrow::Cow;
 
-use futures::lock::{Mutex, MutexGuard};
+use async_lock::{Mutex, MutexGuard};
 use smallvec_wrapper::TinyVec;
 use txn_core::future::AsyncCm;
 
