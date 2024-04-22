@@ -2,9 +2,6 @@ use core::{borrow::Borrow, future::Future};
 
 use super::types::*;
 
-/// Default hasher used by the conflict manager.
-pub type DefaultHasher = std::hash::DefaultHasher;
-
 /// A marker used to mark the keys that are read.
 pub struct AsyncMarker<'a, C> {
   marker: &'a mut C,
@@ -33,7 +30,7 @@ impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
 pub trait AsyncCm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error;
+  type Error: crate::error::Error;
 
   /// The key type.
   type Key;
@@ -98,7 +95,7 @@ pub trait AsyncCmComparable: AsyncCm {
 /// storage to store the pending writes.
 pub trait AsyncPwm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error;
+  type Error: crate::error::Error;
   /// The key type.
   type Key;
   /// The value type.

@@ -6,7 +6,7 @@ use txn::{error::WtmError, HashCmOptions, PwmComparableRange};
 use super::*;
 
 /// A read only transaction over the [`EquivalentDB`],
-pub struct WriteTransaction<K, V, S = std::hash::RandomState> {
+pub struct WriteTransaction<K, V, S = RandomState> {
   db: EquivalentDB<K, V, S>,
   pub(super) wtm: Wtm<K, V, HashCm<K, S>, PendingMap<K, V>>,
 }

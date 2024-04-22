@@ -1,18 +1,30 @@
-use std::{borrow::Borrow, ops::RangeBounds};
+use core::{borrow::Borrow, ops::RangeBounds};
 
-use indexmap::IndexSet;
-use smallvec_wrapper::TinyVec;
+use super::types::*;
 
-use super::{types::*, *};
-
+#[cfg(feature = "alloc")]
 mod hash_cm;
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use hash_cm::*;
 
+#[cfg(feature = "alloc")]
 mod btree_cm;
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use btree_cm::*;
 
-/// Default hasher used by the conflict manager.
-pub type DefaultHasher = std::hash::DefaultHasher;
+#[cfg(feature = "alloc")]
+mod btree_pwm;
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+pub use btree_pwm::*;
+
+#[cfg(feature = "alloc")]
+mod hash_pwm;
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+pub use hash_pwm::*;
 
 /// A marker used to mark the keys that are read.
 pub struct Marker<'a, C> {
@@ -42,7 +54,7 @@ impl<'a, C: Cm> Marker<'a, C> {
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
 pub trait Cm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error;
+  type Error: crate::error::Error;
 
   /// The key type.
   type Key;
@@ -107,7 +119,7 @@ pub trait CmComparable: Cm {
 /// storage to store the pending writes.
 pub trait Pwm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error;
+  type Error: crate::error::Error;
 
   /// The key type.
   type Key;
@@ -279,281 +291,4 @@ pub trait PwmComparable: Pwm {
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
-}
-
-/// A type alias for [`Pwm`] that based on the [`IndexMap`].
-pub type IndexMapManager<K, V, S = std::hash::RandomState> = IndexMap<K, EntryValue<V>, S>;
-/// A type alias for [`Pwm`] that based on the [`BTreeMap`].
-pub type BTreeMapManager<K, V> = BTreeMap<K, EntryValue<V>>;
-
-impl<K, V, S> Pwm for IndexMap<K, EntryValue<V>, S>
-where
-  K: Eq + core::hash::Hash,
-  S: BuildHasher + Default,
-{
-  type Error = std::convert::Infallible;
-  type Key = K;
-  type Value = V;
-  type Iter<'a> = indexmap::map::Iter<'a, K, EntryValue<V>> where Self: 'a;
-  type IntoIter = indexmap::map::IntoIter<K, EntryValue<V>>;
-
-  type Options = Option<S>;
-
-  fn new(options: Self::Options) -> Result<Self, Self::Error> {
-    Ok(match options {
-      Some(hasher) => Self::with_hasher(hasher),
-      None => Self::default(),
-    })
-  }
-
-  fn is_empty(&self) -> bool {
-    self.is_empty()
-  }
-
-  fn len(&self) -> usize {
-    self.len()
-  }
-
-  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
-    Ok(())
-  }
-
-  fn max_batch_size(&self) -> u64 {
-    u64::MAX
-  }
-
-  fn max_batch_entries(&self) -> u64 {
-    u64::MAX
-  }
-
-  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
-  }
-
-  fn get(&self, key: &K) -> Result<Option<&EntryValue<V>>, Self::Error> {
-    Ok(self.get(key))
-  }
-
-  fn get_entry(
-    &self,
-    key: &Self::Key,
-  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
-    Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
-  }
-
-  fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
-    Ok(self.contains_key(key))
-  }
-
-  fn insert(&mut self, key: K, value: EntryValue<V>) -> Result<(), Self::Error> {
-    self.insert(key, value);
-    Ok(())
-  }
-
-  fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<V>)>, Self::Error> {
-    Ok(self.shift_remove_entry(key))
-  }
-  fn iter(&self) -> Self::Iter<'_> {
-    IndexMap::iter(self)
-  }
-
-  fn into_iter(self) -> Self::IntoIter {
-    core::iter::IntoIterator::into_iter(self)
-  }
-
-  fn rollback(&mut self) -> Result<(), Self::Error> {
-    self.clear();
-    Ok(())
-  }
-}
-
-impl<K, V, S> PwmEquivalent for IndexMap<K, EntryValue<V>, S>
-where
-  K: Eq + core::hash::Hash,
-  S: BuildHasher + Default,
-{
-  fn get_equivalent<Q>(&self, key: &Q) -> Result<Option<&EntryValue<V>>, Self::Error>
-  where
-    Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
-  {
-    Ok(self.get(key))
-  }
-
-  fn get_entry_equivalent<Q>(
-    &self,
-    key: &Q,
-  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
-  where
-    Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
-  {
-    Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
-  }
-
-  fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
-  where
-    Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
-  {
-    Ok(self.contains_key(key))
-  }
-
-  fn remove_entry_equivalent<Q>(
-    &mut self,
-    key: &Q,
-  ) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
-  where
-    Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
-  {
-    Ok(self.shift_remove_entry(key))
-  }
-}
-
-impl<K, V> Pwm for BTreeMap<K, EntryValue<V>>
-where
-  K: Ord,
-{
-  type Error = std::convert::Infallible;
-  type Key = K;
-  type Value = V;
-
-  type Iter<'a> = std::collections::btree_map::Iter<'a, K, EntryValue<V>> where Self: 'a;
-
-  type IntoIter = std::collections::btree_map::IntoIter<K, EntryValue<V>>;
-
-  type Options = ();
-
-  fn new(_: Self::Options) -> Result<Self, Self::Error> {
-    Ok(Self::default())
-  }
-
-  fn is_empty(&self) -> bool {
-    self.is_empty()
-  }
-
-  fn len(&self) -> usize {
-    self.len()
-  }
-
-  fn validate_entry(&self, _entry: &Entry<Self::Key, Self::Value>) -> Result<(), Self::Error> {
-    Ok(())
-  }
-
-  fn max_batch_size(&self) -> u64 {
-    u64::MAX
-  }
-
-  fn max_batch_entries(&self) -> u64 {
-    u64::MAX
-  }
-
-  fn estimate_size(&self, _entry: &Entry<Self::Key, Self::Value>) -> u64 {
-    core::mem::size_of::<Self::Key>() as u64 + core::mem::size_of::<Self::Value>() as u64
-  }
-
-  fn get(&self, key: &K) -> Result<Option<&EntryValue<Self::Value>>, Self::Error> {
-    Ok(self.get(key))
-  }
-
-  fn get_entry(
-    &self,
-    key: &Self::Key,
-  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error> {
-    Ok(self.get_key_value(key))
-  }
-
-  fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
-    Ok(self.contains_key(key))
-  }
-
-  fn insert(&mut self, key: K, value: EntryValue<Self::Value>) -> Result<(), Self::Error> {
-    self.insert(key, value);
-    Ok(())
-  }
-
-  fn remove_entry(&mut self, key: &K) -> Result<Option<(K, EntryValue<Self::Value>)>, Self::Error> {
-    Ok(self.remove_entry(key))
-  }
-  fn iter(&self) -> Self::Iter<'_> {
-    BTreeMap::iter(self)
-  }
-
-  fn into_iter(self) -> Self::IntoIter {
-    core::iter::IntoIterator::into_iter(self)
-  }
-
-  fn rollback(&mut self) -> Result<(), Self::Error> {
-    self.clear();
-    Ok(())
-  }
-}
-
-impl<K, V> PwmRange for BTreeMap<K, EntryValue<V>>
-where
-  K: Ord,
-{
-  type Range<'a> = std::collections::btree_map::Range<'a, K, EntryValue<V>> where Self: 'a;
-
-  fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {
-    BTreeMap::range(self, range)
-  }
-}
-
-impl<K, V> PwmComparableRange for BTreeMap<K, EntryValue<V>>
-where
-  K: Ord,
-{
-  fn range_comparable<T, R>(&self, range: R) -> Self::Range<'_>
-  where
-    T: ?Sized + Ord,
-    Self::Key: Borrow<T> + Ord,
-    R: RangeBounds<T>,
-  {
-    BTreeMap::range(self, range)
-  }
-}
-
-impl<K, V> PwmComparable for BTreeMap<K, EntryValue<V>>
-where
-  K: Ord,
-{
-  fn get_comparable<Q>(&self, key: &Q) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
-  where
-    K: Borrow<Q>,
-    Q: Ord + ?Sized,
-  {
-    Ok(BTreeMap::get(self, key))
-  }
-
-  fn get_entry_comparable<Q>(
-    &self,
-    key: &Q,
-  ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
-  where
-    Self::Key: Borrow<Q>,
-    Q: Ord + ?Sized,
-  {
-    Ok(BTreeMap::get_key_value(self, key))
-  }
-
-  fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
-  where
-    K: Borrow<Q>,
-    Q: Ord + ?Sized,
-  {
-    Ok(BTreeMap::contains_key(self, key))
-  }
-
-  fn remove_entry_comparable<Q>(
-    &mut self,
-    key: &Q,
-  ) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
-  where
-    K: Borrow<Q>,
-    Q: Ord + ?Sized,
-  {
-    Ok(BTreeMap::remove_entry(self, key))
-  }
 }

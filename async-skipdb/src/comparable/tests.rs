@@ -23,16 +23,19 @@ async fn begin_tx_readable_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn begin_tx_readable_tokio() {
   begin_tx_readable_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn begin_tx_readable_async_std() {
   begin_tx_readable_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn begin_tx_readable_smol() {
   smol::block_on(begin_tx_readable_in::<SmolSpawner>());
 }
@@ -44,16 +47,19 @@ async fn begin_tx_writeable_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn begin_tx_writeable_tokio() {
   begin_tx_writeable_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn begin_tx_writeable_async_std() {
   begin_tx_writeable_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn begin_tx_writeable_smol() {
   smol::block_on(begin_tx_writeable_in::<SmolSpawner>());
 }
@@ -77,16 +83,19 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn writeable_tx_tokio() {
   writeable_tx_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn writeable_tx_async_std() {
   writeable_tx_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn writeable_tx_smol() {
   smol::block_on(writeable_tx_in::<SmolSpawner>());
 }
@@ -119,16 +128,19 @@ async fn txn_simple_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_simple_tokio() {
   txn_simple_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_simple_async_std() {
   txn_simple_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_simple_smol() {
   smol::block_on(txn_simple_in::<SmolSpawner>());
 }
@@ -163,16 +175,19 @@ async fn txn_read_after_write_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_read_after_write_tokio() {
   txn_read_after_write_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_read_after_write_async_std() {
   txn_read_after_write_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_read_after_write_smol() {
   smol::block_on(txn_read_after_write_in::<SmolSpawner>());
 }
@@ -255,12 +270,14 @@ fn txn_read_after_write_smol() {
 // }
 
 // #[tokio::test]
+// #[cfg(feature = "tokio")]
 // async fn txn_commit_with_callback_tokio() {
 //   txn_commit_with_callback_in::<TokioSpawner, _, _>(tokio::time::sleep(Duration::from_millis(10)), tokio::task::yield_now)
 //     .await;
 // }
 
 // #[async_std::test]
+// #[cfg(feature = "async-std")]
 // async fn txn_commit_with_callback_async_std() {
 //   txn_commit_with_callback_in::<AsyncStdSpawner, _, _>(async_std::task::sleep(Duration::from_millis(
 //     10,
@@ -269,6 +286,7 @@ fn txn_read_after_write_smol() {
 // }
 
 // #[test]
+// #[cfg(feature = "smol")]
 // fn txn_commit_with_callback_smol() {
 //   smol::block_on(txn_commit_with_callback_in::<SmolSpawner, _, _>(
 //     smol::Timer::after(Duration::from_millis(10)), smol::future::yield_now),
@@ -333,16 +351,19 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_write_skew_tokio() {
   txn_write_skew_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_write_skew_async_std() {
   txn_write_skew_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_write_skew_smol() {
   smol::block_on(txn_write_skew_in::<SmolSpawner>());
 }
@@ -391,16 +412,19 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_conflict_get_tokio() {
   txn_conflict_get_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_conflict_get_async_std() {
   txn_conflict_get_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_conflict_get_smol() {
   smol::block_on(txn_conflict_get_in::<SmolSpawner>());
 }
@@ -461,16 +485,19 @@ async fn txn_versions_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_versions_tokio() {
   txn_versions_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_versions_async_std() {
   txn_versions_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_versions_smol() {
   smol::block_on(txn_versions_in::<SmolSpawner>());
 }
@@ -529,16 +556,19 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_conflict_iter_tokio() {
   txn_conflict_iter_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_conflict_iter_async_std() {
   txn_conflict_iter_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_conflict_iter_smol() {
   smol::block_on(txn_conflict_iter_in::<SmolSpawner>());
 }
@@ -642,16 +672,19 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case_tokio() {
   txn_iteration_edge_case_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_iteration_edge_case_async_std() {
   txn_iteration_edge_case_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_iteration_edge_case_smol() {
   smol::block_on(txn_iteration_edge_case_in::<SmolSpawner>());
 }
@@ -772,16 +805,19 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
 }
 
 #[tokio::test]
+#[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case2_tokio() {
   txn_iteration_edge_case2_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
+#[cfg(feature = "async-std")]
 async fn txn_iteration_edge_case2_async_std() {
   txn_iteration_edge_case2_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
+#[cfg(feature = "smol")]
 fn txn_iteration_edge_case2_smol() {
   smol::block_on(txn_iteration_edge_case2_in::<SmolSpawner>());
 }

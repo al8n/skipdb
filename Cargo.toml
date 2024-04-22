@@ -29,7 +29,7 @@ either = "1"
 indexmap = { version = "2", default-features = false }
 parking_lot = "0.12"
 rand = "0.8"
-smallvec-wrapper = { version = "0.1", features = ["const_new"] }
+smallvec-wrapper = { version = "0.1", default-features = false, features = ["const_new"] }
 scopeguard = { version = "1", default-features = false }
 thiserror = "1"
 tracing = "0.1"
@@ -37,7 +37,7 @@ tracing = "0.1"
 wmark = { path = "wmark", version = "0.1", default-features = false }
 txn-core = { path = "txn-core", version = "0.1", default-features = false }
 txn = { path = "txn", version = "0.1", default-features = false }
-async-txn = { path = "async-txn", version = "0.1" }
+async-txn = { path = "async-txn", version = "0.1", default-features = false }
 skipdb-core = { path = "skipdb-core", version = "0.1" }
 
 

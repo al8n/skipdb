@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::hash_map::RandomState;
 
 mod write;
 pub use write::*;
@@ -6,7 +7,7 @@ pub use write::*;
 #[cfg(test)]
 mod tests;
 
-struct Inner<K, V, S = std::hash::RandomState> {
+struct Inner<K, V, S = RandomState> {
   tm: Tm<K, V, HashCm<K, S>, PendingMap<K, V>>,
   map: SkipCore<K, V>,
   hasher: S,
@@ -38,7 +39,7 @@ impl<K, V, S> Inner<K, V, S> {
 /// Comparing to [`ComparableDB`](crate::comparable::ComparableDB),
 /// `EquivalentDB` has more flexible write transaction APIs and no clone happen.
 /// But, [`ComparableDB`](crate::comparable::ComparableDB) does not require the key to implement [`Hash`](core::hash::Hash).
-pub struct EquivalentDB<K, V, S = std::hash::RandomState> {
+pub struct EquivalentDB<K, V, S = RandomState> {
   inner: Arc<Inner<K, V, S>>,
 }
 

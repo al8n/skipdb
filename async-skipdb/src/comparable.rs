@@ -6,7 +6,7 @@ use super::*;
 mod write;
 pub use write::*;
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "tokio", feature = "smol", feature = "async-std")))]
 mod tests;
 
 struct Inner<K, V, S> {

@@ -1,22 +1,29 @@
 //! Core traits and types for [`txn`](https://crates.io/crates/txn) and [async-txn](https://crates.io/crates/async-txn) crates.
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 #![deny(missing_docs, warnings)]
 #![allow(clippy::type_complexity)]
 
-use std::{collections::BTreeMap, hash::BuildHasher};
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
-use indexmap::IndexMap;
+#[cfg(feature = "std")]
+extern crate std;
 
 pub use cheap_clone::CheapClone;
 
-/// The default hasher
-pub type DefaultHasher = std::hash::DefaultHasher;
+/// Default hasher.
+#[cfg(feature = "std")]
+pub type DefaultHasher = std::collections::hash_map::DefaultHasher;
+
+/// Default hasher.
+#[cfg(not(feature = "std"))]
+pub type DefaultHasher = ahash::AHasher;
 
 /// Types
 pub mod types {
-  use core::cmp::Reverse;
-
-  use super::*;
+  use cheap_clone::CheapClone;
+  use core::cmp::{self, Reverse};
 
   /// The reference of the [`Entry`].
   #[derive(Debug, PartialEq, Eq, Hash)]
@@ -101,14 +108,14 @@ pub mod types {
 
   impl<K: Ord, V: Eq> PartialOrd for EntryData<K, V> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
       Some(self.cmp(other))
     }
   }
 
   impl<K: Ord, V: Eq> Ord for EntryData<K, V> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
       self.key().cmp(other.key())
     }
   }
@@ -160,14 +167,14 @@ pub mod types {
 
   impl<K: Ord, V: Eq> PartialOrd for Entry<K, V> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
       Some(self.cmp(other))
     }
   }
 
   impl<K: Ord, V: Eq> Ord for Entry<K, V> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
       self
         .data
         .key()

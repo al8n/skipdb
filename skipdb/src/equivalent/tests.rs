@@ -275,27 +275,26 @@ fn txn_versions() {
     assert_eq!(i, db.version());
   }
 
-  let check_iter =
-    |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>, i: u64| {
-      let mut count = 0;
-      for ent in itr {
-        assert_eq!(ent.key(), &k0);
-        assert_eq!(ent.value(), i, "{i} {:?}", ent.value());
-        count += 1;
-      }
-      assert_eq!(1, count) // should only loop once.
-    };
+  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>, i: u64| {
+    let mut count = 0;
+    for ent in itr {
+      assert_eq!(ent.key(), &k0);
+      assert_eq!(ent.value(), i, "{i} {:?}", ent.value());
+      count += 1;
+    }
+    assert_eq!(1, count) // should only loop once.
+  };
 
-  let check_rev_iter =
-    |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>, i: u64| {
-      let mut count = 0;
-      for ent in itr {
-        assert_eq!(ent.key(), &k0);
-        assert_eq!(ent.value(), i, "{i} {:?}", ent.value());
-        count += 1;
-      }
-      assert_eq!(1, count) // should only loop once.
-    };
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                        i: u64| {
+    let mut count = 0;
+    for ent in itr {
+      assert_eq!(ent.key(), &k0);
+      assert_eq!(ent.value(), i, "{i} {:?}", ent.value());
+      count += 1;
+    }
+    assert_eq!(1, count) // should only loop once.
+  };
 
   for i in 1..10 {
     let mut txn = db.write();
@@ -418,27 +417,25 @@ fn txn_iteration_edge_case() {
     assert_eq!(4, db.version());
   }
 
-  let check_iter =
-    |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>,
-     expected: &[u64]| {
-      let mut i = 0;
-      for ent in itr {
-        assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
-        i += 1;
-      }
-      assert_eq!(expected.len(), i);
-    };
+  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                    expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
 
-  let check_rev_iter =
-    |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>,
-     expected: &[u64]| {
-      let mut i = 0;
-      for ent in itr {
-        assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
-        i += 1;
-      }
-      assert_eq!(expected.len(), i);
-    };
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                        expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
 
   let mut txn = db.write();
   let itr = txn.iter().unwrap();
@@ -513,27 +510,25 @@ fn txn_iteration_edge_case2() {
     assert_eq!(4, db.version());
   }
 
-  let check_iter =
-    |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>,
-     expected: &[u64]| {
-      let mut i = 0;
-      for ent in itr {
-        assert_eq!(expected[i], *ent.value());
-        i += 1;
-      }
-      assert_eq!(expected.len(), i);
-    };
+  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                    expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
 
-  let check_rev_iter =
-    |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, std::hash::RandomState>>,
-     expected: &[u64]| {
-      let mut i = 0;
-      for ent in itr {
-        assert_eq!(expected[i], *ent.value());
-        i += 1;
-      }
-      assert_eq!(expected.len(), i);
-    };
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                        expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
 
   let mut txn = db.write();
   let itr = txn.iter().unwrap();

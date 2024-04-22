@@ -1,6 +1,11 @@
+use core::hash::BuildHasher;
 use smallvec_wrapper::MediumVec;
 
+use crate::DefaultHasher;
+
 use super::*;
+
+use indexmap::IndexSet;
 
 /// Options for the [`HashCm`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
