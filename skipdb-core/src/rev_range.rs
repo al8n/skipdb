@@ -1,8 +1,8 @@
 use either::Either;
 use txn_core::sync::{Cm, Marker};
 
+use core::{cmp, iter::Rev};
 use crossbeam_skiplist::map::Range as MapRange;
-use std::{cmp, collections::btree_map::Range as BTreeMapRange, iter::Rev};
 
 use super::*;
 

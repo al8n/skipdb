@@ -8,7 +8,10 @@ mod blocking;
 
 /// AsyncWtm is used to perform writes to the database. It is created by
 /// calling [`AsyncTm::write`].
-pub struct AsyncWtm<K, V, C, P, S> {
+pub struct AsyncWtm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   pub(super) read_ts: u64,
   pub(super) size: u64,
   pub(super) count: u64,
@@ -24,7 +27,10 @@ pub struct AsyncWtm<K, V, C, P, S> {
   pub(super) done_read: bool,
 }
 
-impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   /// Returns the version of this read transaction.
   #[inline]
   pub const fn version(&self) -> u64 {
@@ -59,6 +65,7 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   C: AsyncCm<Key = K>,
+  S: AsyncSpawner,
 {
   /// This method is used to create a marker for the keys that are operated.
   /// It must be used to mark keys when end user is implementing iterators to
@@ -757,6 +764,10 @@ where
     C: 'static,
     R: Send + 'static,
   {
+    if self.discarded {
+      return Err(WtmError::transaction(TransactionError::Discard));
+    }
+
     if self.pending_writes.as_ref().unwrap().is_empty().await {
       // Nothing to commit
       self.discard().await;
@@ -766,26 +777,26 @@ where
     match self.commit_entries().await {
       Ok((commit_ts, entries)) => {
         let orc = self.orc.clone();
-        let ts = self.read_ts;
         Ok(S::spawn(async move {
           match apply(entries).await {
             Ok(_) => {
               orc.done_commit(commit_ts).await;
-              orc.read_mark.done_unchecked(ts).await;
               fut(Ok(())).await
             }
             Err(e) => {
               orc.done_commit(commit_ts).await;
-              orc.read_mark.done_unchecked(ts).await;
               fut(Err(e)).await
             }
           }
         }))
       }
-      Err(e) => {
-        self.discard().await;
-        Err(WtmError::transaction(e))
-      }
+      Err(e) => match e {
+        TransactionError::Conflict => Err(WtmError::transaction(e)),
+        _ => {
+          self.discard().await;
+          Err(WtmError::transaction(e))
+        }
+      },
     }
   }
 }
@@ -914,7 +925,10 @@ where
   }
 }
 
-impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   async fn done_read(&mut self) {
     if !self.done_read {
       self.done_read = true;
@@ -965,7 +979,10 @@ impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S> {
   }
 }
 
-impl<K, V, C, P, S> Drop for AsyncWtm<K, V, C, P, S> {
+impl<K, V, C, P, S> Drop for AsyncWtm<K, V, C, P, S>
+where
+  S: AsyncSpawner,
+{
   fn drop(&mut self) {
     if !self.discarded {
       self.discard_blocking();

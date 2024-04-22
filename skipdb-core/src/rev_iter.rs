@@ -3,8 +3,8 @@ use txn_core::sync::{Cm, Marker};
 
 use super::*;
 
+use core::{cmp, iter::Rev};
 use crossbeam_skiplist::map::Iter as MapIter;
-use std::{cmp, collections::btree_map::Iter as BTreeMapIter, iter::Rev};
 
 /// An iterator over the entries of the database.
 pub struct RevIter<'a, K, V> {

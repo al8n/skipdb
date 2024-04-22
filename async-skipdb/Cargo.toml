@@ -18,11 +18,8 @@ async-std = ["async-txn/async-std"]
 
 [dependencies]
 cheap-clone = "0.1"
-crossbeam-skiplist = "0.1"
-either = "1"
 async-txn = { workspace = true, features = ["default"] }
-scopeguard.workspace = true
-skipdb-core.workspace = true
+skipdb-core = { workspace = true, features = ["default"] }
 
 [dev-dependencies]
 futures = "0.3"

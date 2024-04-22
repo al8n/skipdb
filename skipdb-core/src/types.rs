@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU8, Ordering};
+use core::sync::atomic::{AtomicU8, Ordering};
 
 use crossbeam_skiplist::{map::Entry as MapEntry, SkipMap};
 use txn_core::types::EntryRef;
@@ -37,7 +37,15 @@ impl<V> Values<V> {
         .compare_exchange_weak(current, LOCKED, Ordering::SeqCst, Ordering::Acquire)
       {
         Ok(_) => return,
-        Err(v) => current = v,
+        Err(old) => {
+          // If the current state is uninitialized, we can directly return.
+          // as we are based on SkipMap, let it to handle concurrent write is engouth.
+          if old == UNINITIALIZED {
+            return;
+          }
+
+          current = old;
+        }
       }
     }
   }
