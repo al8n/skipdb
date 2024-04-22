@@ -3,8 +3,8 @@ use txn_core::sync::{Cm, Marker};
 
 use super::*;
 
-use crossbeam_skiplist::map::Range as MapRange;
 use core::cmp;
+use crossbeam_skiplist::map::Range as MapRange;
 
 /// An iterator over a subset of entries of the database.
 pub struct Range<'a, Q, R, K, V>

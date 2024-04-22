@@ -8,7 +8,10 @@ pub use write::*;
 #[cfg(all(test, any(feature = "tokio", feature = "smol", feature = "async-std")))]
 mod tests;
 
-struct Inner<K, V, SP, S = RandomState> {
+struct Inner<K, V, SP, S = RandomState>
+where
+  SP: AsyncSpawner,
+{
   tm: AsyncTm<K, V, HashCm<K, S>, PendingMap<K, V>, SP>,
   map: SkipCore<K, V>,
   hasher: S,
@@ -40,18 +43,24 @@ impl<K, V, SP: AsyncSpawner, S> Inner<K, V, SP, S> {
 /// Comparing to [`ComparableDB`](crate::comparable::ComparableDB),
 /// `EquivalentDB` has more flexible write transaction APIs and no clone happen.
 /// But, [`ComparableDB`](crate::comparable::ComparableDB) does not require the key to implement [`Hash`](core::hash::Hash).
-pub struct EquivalentDB<K, V, SP, S = RandomState> {
+pub struct EquivalentDB<K, V, SP: AsyncSpawner, S = RandomState> {
   inner: Arc<Inner<K, V, SP, S>>,
 }
 
-impl<K, V, S> AsSkipCore<K, V> for EquivalentDB<K, V, S> {
+impl<K, V, SP, S> AsSkipCore<K, V> for EquivalentDB<K, V, SP, S>
+where
+  SP: AsyncSpawner,
+{
   #[inline]
   fn as_inner(&self) -> &SkipCore<K, V> {
     &self.inner.map
   }
 }
 
-impl<K, V, SP, S> Clone for EquivalentDB<K, V, SP, S> {
+impl<K, V, SP, S> Clone for EquivalentDB<K, V, SP, S>
+where
+  SP: AsyncSpawner,
+{
   #[inline]
   fn clone(&self) -> Self {
     Self {

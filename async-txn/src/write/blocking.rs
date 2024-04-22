@@ -3,6 +3,7 @@ use super::*;
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   C: Cm<Key = K>,
+  S: AsyncSpawner,
 {
   /// This method is used to create a marker for the keys that are operated.
   /// It must be used to mark keys when end user is implementing iterators to

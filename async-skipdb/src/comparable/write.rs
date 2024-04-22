@@ -6,7 +6,7 @@ use std::{convert::Infallible, future::Future};
 use super::*;
 
 /// A read only transaction over the [`EquivalentDB`],
-pub struct WriteTransaction<K, V, S> {
+pub struct WriteTransaction<K, V, S: AsyncSpawner> {
   pub(super) db: ComparableDB<K, V, S>,
   pub(super) wtm: AsyncWtm<K, V, BTreeCm<K>, PendingMap<K, V>, S>,
 }

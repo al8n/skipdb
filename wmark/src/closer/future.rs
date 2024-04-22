@@ -142,10 +142,17 @@ impl<S> AsyncCloser<S> {
 }
 
 impl<S: AsyncSpawner> AsyncCloser<S> {
+  /// Waits on the [`WaitGroup`]. (It waits for the AsyncCloser's initial value, [`AsyncCloser::add_running`], and [`AsyncCloser::done`]
+  /// calls to balance out.)
+  #[inline]
+  pub fn block_wait(&self) {
+    self.inner.wg.block_wait::<S>();
+  }
+
   /// Calls [`AsyncCloser::signal`], then [`AsyncCloser::wait`].
   #[inline]
   pub fn signal_and_wait_blocking(&self) {
     self.signal();
-    self.inner.wg.block_wait::<S>();
+    self.block_wait();
   }
 }
