@@ -1,7 +1,7 @@
 use async_mwmr::{error::WtmError, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
 
-use std::convert::Infallible;
+use std::{convert::Infallible, future::Future};
 
 use super::*;
 
@@ -17,7 +17,7 @@ where
   S: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: ComparableDB<K, V, S>) -> Self {
+  pub(super) async fn new(db: ComparableDB<K, V, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
@@ -25,7 +25,7 @@ where
         Options::default()
           .with_max_batch_entries(db.inner.max_batch_entries)
           .with_max_batch_size(db.inner.max_batch_size),
-        Some(()),
+        Some(cap),
       )
       .await
       .unwrap();
@@ -49,7 +49,7 @@ where
   ///
   /// 4. Batch up all writes, write them to database.
   ///
-  /// 5. If callback is provided, Badger will return immediately after checking
+  /// 5. If callback is provided, database will return immediately after checking
   /// for conflicts. Writes to the database will happen in the background.  If
   /// there is a conflict, an error will be returned and the callback will not
   /// run. If there are no conflicts, the callback will be called in the
@@ -89,12 +89,13 @@ where
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
   #[inline]
-  pub async fn commit_with_task<E, R>(
+  pub async fn commit_with_task<Fut, E, R>(
     &mut self,
-    callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
+    callback: impl FnOnce(Result<(), E>) -> Fut + Send + 'static,
   ) -> Result<S::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
   where
     E: std::error::Error + Send,
+    Fut: Future<Output = R> + Send + 'static,
     R: Send + 'static,
   {
     let db = self.db.clone();

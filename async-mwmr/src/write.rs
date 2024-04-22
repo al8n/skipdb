@@ -260,8 +260,7 @@ where
     apply: F,
   ) -> Result<O, WtmError<C::Error, P::Error, E>>
   where
-    O: Send,
-    Fut: Future<Output = Result<O, E>> + Send,
+    Fut: Future<Output = Result<O, E>>,
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Fut,
     E: std::error::Error,
   {
@@ -743,23 +742,25 @@ where
   /// If there is a conflict, an error will be returned immediately and the no task will be spawned
   /// run. If there are no conflicts, a task will be spawned and the future will be called in the
   /// background upon successful completion of writes or any error during write.
-  pub async fn commit_with_task<F, Fut, E, R>(
+  pub async fn commit_with_task<F, Fut, CFut, E, R>(
     &mut self,
     apply: F,
-    fut: impl FnOnce(Result<(), E>) -> R + Send + 'static,
+    fut: impl FnOnce(Result<(), E>) -> CFut + Send + 'static,
   ) -> Result<<S as AsyncSpawner>::JoinHandle<R>, WtmError<C::Error, P::Error, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
     Fut: Future<Output = Result<(), E>> + Send,
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Fut + Send + 'static,
+    CFut: Future<Output = R> + Send + 'static,
     E: std::error::Error + Send,
+    C: 'static,
     R: Send + 'static,
   {
     if self.pending_writes.as_ref().unwrap().is_empty().await {
       // Nothing to commit
       self.discard().await;
-      return Ok(S::spawn(async move { fut(Ok(())) }));
+      return Ok(S::spawn(async move { fut(Ok(())).await }));
     }
 
     match self.commit_entries().await {
@@ -771,12 +772,12 @@ where
             Ok(_) => {
               orc.done_commit(commit_ts).await;
               orc.read_mark.done_unchecked(ts).await;
-              fut(Ok(()))
+              fut(Ok(())).await
             }
             Err(e) => {
               orc.done_commit(commit_ts).await;
               orc.read_mark.done_unchecked(ts).await;
-              fut(Err(e))
+              fut(Err(e)).await
             }
           }
         }))

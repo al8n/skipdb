@@ -162,7 +162,7 @@ async fn txn_read_after_write_in<S: AsyncSpawner>() {
   while handles.next().await.is_some() {}
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
+#[tokio::test]
 async fn txn_read_after_write_tokio() {
   txn_read_after_write_in::<TokioSpawner>().await;
 }
@@ -362,7 +362,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
           txn.insert(100, 999).unwrap();
           #[allow(clippy::blocks_in_conditions)]
           match txn
-            .commit_with_task::<std::convert::Infallible, _>(move |e| {
+            .commit_with_task::<_, std::convert::Infallible, _>(|e| async move {
               match e {
                 Ok(_) => assert!(set_count1.fetch_add(1, Ordering::SeqCst) + 1 >= 1),
                 Err(e) => panic!("{e}"),
@@ -500,7 +500,7 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
           txn.insert(100, 999).unwrap();
 
           match txn
-            .commit_with_task::<std::convert::Infallible, ()>(move |e| {
+            .commit_with_task::<_, std::convert::Infallible, ()>(|e| async move {
               match e {
                 Ok(_) => assert!(set_count1.fetch_add(1, Ordering::SeqCst) + 1 >= 1),
                 Err(e) => panic!("{e}"),

@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, future::Future};
 
 use async_mwmr::{error::WtmError, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
@@ -18,7 +18,7 @@ where
   SP: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: EquivalentDB<K, V, SP, S>) -> Self {
+  pub(super) async fn new(db: EquivalentDB<K, V, SP, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
@@ -26,7 +26,10 @@ where
         Options::default()
           .with_max_batch_entries(db.inner.max_batch_entries)
           .with_max_batch_size(db.inner.max_batch_size),
-        Some(db.inner.hasher.clone()),
+        Some(HashCmOptions::with_capacity(
+          db.inner.hasher.clone(),
+          cap.unwrap_or(8),
+        )),
       )
       .await
       .unwrap();
@@ -94,11 +97,12 @@ where
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
   #[inline]
-  pub async fn commit_with_task<E, R>(
+  pub async fn commit_with_task<Fut, E, R>(
     &mut self,
-    callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
+    callback: impl FnOnce(Result<(), E>) -> Fut + Send + 'static,
   ) -> Result<SP::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
   where
+    Fut: Future<Output = R> + Send + 'static,
     E: std::error::Error + Send,
     R: Send + 'static,
   {

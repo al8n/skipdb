@@ -1,4 +1,6 @@
-use mwmr::{error::WtmError, PwmComparableRange};
+use std::convert::Infallible;
+
+use mwmr::{error::WtmError, HashCmOptions, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
@@ -15,7 +17,7 @@ where
   S: BuildHasher + Clone,
 {
   #[inline]
-  pub(super) fn new(db: EquivalentDB<K, V, S>) -> Self {
+  pub(super) fn new(db: EquivalentDB<K, V, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
@@ -23,7 +25,10 @@ where
         Options::default()
           .with_max_batch_entries(db.inner.max_batch_entries)
           .with_max_batch_size(db.inner.max_batch_size),
-        Some(db.inner.hasher.clone()),
+        Some(HashCmOptions::with_capacity(
+          db.inner.hasher.clone(),
+          cap.unwrap_or(8),
+        )),
       )
       .unwrap();
     Self { db, wtm }
@@ -52,9 +57,7 @@ where
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
   #[inline]
-  pub fn commit(
-    &mut self,
-  ) -> Result<(), WtmError<HashCm<K, S>, PendingMap<K, V>, core::convert::Infallible>> {
+  pub fn commit(&mut self) -> Result<(), WtmError<Infallible, Infallible, Infallible>> {
     self.wtm.commit(|ents| {
       self.db.inner.map.apply(ents);
       Ok(())
@@ -87,7 +90,7 @@ where
   pub fn commit_with_callback<E, R>(
     &mut self,
     callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<std::thread::JoinHandle<R>, WtmError<HashCm<K, S>, PendingMap<K, V>, E>>
+  ) -> Result<std::thread::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
   where
     E: std::error::Error,
     R: Send + 'static,
@@ -118,7 +121,7 @@ where
 
   /// Rollback the transaction.
   #[inline]
-  pub fn rollback(&mut self) -> Result<(), TransactionError<HashCm<K, S>, PendingMap<K, V>>> {
+  pub fn rollback(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.rollback()
   }
 
@@ -127,7 +130,7 @@ where
   pub fn contains_key<Q>(
     &mut self,
     key: &Q,
-  ) -> Result<bool, TransactionError<HashCm<K, S>, PendingMap<K, V>>>
+  ) -> Result<bool, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
     Q: core::hash::Hash + Eq + Ord + ?Sized,
@@ -145,7 +148,7 @@ where
   pub fn get<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<HashCm<K, S>, PendingMap<K, V>>>
+  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
     Q: core::hash::Hash + Eq + Ord + ?Sized,
@@ -169,13 +172,13 @@ where
     &mut self,
     key: K,
     value: V,
-  ) -> Result<(), TransactionError<HashCm<K, S>, PendingMap<K, V>>> {
+  ) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.insert(key, value)
   }
 
   /// Remove a key.
   #[inline]
-  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<HashCm<K, S>, PendingMap<K, V>>> {
+  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.remove(key)
   }
 
@@ -183,10 +186,8 @@ where
   #[inline]
   pub fn iter(
     &mut self,
-  ) -> Result<
-    WriteTransactionIter<'_, K, V, HashCm<K, S>>,
-    TransactionError<HashCm<K, S>, PendingMap<K, V>>,
-  > {
+  ) -> Result<WriteTransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>>
+  {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
 
@@ -202,7 +203,7 @@ where
     &mut self,
   ) -> Result<
     WriteTransactionRevIter<'_, K, V, HashCm<K, S>>,
-    TransactionError<HashCm<K, S>, PendingMap<K, V>>,
+    TransactionError<Infallible, Infallible>,
   > {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
@@ -224,7 +225,7 @@ where
     range: R,
   ) -> Result<
     WriteTransactionRange<'a, Q, R, K, V, HashCm<K, S>>,
-    TransactionError<HashCm<K, S>, PendingMap<K, V>>,
+    TransactionError<Infallible, Infallible>,
   >
   where
     K: Borrow<Q>,
@@ -252,7 +253,7 @@ where
     range: R,
   ) -> Result<
     WriteTransactionRevRange<'a, Q, R, K, V, HashCm<K, S>>,
-    TransactionError<HashCm<K, S>, PendingMap<K, V>>,
+    TransactionError<Infallible, Infallible>,
   >
   where
     K: Borrow<Q>,

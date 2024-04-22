@@ -1,4 +1,32 @@
+use smallvec_wrapper::MediumVec;
+
 use super::*;
+
+/// Options for the [`HashCm`].
+pub struct HashCmOptions<S> {
+  pub hasher: S,
+  pub capacity: Option<usize>,
+}
+
+impl<S> HashCmOptions<S> {
+  /// Creates a new `HashCmOptions` with the given hasher.
+  #[inline]
+  pub const fn new(hasher: S) -> Self {
+    Self {
+      hasher,
+      capacity: None,
+    }
+  }
+
+  /// Creates a new `HashCmOptions` with the given hasher and capacity.
+  #[inline]
+  pub const fn with_capacity(hasher: S, capacity: usize) -> Self {
+    Self {
+      hasher,
+      capacity: Some(capacity),
+    }
+  }
+}
 
 /// A [`Cm`] conflict manager implementation that based on the [`Hash`](core::hash::Hash).
 pub struct HashCm<K, S = DefaultHasher> {
@@ -24,14 +52,21 @@ where
 {
   type Error = core::convert::Infallible;
   type Key = K;
-  type Options = S;
+  type Options = HashCmOptions<S>;
 
   #[inline]
   fn new(options: Self::Options) -> Result<Self, Self::Error> {
-    Ok(Self {
-      reads: MediumVec::new(),
-      conflict_keys: IndexSet::with_hasher(options),
-      _k: core::marker::PhantomData,
+    Ok(match options.capacity {
+      Some(capacity) => Self {
+        reads: MediumVec::with_capacity(capacity),
+        conflict_keys: IndexSet::with_capacity_and_hasher(capacity, options.hasher),
+        _k: core::marker::PhantomData,
+      },
+      None => Self {
+        reads: MediumVec::new(),
+        conflict_keys: IndexSet::with_hasher(options.hasher),
+        _k: core::marker::PhantomData,
+      },
     })
   }
 

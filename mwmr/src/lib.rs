@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use core::mem;
 
-use error::TransactionError;
+use mwmr_core::error::TransactionError;
 pub use smallvec_wrapper::OneOrMore;
 
 #[cfg(feature = "future")]
@@ -29,7 +29,7 @@ pub use wmark::TokioSpawner;
 pub use wmark::AsyncStdSpawner;
 
 /// Error types for the [`mwmr`] crate.
-pub mod error;
+pub use mwmr_core::error;
 
 mod oracle;
 use oracle::*;
@@ -108,7 +108,7 @@ where
     &self,
     pending_manager_opts: P::Options,
     conflict_manager_opts: Option<C::Options>,
-  ) -> Result<Wtm<K, V, C, P>, TransactionError<C, P>> {
+  ) -> Result<Wtm<K, V, C, P>, TransactionError<C::Error, P::Error>> {
     let read_ts = self.inner.read_ts();
     Ok(Wtm {
       orc: self.inner.clone(),

@@ -4,7 +4,7 @@ use super::*;
 
 /// A [`Cm`] conflict manager implementation that based on the [`BTreeSet`](std::collections::BTreeSet).
 pub struct BTreeCm<K> {
-  reads: MediumVec<K>,
+  reads: TinyVec<K>,
   conflict_keys: BTreeSet<K>,
 }
 
@@ -23,12 +23,14 @@ where
 {
   type Error = core::convert::Infallible;
   type Key = K;
-  type Options = ();
+  type Options = Option<usize>;
 
   #[inline]
-  fn new(_options: Self::Options) -> Result<Self, Self::Error> {
+  fn new(options: Self::Options) -> Result<Self, Self::Error> {
     Ok(Self {
-      reads: MediumVec::new(),
+      reads: options
+        .map(TinyVec::with_capacity)
+        .unwrap_or_else(|| TinyVec::new()),
       conflict_keys: BTreeSet::new(),
     })
   }

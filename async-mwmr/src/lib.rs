@@ -26,8 +26,8 @@ pub use wmark::AsyncStdSpawner;
 #[cfg(feature = "tokio")]
 pub use wmark::TokioSpawner;
 
-/// Error types for the [`mwmr`] crate.
-pub mod error;
+/// Error types for the [`async-mwmr`] crate.
+pub use mwmr_core::error;
 
 mod oracle;
 use oracle::*;
@@ -39,7 +39,7 @@ pub use write::*;
 pub use mwmr_core::{
   future::*,
   sync::{
-    BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, Marker, Pwm, PwmComparable,
+    BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, Marker, Pwm, PwmComparable,
     PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
   },
   types::*,

@@ -411,12 +411,12 @@ pub mod sync;
 /// Traits for asynchronous.
 pub mod future;
 
+/// Errors
+pub mod error;
+
 impl<T> future::AsyncCm for T
 where
-  T: sync::Cm + Send + Sync + 'static,
-  <T as sync::Cm>::Key: Send + Sync + 'static,
-  <T as sync::Cm>::Options: Send + 'static,
-  <T as sync::Cm>::Error: Send + 'static,
+  T: sync::Cm,
 {
   type Error = <T as sync::Cm>::Error;
 
@@ -447,15 +447,12 @@ where
 
 impl<T> future::AsyncCmComparable for T
 where
-  T: sync::CmComparable + Send + Sync + 'static,
-  <T as sync::Cm>::Key: Send + Sync + 'static,
-  <T as sync::Cm>::Options: Send + 'static,
-  <T as sync::Cm>::Error: Send + 'static,
+  T: sync::CmComparable,
 {
   async fn mark_read_comparable<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::CmComparable>::mark_read_comparable(self, key)
   }
@@ -463,7 +460,7 @@ where
   async fn mark_conflict_comparable<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::CmComparable>::mark_conflict_comparable(self, key)
   }
@@ -471,15 +468,12 @@ where
 
 impl<T> future::AsyncCmEquivalent for T
 where
-  T: sync::CmEquivalent + Send + Sync + 'static,
-  <T as sync::Cm>::Key: Send + Sync + 'static,
-  <T as sync::Cm>::Options: Send + 'static,
-  <T as sync::Cm>::Error: Send + 'static,
+  T: sync::CmEquivalent,
 {
   async fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::CmEquivalent>::mark_read_equivalent(self, key)
   }
@@ -487,7 +481,7 @@ where
   async fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::CmEquivalent>::mark_conflict_equivalent(self, key)
   }
@@ -495,11 +489,7 @@ where
 
 impl<T> future::AsyncPwm for T
 where
-  T: sync::Pwm + Send + Sync + 'static,
-  <T as sync::Pwm>::Key: Send + Sync + 'static,
-  <T as sync::Pwm>::Value: Send + Sync + 'static,
-  <T as sync::Pwm>::Options: Send + 'static,
-  <T as sync::Pwm>::Error: Send + 'static,
+  T: sync::Pwm,
 {
   type Error = <T as sync::Pwm>::Error;
 
@@ -585,11 +575,7 @@ where
 
 impl<T> future::AsyncPwmComparable for T
 where
-  T: sync::PwmComparable + Send + Sync + 'static,
-  <T as sync::Pwm>::Key: Send + Sync + 'static,
-  <T as sync::Pwm>::Value: Send + Sync + 'static,
-  <T as sync::Pwm>::Options: Send,
-  <T as sync::Pwm>::Error: Send,
+  T: sync::PwmComparable,
 {
   async fn get_comparable<Q>(
     &self,
@@ -597,7 +583,7 @@ where
   ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::PwmComparable>::get_comparable(self, key)
   }
@@ -608,7 +594,7 @@ where
   ) -> Result<Option<(&Self::Key, &types::EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::PwmComparable>::get_entry_comparable(self, key)
   }
@@ -616,7 +602,7 @@ where
   async fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::PwmComparable>::contains_key_comparable(self, key)
   }
@@ -627,7 +613,7 @@ where
   ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     <T as sync::PwmComparable>::remove_entry_comparable(self, key)
   }
@@ -635,11 +621,7 @@ where
 
 impl<T> future::AsyncPwmEquivalent for T
 where
-  T: sync::PwmEquivalent + Send + Sync + 'static,
-  <T as sync::Pwm>::Key: Send + Sync + 'static,
-  <T as sync::Pwm>::Value: Send + Sync + 'static,
-  <T as sync::Pwm>::Options: Send,
-  <T as sync::Pwm>::Error: Send,
+  T: sync::PwmEquivalent,
 {
   async fn get_equivalent<Q>(
     &self,
@@ -647,7 +629,7 @@ where
   ) -> Result<Option<&types::EntryValue<Self::Value>>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::PwmEquivalent>::get_equivalent(self, key)
   }
@@ -658,7 +640,7 @@ where
   ) -> Result<Option<(&Self::Key, &types::EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::PwmEquivalent>::get_entry_equivalent(self, key)
   }
@@ -666,7 +648,7 @@ where
   async fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::PwmEquivalent>::contains_key_equivalent(self, key)
   }
@@ -677,7 +659,7 @@ where
   ) -> Result<Option<(Self::Key, types::EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     <T as sync::PwmEquivalent>::remove_entry_equivalent(self, key)
   }

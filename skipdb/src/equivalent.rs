@@ -116,7 +116,13 @@ where
   /// Create a write transaction.
   #[inline]
   pub fn write(&self) -> WriteTransaction<K, V, S> {
-    WriteTransaction::new(self.clone())
+    WriteTransaction::new(self.clone(), None)
+  }
+
+  /// Create a write transaction with the given capacity hint.
+  #[inline]
+  pub fn write_with_capacity(&self, capacity: usize) -> WriteTransaction<K, V, S> {
+    WriteTransaction::new(self.clone(), Some(capacity))
   }
 }
 

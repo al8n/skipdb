@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, ops::RangeBounds};
 
 use indexmap::IndexSet;
-use smallvec_wrapper::MediumVec;
+use smallvec_wrapper::TinyVec;
 
 use super::{types::*, *};
 

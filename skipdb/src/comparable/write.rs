@@ -1,6 +1,8 @@
 use mwmr::{error::WtmError, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
 
+use std::convert::Infallible;
+
 use super::*;
 
 /// A read only transaction over the [`EquivalentDB`],
@@ -14,7 +16,7 @@ where
   K: CheapClone + Ord,
 {
   #[inline]
-  pub(super) fn new(db: ComparableDB<K, V>) -> Self {
+  pub(super) fn new(db: ComparableDB<K, V>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
@@ -22,7 +24,7 @@ where
         Options::default()
           .with_max_batch_entries(db.inner.max_batch_entries)
           .with_max_batch_size(db.inner.max_batch_size),
-        Some(()),
+        Some(cap),
       )
       .unwrap();
     Self { db, wtm }
@@ -50,9 +52,7 @@ where
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
   #[inline]
-  pub fn commit(
-    &mut self,
-  ) -> Result<(), WtmError<BTreeCm<K>, PendingMap<K, V>, core::convert::Infallible>> {
+  pub fn commit(&mut self) -> Result<(), WtmError<Infallible, Infallible, Infallible>> {
     self.wtm.commit(|ents| {
       self.db.inner.map.apply(ents);
       Ok(())
@@ -84,7 +84,7 @@ where
   pub fn commit_with_callback<E, R>(
     &mut self,
     callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<std::thread::JoinHandle<R>, WtmError<BTreeCm<K>, PendingMap<K, V>, E>>
+  ) -> Result<std::thread::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
   where
     E: std::error::Error,
     R: Send + 'static,
@@ -113,7 +113,7 @@ where
 
   /// Rollback the transaction.
   #[inline]
-  pub fn rollback(&mut self) -> Result<(), TransactionError<BTreeCm<K>, PendingMap<K, V>>> {
+  pub fn rollback(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.rollback()
   }
 
@@ -122,7 +122,7 @@ where
   pub fn contains_key(
     &mut self,
     key: &K,
-  ) -> Result<bool, TransactionError<BTreeCm<K>, PendingMap<K, V>>> {
+  ) -> Result<bool, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
     match self.wtm.contains_key(key)? {
       Some(true) => Ok(true),
@@ -136,7 +136,7 @@ where
   pub fn get<'a, 'b: 'a>(
     &'a mut self,
     key: &'b K,
-  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<BTreeCm<K>, PendingMap<K, V>>> {
+  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
     match self.wtm.get(key)? {
       Some(v) => {
@@ -156,13 +156,13 @@ where
     &mut self,
     key: K,
     value: V,
-  ) -> Result<(), TransactionError<BTreeCm<K>, PendingMap<K, V>>> {
+  ) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.insert(key, value)
   }
 
   /// Remove a key.
   #[inline]
-  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<BTreeCm<K>, PendingMap<K, V>>> {
+  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.remove(key)
   }
 
@@ -170,10 +170,8 @@ where
   #[inline]
   pub fn iter(
     &mut self,
-  ) -> Result<
-    WriteTransactionIter<'_, K, V, BTreeCm<K>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
+  ) -> Result<WriteTransactionIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
+  {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
 
@@ -187,10 +185,8 @@ where
   #[inline]
   pub fn iter_rev(
     &mut self,
-  ) -> Result<
-    WriteTransactionRevIter<'_, K, V, BTreeCm<K>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
-  > {
+  ) -> Result<WriteTransactionRevIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
+  {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
 
@@ -211,7 +207,7 @@ where
     range: R,
   ) -> Result<
     WriteTransactionRange<'a, Q, R, K, V, BTreeCm<K>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
+    TransactionError<Infallible, Infallible>,
   >
   where
     K: Borrow<Q>,
@@ -239,7 +235,7 @@ where
     range: R,
   ) -> Result<
     WriteTransactionRevRange<'a, Q, R, K, V, BTreeCm<K>>,
-    TransactionError<BTreeCm<K>, PendingMap<K, V>>,
+    TransactionError<Infallible, Infallible>,
   >
   where
     K: Borrow<Q>,

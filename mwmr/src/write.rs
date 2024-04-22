@@ -107,7 +107,7 @@ where
   P: Pwm<Key = K, Value = V>,
 {
   /// Insert a key-value pair to the transaction.
-  pub fn insert(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
+  pub fn insert(&mut self, key: K, value: V) -> Result<(), TransactionError<C::Error, P::Error>> {
     self.insert_with_in(key, value)
   }
 
@@ -116,7 +116,7 @@ where
   /// This is done by adding a delete marker for the key at commit timestamp.  Any
   /// reads happening before this timestamp would be unaffected. Any reads after
   /// this commit would see the deletion.
-  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<C, P>> {
+  pub fn remove(&mut self, key: K) -> Result<(), TransactionError<C::Error, P::Error>> {
     self.modify(Entry {
       data: EntryData::Remove(key),
       version: 0,
@@ -124,7 +124,7 @@ where
   }
 
   /// Rolls back the transaction.
-  pub fn rollback(&mut self) -> Result<(), TransactionError<C, P>> {
+  pub fn rollback(&mut self) -> Result<(), TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -145,7 +145,10 @@ where
   }
 
   /// Returns `true` if the pending writes contains the key.
-  pub fn contains_key(&mut self, key: &K) -> Result<Option<bool>, TransactionError<C, P>> {
+  pub fn contains_key(
+    &mut self,
+    key: &K,
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -183,7 +186,7 @@ where
   pub fn get<'a, 'b: 'a>(
     &'a mut self,
     key: &'b K,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>> {
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -240,7 +243,7 @@ where
   /// there is a conflict, an error will be returned and the callback will not
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
-  pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WtmError<C, P, E>>
+  pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WtmError<C::Error, P::Error, E>>
   where
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E>,
     E: std::error::Error,
@@ -317,7 +320,7 @@ where
   pub fn contains_key_equivalent<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + core::hash::Hash,
@@ -359,7 +362,7 @@ where
   pub fn get_equivalent<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + core::hash::Hash,
@@ -413,7 +416,7 @@ where
   pub fn contains_key_comparable_cm_equivalent_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -455,7 +458,7 @@ where
   pub fn get_comparable_cm_equivalent_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -537,7 +540,7 @@ where
   pub fn contains_key_comparable<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Ord,
@@ -579,7 +582,7 @@ where
   pub fn get_comparable<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Ord,
@@ -633,7 +636,7 @@ where
   pub fn contains_key_equivalent_cm_comparable_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<bool>, TransactionError<C, P>>
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -675,7 +678,7 @@ where
   pub fn get_equivalent_cm_comparable_pm<'a, 'b: 'a, Q>(
     &'a mut self,
     key: &'b Q,
-  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C, P>>
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
     Q: ?Sized + Eq + Ord + core::hash::Hash,
@@ -743,7 +746,7 @@ where
     &mut self,
     apply: F,
     callback: impl FnOnce(Result<(), E>) -> R + Send + 'static,
-  ) -> Result<std::thread::JoinHandle<R>, WtmError<C, P, E>>
+  ) -> Result<std::thread::JoinHandle<R>, WtmError<C::Error, P::Error, E>>
   where
     K: Send + 'static,
     V: Send + 'static,
@@ -792,7 +795,11 @@ where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
 {
-  fn insert_with_in(&mut self, key: K, value: V) -> Result<(), TransactionError<C, P>> {
+  fn insert_with_in(
+    &mut self,
+    key: K,
+    value: V,
+  ) -> Result<(), TransactionError<C::Error, P::Error>> {
     let ent = Entry {
       data: EntryData::Insert { key, value },
       version: self.read_ts,
@@ -801,7 +808,7 @@ where
     self.modify(ent)
   }
 
-  fn modify(&mut self, ent: Entry<K, V>) -> Result<(), TransactionError<C, P>> {
+  fn modify(&mut self, ent: Entry<K, V>) -> Result<(), TransactionError<C::Error, P::Error>> {
     if self.discarded {
       return Err(TransactionError::Discard);
     }
@@ -856,7 +863,9 @@ where
   C: Cm<Key = K>,
   P: Pwm<Key = K, Value = V>,
 {
-  fn commit_entries(&mut self) -> Result<(u64, OneOrMore<Entry<K, V>>), TransactionError<C, P>> {
+  fn commit_entries(
+    &mut self,
+  ) -> Result<(u64, OneOrMore<Entry<K, V>>), TransactionError<C::Error, P::Error>> {
     // Ensure that the order in which we get the commit timestamp is the same as
     // the order in which we push these updates to the write channel. So, we
     // acquire a writeChLock before getting a commit timestamp, and only release

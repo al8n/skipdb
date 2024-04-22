@@ -31,42 +31,42 @@ impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
 ///
 /// 1. Contains fingerprints of keys read.
 /// 2. Contains fingerprints of keys written. This is used for conflict detection.
-pub trait AsyncCm: Sized + Send + 'static {
+pub trait AsyncCm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error + Send + 'static;
+  type Error: std::error::Error;
 
   /// The key type.
-  type Key: Send + 'static;
+  type Key;
 
   /// The options type used to create the conflict manager.
-  type Options: Send + 'static;
+  type Options;
 
   /// Create a new conflict manager with the given options.
-  fn new(options: Self::Options) -> impl Future<Output = Result<Self, Self::Error>> + Send;
+  fn new(options: Self::Options) -> impl Future<Output = Result<Self, Self::Error>>;
 
   /// Mark the key is read.
-  fn mark_read(&mut self, key: &Self::Key) -> impl Future<Output = ()> + Send;
+  fn mark_read(&mut self, key: &Self::Key) -> impl Future<Output = ()>;
 
   /// Mark the key is .
-  fn mark_conflict(&mut self, key: &Self::Key) -> impl Future<Output = ()> + Send;
+  fn mark_conflict(&mut self, key: &Self::Key) -> impl Future<Output = ()>;
 
   /// Returns true if we have a conflict.
-  fn has_conflict(&self, other: &Self) -> impl Future<Output = bool> + Send;
+  fn has_conflict(&self, other: &Self) -> impl Future<Output = bool>;
 
   /// Rollback the conflict manager.
-  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on hash.
 pub trait AsyncCmEquivalent: AsyncCm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
-  fn mark_read_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()> + Send
+  fn mark_read_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized + Sync;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
-  fn mark_conflict_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()> + Send
+  fn mark_conflict_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: core::hash::Hash + Eq + ?Sized + Sync;
@@ -75,13 +75,13 @@ pub trait AsyncCmEquivalent: AsyncCm {
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on the order.
 pub trait AsyncCmComparable: AsyncCm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
-  fn mark_read_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()> + Send
+  fn mark_read_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: Ord + ?Sized + Sync;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
-  fn mark_conflict_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()> + Send
+  fn mark_conflict_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
     Q: Ord + ?Sized + Sync;
@@ -96,15 +96,15 @@ pub trait AsyncCmComparable: AsyncCm {
 /// But, users can create their own implementations by implementing this trait.
 /// e.g. if you want to implement a recovery transaction manager, you can use a persistent
 /// storage to store the pending writes.
-pub trait AsyncPwm: Sized + 'static {
+pub trait AsyncPwm: Sized {
   /// The error type returned by the conflict manager.
-  type Error: std::error::Error + 'static;
+  type Error: std::error::Error;
   /// The key type.
-  type Key: Send + 'static;
+  type Key;
   /// The value type.
-  type Value: Send + 'static;
+  type Value;
   /// The options type used to create the pending manager.
-  type Options: Send + 'static;
+  type Options;
   /// The iterator type that borrows the pending writes.
   type Iter<'a>: Iterator<Item = (&'a Self::Key, &'a EntryValue<Self::Value>)>
   where
@@ -113,13 +113,13 @@ pub trait AsyncPwm: Sized + 'static {
   type IntoIter: Iterator<Item = (Self::Key, EntryValue<Self::Value>)>;
 
   /// Create a new pending manager with the given options.
-  fn new(options: Self::Options) -> impl Future<Output = Result<Self, Self::Error>> + Send;
+  fn new(options: Self::Options) -> impl Future<Output = Result<Self, Self::Error>>;
 
   /// Returns true if the buffer is empty.
-  fn is_empty(&self) -> impl Future<Output = bool> + Send;
+  fn is_empty(&self) -> impl Future<Output = bool>;
 
   /// Returns the number of elements in the buffer.
-  fn len(&self) -> impl Future<Output = usize> + Send;
+  fn len(&self) -> impl Future<Output = usize>;
 
   /// Validate if the entry is valid for this database.
   ///
@@ -132,7 +132,7 @@ pub trait AsyncPwm: Sized + 'static {
   fn validate_entry(
     &self,
     entry: &Entry<Self::Key, Self::Value>,
-  ) -> impl Future<Output = Result<(), Self::Error>> + Send;
+  ) -> impl Future<Output = Result<(), Self::Error>>;
 
   /// Returns the maximum batch size in bytes
   fn max_batch_size(&self) -> u64;
@@ -147,37 +147,36 @@ pub trait AsyncPwm: Sized + 'static {
   fn get(
     &self,
     key: &Self::Key,
-  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>> + Send;
+  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>>;
 
   /// Returns true if the pending manager contains the key.
-  fn contains_key(&self, key: &Self::Key)
-    -> impl Future<Output = Result<bool, Self::Error>> + Send;
+  fn contains_key(&self, key: &Self::Key) -> impl Future<Output = Result<bool, Self::Error>>;
 
   /// Inserts a key-value pair into the er.
   fn insert(
     &mut self,
     key: Self::Key,
     value: EntryValue<Self::Value>,
-  ) -> impl Future<Output = Result<(), Self::Error>> + Send;
+  ) -> impl Future<Output = Result<(), Self::Error>>;
 
   /// Removes a key from the pending writes, returning the key-value pair if the key was previously in the pending writes.
   fn remove_entry(
     &mut self,
     key: &Self::Key,
-  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>> + Send;
+  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>>;
 
   /// Rollback the pending writes.
-  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+  fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
 
   /// Returns an iterator over the pending writes.
   fn iter(
     &self,
-  ) -> impl Future<Output = impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)>> + Send;
+  ) -> impl Future<Output = impl Iterator<Item = (&Self::Key, &EntryValue<Self::Value>)>>;
 
   /// Returns an iterator that consumes the pending writes.
   fn into_iter(
     self,
-  ) -> impl Future<Output = impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>> + Send;
+  ) -> impl Future<Output = impl Iterator<Item = (Self::Key, EntryValue<Self::Value>)>>;
 }
 
 /// An optimized version of the [`AsyncPwm`] trait that if your pending writes manager is depend on hash.
@@ -186,36 +185,33 @@ pub trait AsyncPwmEquivalent: AsyncPwm {
   fn get_equivalent<Q>(
     &self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 
   fn get_entry_equivalent<Q>(
     &self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 
   /// Optimized version of [`AsyncPwm::contains_key`] that accepts borrowed keys.
-  fn contains_key_equivalent<Q>(
-    &self,
-    key: &Q,
-  ) -> impl Future<Output = Result<bool, Self::Error>> + Send
+  fn contains_key_equivalent<Q>(&self, key: &Q) -> impl Future<Output = Result<bool, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 
   /// Optimized version of [`AsyncPwm::remove_entry`] that accepts borrowed keys.
   fn remove_entry_equivalent<Q>(
     &mut self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`AsyncPwm`] trait that if your pending writes manager is depend on the order.
@@ -224,34 +220,31 @@ pub trait AsyncPwmComparable: AsyncPwm {
   fn get_comparable<Q>(
     &self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 
   fn get_entry_comparable<Q>(
     &self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 
   /// Optimized version of [`AsyncPwm::contains_key`] that accepts borrowed keys.
-  fn contains_key_comparable<Q>(
-    &self,
-    key: &Q,
-  ) -> impl Future<Output = Result<bool, Self::Error>> + Send
+  fn contains_key_comparable<Q>(&self, key: &Q) -> impl Future<Output = Result<bool, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 
   /// Optimized version of [`AsyncPwm::remove_entry`] that accepts borrowed keys.
   fn remove_entry_comparable<Q>(
     &mut self,
     key: &Q,
-  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>> + Send
+  ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 }
