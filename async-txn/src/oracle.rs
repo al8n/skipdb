@@ -210,11 +210,26 @@ where
     self.read_mark.done_until().unwrap()
   }
 
+  // #[inline]
+  // pub(super) async fn done_read(&self, read_ts: u64) {
+  //   self.read_mark.done_unchecked(read_ts).await;
+  // }
+
+  #[inline]
+  pub(super) fn done_read_blocking(&self, read_ts: u64) {
+    self.read_mark.done_unchecked_blocking(read_ts);
+  }
+
   #[inline]
   pub(super) fn done_read(&self, read_ts: u64) {
     self.read_mark.done(read_ts).unwrap();
   }
+}
 
+impl<C, S> Oracle<C, S>
+where
+  S: AsyncSpawner,
+{
   #[inline]
   pub(super) fn done_commit(&self, cts: u64) {
     self.txn_mark.done(cts).unwrap();
