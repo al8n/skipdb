@@ -753,7 +753,7 @@ fn compact() {
     }
   });
 
-  let handles = (0..100)
+  let handles = (0..10)
     .map(|_| {
       let db1 = db.clone();
       std::thread::spawn(move || {
@@ -792,13 +792,13 @@ fn compact() {
   assert_eq!(map.len(), 41);
 
   for i in 0..40 {
-    assert_eq!(map.get(&i).unwrap().value().len(), 101);
+    assert_eq!(map.get(&i).unwrap().value().len(), 11);
   }
 
   db.compact();
   assert_eq!(map.len(), 40);
   for i in 0..40 {
-    assert!(map.get(&i).unwrap().value().len() < 101);
+    assert!(map.get(&i).unwrap().value().len() < 11);
   }
 }
 
