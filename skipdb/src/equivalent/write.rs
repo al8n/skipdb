@@ -8,7 +8,7 @@ use super::*;
 /// A read only transaction over the [`EquivalentDB`],
 pub struct WriteTransaction<K, V, S = RandomState> {
   db: EquivalentDB<K, V, S>,
-  pub(super) wtm: Wtm<K, V, HashCm<K, S>, PendingMap<K, V>>,
+  pub(super) wtm: Wtm<K, V, HashCm<K, S>, BTreePwm<K, V>>,
 }
 
 impl<K, V, S> WriteTransaction<K, V, S>
@@ -22,9 +22,7 @@ where
       .inner
       .tm
       .write(
-        Options::default()
-          .with_max_batch_entries(db.inner.max_batch_entries)
-          .with_max_batch_size(db.inner.max_batch_size),
+        (),
         Some(HashCmOptions::with_capacity(
           db.inner.hasher.clone(),
           cap.unwrap_or(8),

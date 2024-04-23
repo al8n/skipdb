@@ -39,8 +39,8 @@ pub use write::*;
 pub use txn_core::{
   future::*,
   sync::{
-    BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, Marker, Pwm, PwmComparable,
-    PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
+    BTreeCm, BTreePwm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, IndexMapPwm, Marker,
+    Pwm, PwmComparable, PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
   },
   types::*,
 };

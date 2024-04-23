@@ -588,7 +588,6 @@ fn txn_iteration_edge_case2() {
   check_rev_iter(itr, &[31]);
 }
 
-
 /// a2, a3, b4 (del), b3, c2, c1
 /// Read at ts=4 -> a3, c2
 /// Read at ts=3 -> a3, b3, c2
@@ -646,15 +645,16 @@ fn txn_range_edge_case2() {
     assert_eq!(expected.len(), i);
   };
 
-  let check_rev_iter = |itr: WriteTransactionRevRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
-                        expected: &[u64]| {
-    let mut i = 0;
-    for ent in itr {
-      assert_eq!(expected[i], *ent.value());
-      i += 1;
-    }
-    assert_eq!(expected.len(), i);
-  };
+  let check_rev_iter =
+    |itr: WriteTransactionRevRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
+     expected: &[u64]| {
+      let mut i = 0;
+      for ent in itr {
+        assert_eq!(expected[i], *ent.value());
+        i += 1;
+      }
+      assert_eq!(expected.len(), i);
+    };
 
   let mut txn = db.write();
   let itr = txn.range(1..10).unwrap();
@@ -708,4 +708,94 @@ fn txn_range_edge_case2() {
   check_iter(itr, &[31]);
   let itr = txn.range_rev(1..10).unwrap();
   check_rev_iter(itr, &[31]);
+}
+
+#[test]
+fn compact() {
+  use rand::thread_rng;
+
+  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let mut txn = db.write();
+  let k = 88;
+  for i in 0..40 {
+    txn.insert(k, i).unwrap();
+    txn.insert(i, 100).unwrap();
+  }
+  txn.commit().unwrap();
+
+  let mut txn = db.write();
+  txn.remove(k).unwrap();
+  txn.commit().unwrap();
+
+  let closer = Closer::new(1);
+
+  let db1 = db.clone();
+  let closer1 = closer.clone();
+  std::thread::spawn(move || {
+    scopeguard::defer!(closer.done(););
+
+    loop {
+      crossbeam_channel::select! {
+        recv(closer.listen()) -> _ => return,
+        default => {
+          // Keep checking balance variant
+          let txn = db1.read();
+          let mut total_balance = 0;
+
+          for i in 0..40 {
+            let _item = txn.get(&i).unwrap();
+            total_balance += 100;
+          }
+          assert_eq!(total_balance, 4000);
+        }
+      }
+    }
+  });
+
+  let handles = (0..100)
+    .map(|_| {
+      let db1 = db.clone();
+      std::thread::spawn(move || {
+        let mut txn = db1.write();
+        for i in 0..20 {
+          let mut rng = thread_rng();
+          let r = rng.gen_range(0..100);
+          let v = 100 - r;
+          txn.insert(i, v).unwrap();
+        }
+
+        for i in 20..40 {
+          let mut rng = thread_rng();
+          let r = rng.gen_range(0..100);
+          let v = 100 + r;
+          txn.insert(i, v).unwrap();
+        }
+
+        // We are only doing writes, so there won't be any conflicts.
+        let _ = txn
+          .commit_with_callback::<std::convert::Infallible, ()>(|_| {})
+          .unwrap();
+      })
+    })
+    .collect::<Vec<_>>();
+
+  for h in handles {
+    h.join().unwrap();
+  }
+
+  closer1.signal_and_wait();
+  std::thread::sleep(Duration::from_millis(10));
+
+  let map = db.as_inner().__by_ref();
+  assert_eq!(map.len(), 41);
+
+  for i in 0..40 {
+    assert_eq!(map.get(&i).unwrap().value().len(), 101);
+  }
+
+  db.compact();
+  assert_eq!(map.len(), 40);
+  for i in 0..40 {
+    assert_eq!(map.get(&i).unwrap().value().len(), 1);
+  }
 }

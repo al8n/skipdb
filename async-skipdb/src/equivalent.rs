@@ -12,22 +12,18 @@ struct Inner<K, V, SP, S = RandomState>
 where
   SP: AsyncSpawner,
 {
-  tm: AsyncTm<K, V, HashCm<K, S>, PendingMap<K, V>, SP>,
+  tm: AsyncTm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
   map: SkipCore<K, V>,
   hasher: S,
-  max_batch_size: u64,
-  max_batch_entries: u64,
 }
 
 impl<K, V, SP: AsyncSpawner, S> Inner<K, V, SP, S> {
-  async fn new(name: &str, max_batch_size: u64, max_batch_entries: u64, hasher: S) -> Self {
+  async fn new(name: &str, hasher: S) -> Self {
     let tm = AsyncTm::<_, _, _, _, SP>::new(name, 0).await;
     Self {
       tm,
       map: SkipCore::new(),
       hasher,
-      max_batch_size,
-      max_batch_entries,
     }
   }
 
@@ -47,6 +43,7 @@ pub struct EquivalentDB<K, V, SP: AsyncSpawner, S = RandomState> {
   inner: Arc<Inner<K, V, SP, S>>,
 }
 
+#[doc(hidden)]
 impl<K, V, SP, S> AsSkipCore<K, V> for EquivalentDB<K, V, SP, S>
 where
   SP: AsyncSpawner,
@@ -73,7 +70,7 @@ impl<K, V, SP: AsyncSpawner> EquivalentDB<K, V, SP> {
   /// Creates a new `EquivalentDB` with the given options.
   #[inline]
   pub async fn new() -> Self {
-    Self::with_options_and_hasher(Default::default(), Default::default()).await
+    Self::with_hasher(Default::default()).await
   }
 }
 
@@ -81,21 +78,7 @@ impl<K, V, SP: AsyncSpawner, S> EquivalentDB<K, V, SP, S> {
   /// Creates a new `EquivalentDB` with the given hasher.
   #[inline]
   pub async fn with_hasher(hasher: S) -> Self {
-    Self::with_options_and_hasher(Default::default(), hasher).await
-  }
-
-  /// Creates a new `EquivalentDB` with the given options and hasher.
-  #[inline]
-  pub async fn with_options_and_hasher(opts: Options, hasher: S) -> Self {
-    let inner = Arc::new(
-      Inner::<_, _, SP, _>::new(
-        core::any::type_name::<Self>(),
-        opts.max_batch_size(),
-        opts.max_batch_entries(),
-        hasher,
-      )
-      .await,
-    );
+    let inner = Arc::new(Inner::<_, _, SP, _>::new(core::any::type_name::<Self>(), hasher).await);
     Self { inner }
   }
 

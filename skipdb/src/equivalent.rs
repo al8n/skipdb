@@ -8,22 +8,18 @@ pub use write::*;
 mod tests;
 
 struct Inner<K, V, S = RandomState> {
-  tm: Tm<K, V, HashCm<K, S>, PendingMap<K, V>>,
+  tm: Tm<K, V, HashCm<K, S>, BTreePwm<K, V>>,
   map: SkipCore<K, V>,
   hasher: S,
-  max_batch_size: u64,
-  max_batch_entries: u64,
 }
 
 impl<K, V, S> Inner<K, V, S> {
-  fn new(name: &str, max_batch_size: u64, max_batch_entries: u64, hasher: S) -> Self {
+  fn new(name: &str, hasher: S) -> Self {
     let tm = Tm::new(name, 0);
     Self {
       tm,
       map: SkipCore::new(),
       hasher,
-      max_batch_size,
-      max_batch_entries,
     }
   }
 
@@ -43,6 +39,7 @@ pub struct EquivalentDB<K, V, S = RandomState> {
   inner: Arc<Inner<K, V, S>>,
 }
 
+#[doc(hidden)]
 impl<K, V, S> AsSkipCore<K, V> for EquivalentDB<K, V, S> {
   #[inline]
   #[allow(private_interfaces)]
@@ -72,7 +69,7 @@ impl<K, V> EquivalentDB<K, V> {
   /// Creates a new `EquivalentDB` with the given options.
   #[inline]
   pub fn new() -> Self {
-    Self::with_options_and_hasher(Default::default(), Default::default())
+    Self::with_hasher(Default::default())
   }
 }
 
@@ -80,18 +77,7 @@ impl<K, V, S> EquivalentDB<K, V, S> {
   /// Creates a new `EquivalentDB` with the given hasher.
   #[inline]
   pub fn with_hasher(hasher: S) -> Self {
-    Self::with_options_and_hasher(Default::default(), hasher)
-  }
-
-  /// Creates a new `EquivalentDB` with the given options and hasher.
-  #[inline]
-  pub fn with_options_and_hasher(opts: Options, hasher: S) -> Self {
-    let inner = Arc::new(Inner::new(
-      core::any::type_name::<Self>(),
-      opts.max_batch_size(),
-      opts.max_batch_entries(),
-      hasher,
-    ));
+    let inner = Arc::new(Inner::new(core::any::type_name::<Self>(), hasher));
     Self { inner }
   }
 

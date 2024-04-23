@@ -151,4 +151,3 @@ impl Closer {
     self.inner.ctx.done()
   }
 }
-

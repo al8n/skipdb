@@ -8,7 +8,7 @@ use super::*;
 /// A read only transaction over the [`EquivalentDB`],
 pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
   db: EquivalentDB<K, V, SP, S>,
-  pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, PendingMap<K, V>, SP>,
+  pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
 }
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
@@ -23,9 +23,7 @@ where
       .inner
       .tm
       .write_with_blocking_cm_and_pwm(
-        Options::default()
-          .with_max_batch_entries(db.inner.max_batch_entries)
-          .with_max_batch_size(db.inner.max_batch_size),
+        (),
         Some(HashCmOptions::with_capacity(
           db.inner.hasher.clone(),
           cap.unwrap_or(8),

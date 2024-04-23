@@ -9,7 +9,7 @@
 
 use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
-use async_txn::{error::TransactionError, AsyncRtm, AsyncTm, AsyncWtm, HashCm, HashCmOptions, Pwm};
+use async_txn::{error::TransactionError, AsyncRtm, AsyncTm, AsyncWtm, HashCm, HashCmOptions};
 
 /// `EquivalentDB` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
 /// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDB`] instead.
@@ -23,15 +23,14 @@ pub use skipdb_core::{
   range::*,
   rev_iter::*,
   types::{Ref, ValueRef},
-  Options,
 };
 
-use skipdb_core::{AsSkipCore, Database, PendingMap, SkipCore};
+use skipdb_core::{AsSkipCore, Database, SkipCore};
 
 mod read;
 pub use read::*;
 
-pub use async_txn::{AsyncSpawner, Detach};
+pub use async_txn::{AsyncSpawner, BTreePwm, Detach};
 
 #[cfg(feature = "smol")]
 #[cfg_attr(docsrs, doc(cfg(feature = "smol")))]

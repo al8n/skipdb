@@ -9,7 +9,7 @@
 
 use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
-use txn::{error::TransactionError, HashCm, Pwm, Rtm, Tm, Wtm};
+use txn::{error::TransactionError, BTreePwm, HashCm, Rtm, Tm, Wtm};
 
 /// `EquivalentDB` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
 /// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDB`] instead.
@@ -26,7 +26,6 @@ pub use skipdb_core::{
   range::*,
   rev_iter::*,
   types::{Ref, ValueRef},
-  Options,
 };
 
-use skipdb_core::{AsSkipCore, Database, PendingMap, SkipCore};
+use skipdb_core::{AsSkipCore, Database, SkipCore};

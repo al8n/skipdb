@@ -10,20 +10,16 @@ pub use write::*;
 mod tests;
 
 struct Inner<K, V> {
-  tm: Tm<K, V, BTreeCm<K>, PendingMap<K, V>>,
+  tm: Tm<K, V, BTreeCm<K>, BTreePwm<K, V>>,
   map: SkipCore<K, V>,
-  max_batch_size: u64,
-  max_batch_entries: u64,
 }
 
 impl<K, V> Inner<K, V> {
-  fn new(name: &str, max_batch_size: u64, max_batch_entries: u64) -> Self {
+  fn new(name: &str) -> Self {
     let tm = Tm::new(name, 0);
     Self {
       tm,
       map: SkipCore::new(),
-      max_batch_size,
-      max_batch_entries,
     }
   }
 
@@ -44,9 +40,9 @@ pub struct ComparableDB<K, V> {
   inner: Arc<Inner<K, V>>,
 }
 
+#[doc(hidden)]
 impl<K, V> AsSkipCore<K, V> for ComparableDB<K, V> {
   #[inline]
-  #[allow(private_interfaces)]
   fn as_inner(&self) -> &SkipCore<K, V> {
     &self.inner.map
   }
@@ -70,26 +66,16 @@ impl<K, V> Default for ComparableDB<K, V> {
 }
 
 impl<K, V> ComparableDB<K, V> {
-  /// Creates a new `ComparableDB` with the given options.
+  /// Creates a new `ComparableDB`
   #[inline]
   pub fn new() -> Self {
-    Self::with_options(Default::default())
+    Self {
+      inner: Arc::new(Inner::new(core::any::type_name::<Self>())),
+    }
   }
 }
 
 impl<K, V> ComparableDB<K, V> {
-  /// Creates a new `ComparableDB` with the given options.
-  #[inline]
-  pub fn with_options(opts: Options) -> Self {
-    Self {
-      inner: Arc::new(Inner::new(
-        core::any::type_name::<Self>(),
-        opts.max_batch_size(),
-        opts.max_batch_entries(),
-      )),
-    }
-  }
-
   /// Returns the current read version of the database.
   #[inline]
   pub fn version(&self) -> u64 {

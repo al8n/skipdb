@@ -13,20 +13,16 @@ struct Inner<K, V, S>
 where
   S: AsyncSpawner,
 {
-  tm: AsyncTm<K, V, BTreeCm<K>, PendingMap<K, V>, S>,
+  tm: AsyncTm<K, V, BTreeCm<K>, BTreePwm<K, V>, S>,
   map: SkipCore<K, V>,
-  max_batch_size: u64,
-  max_batch_entries: u64,
 }
 
 impl<K, V, S: AsyncSpawner> Inner<K, V, S> {
-  async fn new(name: &str, max_batch_size: u64, max_batch_entries: u64) -> Self {
+  async fn new(name: &str) -> Self {
     let tm = AsyncTm::new(name, 0).await;
     Self {
       tm,
       map: SkipCore::new(),
-      max_batch_size,
-      max_batch_entries,
     }
   }
 
@@ -47,6 +43,7 @@ pub struct ComparableDB<K, V, S: AsyncSpawner> {
   inner: Arc<Inner<K, V, S>>,
 }
 
+#[doc(hidden)]
 impl<K, V, S: AsyncSpawner> AsSkipCore<K, V> for ComparableDB<K, V, S> {
   #[inline]
   #[allow(private_interfaces)]
@@ -65,29 +62,16 @@ impl<K, V, S: AsyncSpawner> Clone for ComparableDB<K, V, S> {
 }
 
 impl<K, V, S: AsyncSpawner> ComparableDB<K, V, S> {
-  /// Creates a new `ComparableDB` with the given options.
+  /// Creates a new `ComparableDB`.
   #[inline]
   pub async fn new() -> Self {
-    Self::with_options(Default::default()).await
+    Self {
+      inner: Arc::new(Inner::new(core::any::type_name::<Self>()).await),
+    }
   }
 }
 
 impl<K, V, S: AsyncSpawner> ComparableDB<K, V, S> {
-  /// Creates a new `ComparableDB` with the given options.
-  #[inline]
-  pub async fn with_options(opts: Options) -> Self {
-    Self {
-      inner: Arc::new(
-        Inner::new(
-          core::any::type_name::<Self>(),
-          opts.max_batch_size(),
-          opts.max_batch_entries(),
-        )
-        .await,
-      ),
-    }
-  }
-
   /// Returns the current read version of the database.
   #[inline]
   pub async fn version(&self) -> u64 {

@@ -8,7 +8,7 @@ use super::*;
 /// A read only transaction over the [`EquivalentDB`],
 pub struct WriteTransaction<K, V> {
   pub(super) db: ComparableDB<K, V>,
-  pub(super) wtm: Wtm<K, V, BTreeCm<K>, PendingMap<K, V>>,
+  pub(super) wtm: Wtm<K, V, BTreeCm<K>, BTreePwm<K, V>>,
 }
 
 impl<K, V> WriteTransaction<K, V>
@@ -17,16 +17,7 @@ where
 {
   #[inline]
   pub(super) fn new(db: ComparableDB<K, V>, cap: Option<usize>) -> Self {
-    let wtm = db
-      .inner
-      .tm
-      .write(
-        Options::default()
-          .with_max_batch_entries(db.inner.max_batch_entries)
-          .with_max_batch_size(db.inner.max_batch_size),
-        Some(cap),
-      )
-      .unwrap();
+    let wtm = db.inner.tm.write((), Some(cap)).unwrap();
     Self { db, wtm }
   }
 }
