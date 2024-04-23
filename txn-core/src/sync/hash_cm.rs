@@ -137,3 +137,24 @@ where
     self.conflict_keys.insert(fp);
   }
 }
+
+#[cfg(test)]
+mod test {
+  use crate::sync::CmEquivalent;
+
+  use super::{Cm, HashCm, HashCmOptions};
+
+  #[test]
+  fn test_hash_cm() {
+    let mut cm = HashCm::<u64>::new(HashCmOptions::new(
+      std::collections::hash_map::RandomState::new(),
+    ))
+    .unwrap();
+    cm.mark_read(&1);
+    cm.mark_read(&2);
+    cm.mark_conflict(&3);
+    let mut cm2 = cm.clone();
+    cm2.mark_conflict_equivalent(&2);
+    assert!(cm.has_conflict(&cm2));
+  }
+}

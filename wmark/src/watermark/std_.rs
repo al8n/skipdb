@@ -325,7 +325,7 @@ impl WaterMark {
     })
   }
 
-  #[inline(always)]
+  #[inline]
   fn check(&self) -> Result<()> {
     if !self.initialized {
       return Err(WaterMarkError::Uninitialized);
@@ -346,6 +346,7 @@ mod tests {
 
     let mut watermark = WaterMark::new("watermark".into());
     watermark.init(closer.clone());
+    assert_eq!(watermark.name(), "watermark");
 
     f(&watermark);
 
@@ -394,6 +395,14 @@ mod tests {
       watermark.done_many([2, 3].into_iter().collect()).unwrap();
 
       assert_eq!(watermark.last_index().unwrap(), 3);
+    });
+  }
+
+  #[test]
+  fn test_done_until() {
+    init_and_close(|watermark| {
+      watermark.set_done_util(1).unwrap();
+      assert_eq!(watermark.done_until().unwrap(), 1);
     });
   }
 

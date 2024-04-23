@@ -336,7 +336,7 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     Ok(())
   }
 
-  #[inline(always)]
+  #[inline]
   fn check(&self) -> Result<()> {
     if !self.initialized {
       Err(WaterMarkError::Uninitialized)
@@ -361,6 +361,7 @@ mod tests {
 
     let mut watermark = AsyncWaterMark::new("watermark".into());
     watermark.init(closer.clone());
+    assert_eq!(watermark.name(), "watermark");
 
     f(watermark).await;
 
@@ -398,6 +399,15 @@ mod tests {
       watermark.wait_for_mark(1).await.unwrap();
       watermark.wait_for_mark(3).await.unwrap();
       assert_eq!(watermark.done_until().unwrap(), 3);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_set_done_until() {
+    init_and_close::<crate::TokioSpawner, _, _>(|watermark| async move {
+      watermark.set_done_util(1).unwrap();
+      assert_eq!(watermark.done_until().unwrap(), 1);
     })
     .await;
   }

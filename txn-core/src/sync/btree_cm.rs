@@ -68,3 +68,19 @@ where
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::{BTreeCm, Cm};
+
+  #[test]
+  fn test_hash_cm() {
+    let mut cm = BTreeCm::<u64>::new(None).unwrap();
+    cm.mark_read(&1);
+    cm.mark_read(&2);
+    cm.mark_conflict(&2);
+    cm.mark_conflict(&3);
+    let cm2 = cm.clone();
+    assert!(cm.has_conflict(&cm2));
+  }
+}
