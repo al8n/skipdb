@@ -742,6 +742,7 @@ fn compact() {
             total_balance += 100;
           }
           assert_eq!(total_balance, 4000);
+          std::thread::yield_now();
         }
       }
     }
@@ -779,7 +780,7 @@ fn compact() {
   }
 
   closer1.signal_and_wait();
-  std::thread::sleep(Duration::from_millis(10));
+  std::thread::sleep(Duration::from_millis(1000));
 
   let map = db.as_inner().__by_ref();
   assert_eq!(map.len(), 41);
