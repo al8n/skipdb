@@ -70,6 +70,7 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
 
     tx.insert("foo", "foo1").unwrap();
     assert_eq!(*tx.get("foo").unwrap().unwrap().value(), "foo1");
+    assert!(tx.contains_key("foo").unwrap());
     tx.commit().await.unwrap();
   }
 
@@ -77,6 +78,7 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
     let tx = db.read().await;
     assert_eq!(tx.version(), 1);
     assert_eq!(*tx.get("foo").unwrap().value(), "foo1");
+    assert!(tx.contains_key("foo"));
   }
 }
 
