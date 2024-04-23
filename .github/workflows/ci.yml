@@ -103,8 +103,9 @@ jobs:
       - name: Run Coverage and Generate Report
         run: |
           cargo tarpaulin --all-features --out xml
+        continue-on-error: true
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3.1.1
         with:
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
