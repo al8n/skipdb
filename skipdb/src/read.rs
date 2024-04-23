@@ -2,7 +2,7 @@ use skipdb_core::rev_range::RevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct ReadTransaction<K, V, I, C> {
   pub(crate) db: I,
   pub(crate) rtm: Rtm<K, V, C, BTreePwm<K, V>>,

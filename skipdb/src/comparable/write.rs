@@ -5,9 +5,9 @@ use std::convert::Infallible;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct WriteTransaction<K, V> {
-  pub(super) db: ComparableDB<K, V>,
+  pub(super) db: ComparableDb<K, V>,
   pub(super) wtm: Wtm<K, V, BTreeCm<K>, BTreePwm<K, V>>,
 }
 
@@ -16,7 +16,7 @@ where
   K: CheapClone + Ord,
 {
   #[inline]
-  pub(super) fn new(db: ComparableDB<K, V>, cap: Option<usize>) -> Self {
+  pub(super) fn new(db: ComparableDb<K, V>, cap: Option<usize>) -> Self {
     let wtm = db.inner.tm.write((), Some(cap)).unwrap();
     Self { db, wtm }
   }

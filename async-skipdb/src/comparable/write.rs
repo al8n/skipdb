@@ -5,9 +5,9 @@ use std::{convert::Infallible, future::Future};
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct WriteTransaction<K, V, S: AsyncSpawner> {
-  pub(super) db: ComparableDB<K, V, S>,
+  pub(super) db: ComparableDb<K, V, S>,
   pub(super) wtm: AsyncWtm<K, V, BTreeCm<K>, BTreePwm<K, V>, S>,
 }
 
@@ -17,7 +17,7 @@ where
   S: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: ComparableDB<K, V, S>, cap: Option<usize>) -> Self {
+  pub(super) async fn new(db: ComparableDb<K, V, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm

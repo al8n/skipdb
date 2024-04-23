@@ -5,9 +5,9 @@ use txn::{error::WtmError, HashCmOptions, PwmComparableRange};
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct WriteTransaction<K, V, S = RandomState> {
-  db: EquivalentDB<K, V, S>,
+  db: EquivalentDb<K, V, S>,
   pub(super) wtm: Wtm<K, V, HashCm<K, S>, BTreePwm<K, V>>,
 }
 
@@ -17,7 +17,7 @@ where
   S: BuildHasher + Clone,
 {
   #[inline]
-  pub(super) fn new(db: EquivalentDB<K, V, S>, cap: Option<usize>) -> Self {
+  pub(super) fn new(db: EquivalentDb<K, V, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm

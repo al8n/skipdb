@@ -30,17 +30,17 @@ impl<K, V, S> Inner<K, V, S> {
 
 /// A concurrent ACID, MVCC in-memory database based on [`crossbeam-skiplist`][crossbeam_skiplist].
 ///
-/// `EquivalentDB` requires key to be [`Ord`] and [`Hash`](core::hash::Hash).
+/// `EquivalentDb` requires key to be [`Ord`] and [`Hash`](core::hash::Hash).
 ///
-/// Comparing to [`ComparableDB`](crate::comparable::ComparableDB),
-/// `EquivalentDB` has more flexible write transaction APIs and no clone happen.
-/// But, [`ComparableDB`](crate::comparable::ComparableDB) does not require the key to implement [`Hash`](core::hash::Hash).
-pub struct EquivalentDB<K, V, S = RandomState> {
+/// Comparing to [`ComparableDb`](crate::comparable::ComparableDb),
+/// `EquivalentDb` has more flexible write transaction APIs and no clone happen.
+/// But, [`ComparableDb`](crate::comparable::ComparableDb) does not require the key to implement [`Hash`](core::hash::Hash).
+pub struct EquivalentDb<K, V, S = RandomState> {
   inner: Arc<Inner<K, V, S>>,
 }
 
 #[doc(hidden)]
-impl<K, V, S> AsSkipCore<K, V> for EquivalentDB<K, V, S> {
+impl<K, V, S> AsSkipCore<K, V> for EquivalentDb<K, V, S> {
   #[inline]
   #[allow(private_interfaces)]
   fn as_inner(&self) -> &SkipCore<K, V> {
@@ -48,7 +48,7 @@ impl<K, V, S> AsSkipCore<K, V> for EquivalentDB<K, V, S> {
   }
 }
 
-impl<K, V, S> Clone for EquivalentDB<K, V, S> {
+impl<K, V, S> Clone for EquivalentDb<K, V, S> {
   #[inline]
   fn clone(&self) -> Self {
     Self {
@@ -57,24 +57,24 @@ impl<K, V, S> Clone for EquivalentDB<K, V, S> {
   }
 }
 
-impl<K, V> Default for EquivalentDB<K, V> {
-  /// Creates a new `EquivalentDB` with the default options.
+impl<K, V> Default for EquivalentDb<K, V> {
+  /// Creates a new `EquivalentDb` with the default options.
   #[inline]
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<K, V> EquivalentDB<K, V> {
-  /// Creates a new `EquivalentDB` with the given options.
+impl<K, V> EquivalentDb<K, V> {
+  /// Creates a new `EquivalentDb` with the given options.
   #[inline]
   pub fn new() -> Self {
     Self::with_hasher(Default::default())
   }
 }
 
-impl<K, V, S> EquivalentDB<K, V, S> {
-  /// Creates a new `EquivalentDB` with the given hasher.
+impl<K, V, S> EquivalentDb<K, V, S> {
+  /// Creates a new `EquivalentDb` with the given hasher.
   #[inline]
   pub fn with_hasher(hasher: S) -> Self {
     let inner = Arc::new(Inner::new(core::any::type_name::<Self>(), hasher));
@@ -89,12 +89,12 @@ impl<K, V, S> EquivalentDB<K, V, S> {
 
   /// Create a read transaction.
   #[inline]
-  pub fn read(&self) -> ReadTransaction<K, V, EquivalentDB<K, V, S>, HashCm<K, S>> {
+  pub fn read(&self) -> ReadTransaction<K, V, EquivalentDb<K, V, S>, HashCm<K, S>> {
     ReadTransaction::new(self.clone(), self.inner.tm.read())
   }
 }
 
-impl<K, V, S> EquivalentDB<K, V, S>
+impl<K, V, S> EquivalentDb<K, V, S>
 where
   K: Ord + Eq + core::hash::Hash,
   V: 'static,
@@ -113,7 +113,7 @@ where
   }
 }
 
-impl<K, V, S> EquivalentDB<K, V, S>
+impl<K, V, S> EquivalentDb<K, V, S>
 where
   K: Ord + Eq + core::hash::Hash + Send + 'static,
   V: Send + 'static,

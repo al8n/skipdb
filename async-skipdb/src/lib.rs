@@ -11,11 +11,11 @@ use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
 use async_txn::{error::TransactionError, AsyncRtm, AsyncTm, AsyncWtm, HashCm, HashCmOptions};
 
-/// `EquivalentDB` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
-/// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDB`] instead.
+/// `EquivalentDb` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
+/// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDb`] instead.
 pub mod equivalent;
 
-/// `ComparableDB` implementation, which requires `K` implements [`Ord`] and [`CheapClone`](cheap_clone::CheapClone). If your `K` implements both [`Hash`](core::hash::Hash) and [`Ord`], you are recommended to use [`EquivalentDB`](crate::equivalent::EquivalentDB) instead.
+/// `ComparableDb` implementation, which requires `K` implements [`Ord`] and [`CheapClone`](cheap_clone::CheapClone). If your `K` implements both [`Hash`](core::hash::Hash) and [`Ord`], you are recommended to use [`EquivalentDb`](crate::equivalent::EquivalentDb) instead.
 pub mod comparable;
 
 pub use skipdb_core::{
@@ -43,3 +43,7 @@ pub use async_txn::TokioSpawner;
 #[cfg(feature = "async-std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "async-std")))]
 pub use async_txn::AsyncStdSpawner;
+
+#[cfg(feature = "wasm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "wasm")))]
+pub use async_txn::WasmSpawner;

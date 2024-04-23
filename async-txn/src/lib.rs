@@ -26,6 +26,9 @@ pub use wmark::AsyncStdSpawner;
 #[cfg(feature = "tokio")]
 pub use wmark::TokioSpawner;
 
+#[cfg(feature = "wasm")]
+pub use wmark::WasmSpawner;
+
 /// Error types for the [`async-txn`] crate.
 pub use txn_core::error;
 

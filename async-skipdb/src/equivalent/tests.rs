@@ -14,7 +14,7 @@ use wmark::AsyncCloser;
 use super::*;
 
 async fn begin_tx_readable_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<&'static str, Vec<u8>, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<&'static str, Vec<u8>, S> = EquivalentDb::new().await;
   let tx = db.read().await;
   assert_eq!(tx.version(), 0);
 }
@@ -38,7 +38,7 @@ fn begin_tx_readable_smol() {
 }
 
 async fn begin_tx_writeable_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<&'static str, Vec<u8>, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<&'static str, Vec<u8>, S> = EquivalentDb::new().await;
   let tx = db.write().await;
   assert_eq!(tx.version(), 0);
 }
@@ -62,7 +62,7 @@ fn begin_tx_writeable_smol() {
 }
 
 async fn writeable_tx_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<&'static str, &'static str, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<&'static str, &'static str, S> = EquivalentDb::new().await;
   {
     let mut tx = db.write().await;
     assert_eq!(tx.version(), 0);
@@ -98,7 +98,7 @@ fn writeable_tx_smol() {
 }
 
 async fn txn_simple_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   {
     let mut txn = db.write().await;
@@ -145,7 +145,7 @@ fn txn_simple_smol() {
 async fn txn_read_after_write_in<S: AsyncSpawner>() {
   const N: u64 = 100;
 
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   let mut handles = (0..N)
     .map(|i| {
@@ -194,7 +194,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
 ) where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
   let mut txn = db.write().await;
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
@@ -285,7 +285,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   // Set balance to $100 in each account.
   let mut txn = db.write().await;
@@ -360,7 +360,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+    let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -419,7 +419,7 @@ fn txn_conflict_get_smol() {
 }
 
 async fn txn_versions_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   let k0 = 0;
   for i in 1..10 {
@@ -496,7 +496,7 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+    let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -569,7 +569,7 @@ fn txn_conflict_iter_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   // c1
   {
@@ -685,7 +685,7 @@ fn txn_iteration_edge_case_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
 
   // c1
   {
@@ -817,7 +817,7 @@ async fn compact_in<S: AsyncSpawner, Y>(yielder: impl Fn() -> Y + Send + Sync + 
 where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
   let mut txn = db.write().await;
   let k = 88;
   for i in 0..40 {
@@ -924,7 +924,7 @@ fn compact_smol() {
 }
 
 async fn rollback_in<S: AsyncSpawner>() {
-  let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
+  let db: EquivalentDb<u64, u64, S> = EquivalentDb::new().await;
   let mut txn = db.write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();

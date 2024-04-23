@@ -5,9 +5,9 @@ use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
-  db: EquivalentDB<K, V, SP, S>,
+  db: EquivalentDb<K, V, SP, S>,
   pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
 }
 
@@ -18,7 +18,7 @@ where
   SP: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: EquivalentDB<K, V, SP, S>, cap: Option<usize>) -> Self {
+  pub(super) async fn new(db: EquivalentDb<K, V, SP, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm

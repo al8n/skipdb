@@ -12,21 +12,21 @@ use super::*;
 
 #[test]
 fn begin_tx_readable() {
-  let db: EquivalentDB<&'static str, Vec<u8>> = EquivalentDB::new();
+  let db: EquivalentDb<&'static str, Vec<u8>> = EquivalentDb::new();
   let tx = db.read();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn begin_tx_writeable() {
-  let db: EquivalentDB<&'static str, Vec<u8>> = EquivalentDB::new();
+  let db: EquivalentDb<&'static str, Vec<u8>> = EquivalentDb::new();
   let tx = db.write();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn writeable_tx() {
-  let db: EquivalentDB<&'static str, &'static str> = EquivalentDB::new();
+  let db: EquivalentDb<&'static str, &'static str> = EquivalentDb::new();
   {
     let mut tx = db.write();
     assert_eq!(tx.version(), 0);
@@ -45,7 +45,7 @@ fn writeable_tx() {
 
 #[test]
 fn txn_simple() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   {
     let mut txn = db.write();
@@ -77,7 +77,7 @@ fn txn_simple() {
 fn txn_read_after_write() {
   const N: u64 = 100;
 
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   let handles = (0..N)
     .map(|i| {
@@ -108,7 +108,7 @@ fn txn_read_after_write() {
 fn txn_commit_with_callback() {
   use rand::thread_rng;
 
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
   let mut txn = db.write();
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
@@ -180,7 +180,7 @@ fn txn_write_skew() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   // Set balance to $100 in each account.
   let mut txn = db.write();
@@ -235,7 +235,7 @@ fn txn_conflict_get() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+    let db: EquivalentDb<u64, u64> = EquivalentDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -269,7 +269,7 @@ fn txn_conflict_get() {
 
 #[test]
 fn txn_versions() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   let k0 = 0;
   for i in 1..10 {
@@ -329,7 +329,7 @@ fn txn_conflict_iter() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+    let db: EquivalentDb<u64, u64> = EquivalentDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -379,7 +379,7 @@ fn txn_conflict_iter() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   // c1
   {
@@ -478,7 +478,7 @@ fn txn_iteration_edge_case() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case2() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   // c1
   {
@@ -595,7 +595,7 @@ fn txn_iteration_edge_case2() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_range_edge_case2() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
 
   // c1
   {
@@ -714,7 +714,7 @@ fn txn_range_edge_case2() {
 fn compact() {
   use rand::thread_rng;
 
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
   let mut txn = db.write();
   let k = 88;
   for i in 0..40 {
@@ -804,7 +804,7 @@ fn compact() {
 
 #[test]
 fn rollback() {
-  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.rollback().unwrap();

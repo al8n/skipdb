@@ -16,6 +16,7 @@ future = ["async-channel", "futures-util", "futures-channel", "event-listener/de
 smol = ["agnostic-lite/smol", "future"]
 async-std = ["agnostic-lite/async-std", "future"]
 tokio = ["agnostic-lite/tokio", "futures-util"]
+wasm = ["agnostic-lite/wasm", "futures-util"]
 
 [package.metadata.docs.rs]
 all-features = true
