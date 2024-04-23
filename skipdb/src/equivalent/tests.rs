@@ -4,6 +4,7 @@ use std::{
 };
 
 use rand::Rng;
+use skipdb_core::rev_range::WriteTransactionRevRange;
 use txn::error::WtmError;
 use wmark::Closer;
 
@@ -59,12 +60,15 @@ fn txn_simple() {
     assert_eq!(*item.value(), 8);
     drop(item);
 
+    assert!(txn.contains_key(&8).unwrap());
+
     txn.commit().unwrap();
   }
 
   let k = 8;
   let v = 8;
   let txn = db.read();
+  assert!(txn.contains_key(&k));
   let item = txn.get(&k).unwrap();
   assert_eq!(*item.value(), v);
 }
@@ -120,7 +124,7 @@ fn txn_commit_with_callback() {
 
     loop {
       crossbeam_channel::select! {
-        recv(closer.has_been_closed()) -> _ => return,
+        recv(closer.listen()) -> _ => return,
         default => {
           // Keep checking balance variant
           let txn = db1.read();
@@ -581,5 +585,127 @@ fn txn_iteration_edge_case2() {
   let itr = txn.iter().unwrap();
   check_iter(itr, &[31]);
   let itr = txn.iter_rev().unwrap();
+  check_rev_iter(itr, &[31]);
+}
+
+
+/// a2, a3, b4 (del), b3, c2, c1
+/// Read at ts=4 -> a3, c2
+/// Read at ts=3 -> a3, b3, c2
+/// Read at ts=2 -> a2, c2
+/// Read at ts=1 -> c1
+#[test]
+fn txn_range_edge_case2() {
+  let db: EquivalentDB<u64, u64> = EquivalentDB::new();
+
+  // c1
+  {
+    let mut txn = db.write();
+
+    txn.insert(0, 0).unwrap();
+    txn.insert(u64::MAX, u64::MAX).unwrap();
+
+    txn.insert(3, 31).unwrap();
+    txn.commit().unwrap();
+    assert_eq!(1, db.version());
+  }
+
+  // a2, c2
+  {
+    let mut txn = db.write();
+    txn.insert(1, 12).unwrap();
+    txn.insert(3, 32).unwrap();
+    txn.commit().unwrap();
+    assert_eq!(2, db.version());
+  }
+
+  // b3
+  {
+    let mut txn = db.write();
+    txn.insert(1, 13).unwrap();
+    txn.insert(2, 23).unwrap();
+    txn.commit().unwrap();
+    assert_eq!(3, db.version());
+  }
+
+  // b4 (remove)
+  {
+    let mut txn = db.write();
+    txn.remove(2).unwrap();
+    txn.commit().unwrap();
+    assert_eq!(4, db.version());
+  }
+
+  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
+                    expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
+
+  let check_rev_iter = |itr: WriteTransactionRevRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
+                        expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
+
+  let mut txn = db.write();
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[13, 32]);
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 13]);
+
+  txn.wtm.__set_read_version(5);
+  let itr = txn.range(1..10).unwrap();
+  let mut count = 2;
+  for ent in itr {
+    if *ent.key() == 1 {
+      count -= 1;
+    }
+
+    if *ent.key() == 3 {
+      count -= 1;
+    }
+  }
+  assert_eq!(0, count);
+
+  let itr = txn.range(1..10).unwrap();
+  let mut count = 2;
+  for ent in itr {
+    if *ent.key() == 1 {
+      count -= 1;
+    }
+
+    if *ent.key() == 3 {
+      count -= 1;
+    }
+  }
+  assert_eq!(0, count);
+
+  txn.wtm.__set_read_version(3);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[13, 23, 32]);
+
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 23, 13]);
+
+  txn.wtm.__set_read_version(2);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[12, 32]);
+
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 12]);
+
+  txn.wtm.__set_read_version(1);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[31]);
+  let itr = txn.range_rev(1..10).unwrap();
   check_rev_iter(itr, &[31]);
 }

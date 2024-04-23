@@ -120,7 +120,7 @@ fn txn_commit_with_callback() {
 
     loop {
       crossbeam_channel::select! {
-        recv(closer.has_been_closed()) -> _ => return,
+        recv(closer.listen()) -> _ => return,
         default => {
           // Keep checking balance variant
           let txn = db1.read();

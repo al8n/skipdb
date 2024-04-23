@@ -207,10 +207,10 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
   let closer1 = closer.clone();
   S::spawn(async move {
     scopeguard::defer!(closer.done(););
-    let rx = closer.has_been_closed();
+    let rx = closer.listen();
     loop {
       futures::select! {
-        _ = rx.recv().fuse() => return,
+        _ = rx.wait().fuse() => return,
         default => {
           // Keep checking balance variant
           let txn = db1.read().await;

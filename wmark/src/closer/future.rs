@@ -85,7 +85,7 @@ impl AsyncCloserInner {
   }
 
   #[inline]
-  fn new_with_initial(initial: usize) -> Self {
+  fn with(initial: usize) -> Self {
     let (ctx, cancel) = CancelContext::new();
     Self {
       waitings: AtomicUsize::new(initial),
@@ -110,7 +110,7 @@ impl<S> AsyncCloser<S> {
   #[inline]
   pub fn new(initial: usize) -> Self {
     Self {
-      inner: Arc::new(AsyncCloserInner::new_with_initial(initial)),
+      inner: Arc::new(AsyncCloserInner::with(initial)),
       _spawner: core::marker::PhantomData,
     }
   }
@@ -140,16 +140,10 @@ impl<S> AsyncCloser<S> {
     }
   }
 
-  /// Signals the [`AsyncCloser::has_been_closed`] signal.
+  /// Signals the [`AsyncCloser::listen`] signal.
   #[inline]
   pub fn signal(&self) {
     self.inner.cancel.cancel();
-  }
-
-  /// Gets signaled when [`AsyncCloser::signal`] is called.
-  #[inline]
-  pub fn has_been_closed(&self) -> Receiver<()> {
-    self.inner.ctx.done()
   }
 
   /// Waits on the [`WaitGroup`]. (It waits for the AsyncCloser's initial value, [`AsyncCloser::add_running`], and [`AsyncCloser::done`]
@@ -171,6 +165,12 @@ impl<S> AsyncCloser<S> {
   pub async fn signal_and_wait(&self) {
     self.signal();
     self.wait().await;
+  }
+
+  /// Gets signaled when [`AsyncCloser::signal`] is called.
+  #[inline]
+  pub fn listen(&self) -> Notify {
+    Notify(self.inner.ctx.done())
   }
 }
 
@@ -197,5 +197,15 @@ impl<S: AsyncSpawner> AsyncCloser<S> {
     S::spawn_detach(async move {
       wg.wait().await;
     })
+  }
+}
+
+/// Gets signaled when [`AsyncCloser::signal`] is called.
+pub struct Notify(Receiver<()>);
+
+impl Notify {
+  /// Waits for the signal.
+  pub async fn wait(&self) {
+    let _ = self.0.recv().await;
   }
 }

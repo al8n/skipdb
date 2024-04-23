@@ -125,10 +125,10 @@ impl<S: AsyncSpawner> Inner<S> {
       }
     };
 
-    let closer = closer.has_been_closed();
+    let closer = closer.listen();
     loop {
       futures_util::select_biased! {
-        _ = closer.recv().fuse() => return,
+        _ = closer.wait().fuse() => return,
         mark = self.mark_rx.recv().fuse() => match mark {
           Ok(mark) => {
             if let Some(wait_tx) = mark.waiter {
@@ -434,9 +434,7 @@ mod tests {
     let closer = AsyncCloser::<crate::TokioSpawner>::new(1);
     let tc = closer.clone();
     tokio::spawn(async move {
-      if let Err(err) = tc.has_been_closed().recv().await {
-        eprintln!("err: {}", err);
-      }
+      tc.listen().wait().await;
       tc.done();
     });
     closer.signal_and_wait().await;
@@ -455,7 +453,7 @@ mod tests {
       let c = c.clone();
       let tx = tx.clone();
       tokio::spawn(async move {
-        assert!(c.has_been_closed().recv().await.is_err());
+        c.listen().wait().await;
         tx.send(()).await.unwrap();
       });
     }
