@@ -44,6 +44,10 @@ pub use agnostic_lite::async_std::AsyncStdSpawner;
 #[cfg_attr(docsrs, doc(cfg(feature = "smol")))]
 pub use agnostic_lite::smol::SmolSpawner;
 
+#[cfg(feature = "wasm")]
+#[cfg_attr(docsrs, doc(cfg(feature = "wasm")))]
+pub use agnostic_lite::wasm::WasmSpawner;
+
 /// For use in no_std environments.
 #[cfg(feature = "core")]
 #[cfg_attr(docsrs, doc(cfg(feature = "core")))]

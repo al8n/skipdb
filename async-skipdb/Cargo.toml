@@ -15,6 +15,7 @@ default = []
 tokio = ["async-txn/tokio"]
 smol = ["async-txn/smol"]
 async-std = ["async-txn/async-std"]
+wasm = ["async-txn/wasm"]
 
 [dependencies]
 cheap-clone = "0.1"

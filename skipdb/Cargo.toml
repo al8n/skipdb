@@ -21,7 +21,7 @@ skipdb-core = { workspace = true, features = ["default"] }
 rand = "0.8"
 scopeguard = "1"
 crossbeam-channel = "0.5"
-wmark = "0.1"
+wmark.workspace = true 
 
 [package.metadata.docs.rs]
 all-features = true

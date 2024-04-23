@@ -87,7 +87,7 @@ impl CloserInner {
   }
 
   #[inline]
-  fn new_with_initial(initial: usize) -> Self {
+  fn with(initial: usize) -> Self {
     let (ctx, cancel) = CancelContext::new();
     Self {
       wg: WaitGroup::from(initial),
@@ -110,7 +110,7 @@ impl Closer {
   #[inline]
   pub fn new(initial: usize) -> Self {
     Self {
-      inner: Arc::new(CloserInner::new_with_initial(initial)),
+      inner: Arc::new(CloserInner::with(initial)),
     }
   }
 
@@ -132,12 +132,6 @@ impl Closer {
     self.inner.cancel.cancel();
   }
 
-  /// Gets signaled when [`Closer::signal`] is called.
-  #[inline]
-  pub fn has_been_closed(&self) -> Receiver<()> {
-    self.inner.ctx.done()
-  }
-
   /// Waits on the [`WaitGroup`]. (It waits for the Closer's initial value, [`Closer::add_running`], and [`Closer::done`]
   /// calls to balance out.)
   #[inline]
@@ -150,5 +144,10 @@ impl Closer {
   pub fn signal_and_wait(&self) {
     self.signal();
     self.wait();
+  }
+
+  /// Listens for the [`Closer::signal`] signal.
+  pub fn listen(&self) -> Receiver<()> {
+    self.inner.ctx.done()
   }
 }

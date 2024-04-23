@@ -59,6 +59,16 @@ enum RefKind<'a, K, V> {
   Committed(CommittedRef<'a, K, V>),
 }
 
+impl<'a, K: core::fmt::Debug, V: core::fmt::Debug> core::fmt::Debug for Ref<'a, K, V> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.debug_struct("Ref")
+      .field("key", self.0.key())
+      .field("version", &self.0.version())
+      .field("value", &self.0.value())
+      .finish()
+  }
+}
+
 impl<'a, K, V> Clone for RefKind<'a, K, V> {
   #[inline]
   fn clone(&self) -> Self {

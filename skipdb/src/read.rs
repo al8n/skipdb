@@ -2,15 +2,15 @@ use skipdb_core::rev_range::RevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct ReadTransaction<K, V, I, C> {
   pub(crate) db: I,
-  pub(crate) rtm: Rtm<K, V, C, PendingMap<K, V>>,
+  pub(crate) rtm: Rtm<K, V, C, BTreePwm<K, V>>,
 }
 
 impl<K, V, I, C> ReadTransaction<K, V, I, C> {
   #[inline]
-  pub(super) fn new(db: I, rtm: Rtm<K, V, C, PendingMap<K, V>>) -> Self {
+  pub(super) fn new(db: I, rtm: Rtm<K, V, C, BTreePwm<K, V>>) -> Self {
     Self { db, rtm }
   }
 }

@@ -5,10 +5,10 @@ use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
-  db: EquivalentDB<K, V, SP, S>,
-  pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, PendingMap<K, V>, SP>,
+  db: EquivalentDb<K, V, SP, S>,
+  pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
 }
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
@@ -18,14 +18,12 @@ where
   SP: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: EquivalentDB<K, V, SP, S>, cap: Option<usize>) -> Self {
+  pub(super) async fn new(db: EquivalentDb<K, V, SP, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
       .write_with_blocking_cm_and_pwm(
-        Options::default()
-          .with_max_batch_entries(db.inner.max_batch_entries)
-          .with_max_batch_size(db.inner.max_batch_size),
+        (),
         Some(HashCmOptions::with_capacity(
           db.inner.hasher.clone(),
           cap.unwrap_or(8),
@@ -136,7 +134,7 @@ where
 
   /// Rollback the transaction.
   #[inline]
-  pub fn rollback_blocking(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
+  pub fn rollback(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.rollback_blocking()
   }
 
@@ -148,7 +146,7 @@ where
   ) -> Result<bool, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self
@@ -169,7 +167,7 @@ where
   ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self.wtm.get_equivalent_cm_comparable_pm_blocking(key)? {

@@ -134,7 +134,7 @@ impl CloserInner {
   }
 
   #[inline]
-  fn new_with_initial(initial: usize) -> Self {
+  fn with(initial: usize) -> Self {
     let (ctx, cancel) = CancelContext::new();
     Self {
       wg: AtomicUsize::new(initial),
@@ -158,7 +158,7 @@ impl Closer {
   #[inline]
   pub fn new(initial: usize) -> Self {
     Self {
-      inner: Arc::new(CloserInner::new_with_initial(initial)),
+      inner: Arc::new(CloserInner::with(initial)),
     }
   }
 
@@ -187,7 +187,7 @@ impl Closer {
     }
   }
 
-  /// Signals the [`Closer::has_been_closed`] signal.
+  /// Signals the [`Closer::listen`] signal.
   #[inline]
   pub fn signal(&self) {
     self.inner.cancel.cancel();
@@ -195,7 +195,7 @@ impl Closer {
 
   /// Gets signaled when [`Closer::signal`] is called.
   #[inline]
-  pub fn has_been_closed(&self) -> Receiver<()> {
+  pub fn listen(&self) -> Receiver<()> {
     self.inner.ctx.done()
   }
 

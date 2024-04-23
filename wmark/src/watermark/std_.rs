@@ -112,7 +112,7 @@ impl Inner {
       }
     };
 
-    let closer = closer.has_been_closed();
+    let closer = closer.listen();
     loop {
       select! {
         recv(closer) -> _ => return,
@@ -259,6 +259,10 @@ impl WaterMark {
   /// Sets multiple indices as done.
   #[inline]
   pub fn done_many(&self, indices: MediumVec<u64>) -> Result<()> {
+    if indices.is_empty() {
+      return Ok(());
+    }
+
     self.check().map(|_| {
       self
         .inner
@@ -412,7 +416,7 @@ mod tests {
     let closer = Closer::new(1);
     let tc = closer.clone();
     std::thread::spawn(move || {
-      if let Err(err) = tc.has_been_closed().recv() {
+      if let Err(err) = tc.listen().recv() {
         eprintln!("err: {}", err);
       }
       tc.done();
@@ -433,7 +437,7 @@ mod tests {
       let c = c.clone();
       let tx = tx.clone();
       std::thread::spawn(move || {
-        assert!(c.has_been_closed().recv().is_err());
+        assert!(c.listen().recv().is_err());
         tx.send(()).unwrap();
       });
     }

@@ -16,6 +16,7 @@ test = ["rand"]
 async-std = ["wmark/async-std"]
 smol = ["wmark/smol"]
 tokio = ["wmark/tokio"]
+wasm = ["wmark/wasm"]
 
 [dependencies]
 async-channel.workspace = true

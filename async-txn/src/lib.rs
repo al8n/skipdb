@@ -26,6 +26,9 @@ pub use wmark::AsyncStdSpawner;
 #[cfg(feature = "tokio")]
 pub use wmark::TokioSpawner;
 
+#[cfg(feature = "wasm")]
+pub use wmark::WasmSpawner;
+
 /// Error types for the [`async-txn`] crate.
 pub use txn_core::error;
 
@@ -39,8 +42,8 @@ pub use write::*;
 pub use txn_core::{
   future::*,
   sync::{
-    BTreeCm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, Marker, Pwm, PwmComparable,
-    PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
+    BTreeCm, BTreePwm, Cm, CmComparable, CmEquivalent, HashCm, HashCmOptions, IndexMapPwm, Marker,
+    Pwm, PwmComparable, PwmComparableRange, PwmEquivalent, PwmEquivalentRange, PwmRange,
   },
   types::*,
 };

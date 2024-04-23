@@ -12,7 +12,8 @@ const LOCKED: u8 = 1;
 const UNLOCKED: u8 = 2;
 
 #[derive(Debug)]
-pub(crate) struct Values<V> {
+#[doc(hidden)]
+pub struct Values<V> {
   pub(crate) op: AtomicU8,
   values: SkipMap<u64, Option<V>>,
 }

@@ -2,13 +2,13 @@ use skipdb_core::rev_range::RevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDB`],
+/// A read only transaction over the [`EquivalentDb`],
 pub struct ReadTransaction<K, V, I, C, S>
 where
   S: AsyncSpawner,
 {
   pub(crate) db: I,
-  pub(crate) rtm: AsyncRtm<K, V, C, PendingMap<K, V>, S>,
+  pub(crate) rtm: AsyncRtm<K, V, C, BTreePwm<K, V>, S>,
 }
 
 impl<K, V, I, C, S> ReadTransaction<K, V, I, C, S>
@@ -16,7 +16,7 @@ where
   S: AsyncSpawner,
 {
   #[inline]
-  pub(super) fn new(db: I, rtm: AsyncRtm<K, V, C, PendingMap<K, V>, S>) -> Self {
+  pub(super) fn new(db: I, rtm: AsyncRtm<K, V, C, BTreePwm<K, V>, S>) -> Self {
     Self { db, rtm }
   }
 }
