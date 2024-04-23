@@ -813,9 +813,8 @@ fn txn_iteration_edge_case2_smol() {
   smol::block_on(txn_iteration_edge_case2_in::<SmolSpawner>());
 }
 
-async fn compact_in<S: AsyncSpawner, Y>(
-  yielder: impl Fn() -> Y + Send + Sync + 'static,
-) where
+async fn compact_in<S: AsyncSpawner, Y>(yielder: impl Fn() -> Y + Send + Sync + 'static)
+where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
   let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
