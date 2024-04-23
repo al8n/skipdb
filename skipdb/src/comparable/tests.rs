@@ -796,3 +796,12 @@ fn compact() {
     assert!(map.get(&i).unwrap().value().len() < 101);
   }
 }
+
+#[test]
+fn rollback() {
+  let db: ComparableDB<u64, u64> = ComparableDB::new();
+  let mut txn = db.write();
+  txn.insert(1, 1).unwrap();
+  txn.rollback().unwrap();
+  assert!(txn.get(&1).unwrap().is_none());
+}

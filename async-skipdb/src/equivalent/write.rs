@@ -134,7 +134,7 @@ where
 
   /// Rollback the transaction.
   #[inline]
-  pub fn rollback_blocking(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
+  pub fn rollback(&mut self) -> Result<(), TransactionError<Infallible, Infallible>> {
     self.wtm.rollback_blocking()
   }
 

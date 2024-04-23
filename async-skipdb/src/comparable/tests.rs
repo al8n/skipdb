@@ -19,7 +19,7 @@ async fn begin_tx_readable_in<S: AsyncSpawner>() {
   assert_eq!(tx.version(), 0);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn begin_tx_readable_tokio() {
   begin_tx_readable_in::<TokioSpawner>().await;
@@ -43,7 +43,7 @@ async fn begin_tx_writeable_in<S: AsyncSpawner>() {
   assert_eq!(tx.version(), 0);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn begin_tx_writeable_tokio() {
   begin_tx_writeable_in::<TokioSpawner>().await;
@@ -79,7 +79,7 @@ async fn writeable_tx_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn writeable_tx_tokio() {
   writeable_tx_in::<TokioSpawner>().await;
@@ -124,7 +124,7 @@ async fn txn_simple_in<S: AsyncSpawner>() {
   drop(item);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_simple_tokio() {
   txn_simple_in::<TokioSpawner>().await;
@@ -171,7 +171,7 @@ async fn txn_read_after_write_in<S: AsyncSpawner>() {
   while handles.next().await.is_some() {}
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_read_after_write_tokio() {
   txn_read_after_write_in::<TokioSpawner>().await;
@@ -263,7 +263,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
   std::thread::sleep(Duration::from_millis(10));
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_commit_with_callback_tokio() {
   txn_commit_with_callback_in::<TokioSpawner, _>(tokio::task::yield_now).await;
@@ -340,7 +340,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   assert_eq!(2, db.version().await);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_write_skew_tokio() {
   txn_write_skew_in::<TokioSpawner>().await;
@@ -401,7 +401,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_conflict_get_tokio() {
   txn_conflict_get_in::<TokioSpawner>().await;
@@ -474,7 +474,7 @@ async fn txn_versions_in<S: AsyncSpawner>() {
   assert_eq!(9, val)
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_versions_tokio() {
   txn_versions_in::<TokioSpawner>().await;
@@ -545,7 +545,7 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
   }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_conflict_iter_tokio() {
   txn_conflict_iter_in::<TokioSpawner>().await;
@@ -661,7 +661,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
   check_rev_iter(itr, &[31]);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case_tokio() {
   txn_iteration_edge_case_in::<TokioSpawner>().await;
@@ -794,7 +794,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
   check_rev_iter(itr, &[31]);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test]
 #[cfg(feature = "tokio")]
 async fn txn_iteration_edge_case2_tokio() {
   txn_iteration_edge_case2_in::<TokioSpawner>().await;
@@ -810,4 +810,156 @@ async fn txn_iteration_edge_case2_async_std() {
 #[cfg(feature = "smol")]
 fn txn_iteration_edge_case2_smol() {
   smol::block_on(txn_iteration_edge_case2_in::<SmolSpawner>());
+}
+
+async fn compact_in<S: AsyncSpawner, Y>(
+  yielder: impl Fn() -> Y + Send + Sync + 'static,
+) where
+  Y: Future<Output = ()> + Send + Sync + 'static,
+{
+  let db: ComparableDB<u64, u64, S> = ComparableDB::new().await;
+  let mut txn = db.write().await;
+  let k = 88;
+  for i in 0..40 {
+    txn.insert(k, i).unwrap();
+    txn.insert(i, 100).unwrap();
+  }
+  txn.commit().await.unwrap();
+
+  let mut txn = db.write().await;
+  txn.remove(k).unwrap();
+  txn.commit().await.unwrap();
+
+  let closer = AsyncCloser::<S>::new(1);
+
+  let db1 = db.clone();
+  let closer1 = closer.clone();
+  S::spawn(async move {
+    scopeguard::defer!(closer.done(););
+    let rx = closer.listen();
+    loop {
+      futures::select! {
+        _ = rx.wait().fuse() => return,
+        default => {
+          // Keep checking balance variant
+          let txn = db1.read().await;
+          let mut total_balance = 0;
+
+          for i in 0..40 {
+            let _item = txn.get(&i).unwrap();
+            total_balance += 100;
+          }
+          assert_eq!(total_balance, 4000);
+          yielder().await;
+        }
+      }
+    }
+  })
+  .detach();
+
+  let mut handles = (0..100)
+    .map(|_| {
+      let db1 = db.clone();
+      S::spawn(async move {
+        let mut txn = db1.write().await;
+        for i in 0..20 {
+          let mut rng = OsRng;
+          let r = rng.gen_range(0..100);
+          let v = 100 - r;
+          txn.insert(i, v).unwrap();
+        }
+
+        for i in 20..40 {
+          let mut rng = OsRng;
+          let r = rng.gen_range(0..100);
+          let v = 100 + r;
+          txn.insert(i, v).unwrap();
+        }
+
+        // We are only doing writes, so there won't be any conflicts.
+        let _a = txn
+          .commit_with_task::<_, std::convert::Infallible, ()>(|_| async {})
+          .await
+          .unwrap()
+          .await;
+      })
+    })
+    .collect::<FuturesUnordered<_>>();
+
+  while handles.next().await.is_some() {}
+
+  closer1.signal_and_wait().await;
+  std::thread::sleep(Duration::from_millis(1000));
+
+  let map = db.as_inner().__by_ref();
+  assert_eq!(map.len(), 41);
+
+  for i in 0..40 {
+    assert_eq!(map.get(&i).unwrap().value().len(), 101);
+  }
+
+  db.compact();
+  assert_eq!(map.len(), 40);
+  for i in 0..40 {
+    assert!(map.get(&i).unwrap().value().len() < 101);
+  }
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn compact_tokio() {
+  compact_in::<TokioSpawner, _>(tokio::task::yield_now).await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn compact_async_std() {
+  compact_in::<AsyncStdSpawner, _>(async_std::task::yield_now).await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn compact_smol() {
+  smol::block_on(compact_in::<SmolSpawner, _>(smol::future::yield_now));
+}
+
+async fn rollback_in<S: AsyncSpawner>() {
+  let db: ComparableDB<u64, u64, S> = ComparableDB::new().await;
+  let mut txn = db.write().await;
+  txn.insert(1, 1).unwrap();
+  txn.insert(2, 2).unwrap();
+  txn.insert(3, 3).unwrap();
+  txn.commit().await.unwrap();
+
+  let mut txn = db.write().await;
+  txn.insert(4, 4).unwrap();
+  txn.insert(5, 5).unwrap();
+  txn.insert(6, 6).unwrap();
+  txn.rollback().unwrap();
+
+  let txn = db.read().await;
+  assert_eq!(txn.get(&1).unwrap().value(), &1);
+  assert_eq!(txn.get(&2).unwrap().value(), &2);
+  assert_eq!(txn.get(&3).unwrap().value(), &3);
+  assert!(txn.get(&4).is_none());
+  assert!(txn.get(&5).is_none());
+  assert!(txn.get(&6).is_none());
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn rollback_tokio() {
+  rollback_in::<TokioSpawner>().await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn rollback_async_std() {
+  rollback_in::<AsyncStdSpawner>().await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn rollback_smol() {
+  smol::block_on(rollback_in::<SmolSpawner>());
 }
