@@ -1,3 +1,4 @@
+use core::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
@@ -5,7 +6,7 @@ use std::sync::Arc;
 use alloc::{boxed::Box, sync::Arc};
 
 use async_channel::{unbounded, Receiver, Sender};
-use wg::future::AsyncWaitGroup as WaitGroup;
+use event_listener::{Event, Listener};
 
 use crate::AsyncSpawner;
 
@@ -48,15 +49,25 @@ impl CancelContext {
 /// AsyncCloser holds the two things we need to close a thread and wait for it to
 /// finish: a chan to tell the thread to shut down, and a WaitGroup with
 /// which to wait for it to finish shutting down.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AsyncCloser<S> {
   inner: Arc<AsyncCloserInner>,
   _spawner: core::marker::PhantomData<S>,
 }
 
+impl<S> Clone for AsyncCloser<S> {
+  fn clone(&self) -> Self {
+    Self {
+      inner: self.inner.clone(),
+      _spawner: core::marker::PhantomData,
+    }
+  }
+}
+
 #[derive(Debug)]
 struct AsyncCloserInner {
-  wg: WaitGroup,
+  waitings: AtomicUsize,
+  event: Event,
   ctx: CancelContext,
   cancel: Canceler,
 }
@@ -66,7 +77,8 @@ impl AsyncCloserInner {
   fn new() -> Self {
     let (ctx, cancel) = CancelContext::new();
     Self {
-      wg: WaitGroup::new(),
+      waitings: AtomicUsize::new(0),
+      event: Event::new(),
       ctx,
       cancel,
     }
@@ -76,7 +88,8 @@ impl AsyncCloserInner {
   fn new_with_initial(initial: usize) -> Self {
     let (ctx, cancel) = CancelContext::new();
     Self {
-      wg: WaitGroup::from(initial),
+      waitings: AtomicUsize::new(initial),
+      event: Event::new(),
       ctx,
       cancel,
     }
@@ -105,13 +118,26 @@ impl<S> AsyncCloser<S> {
   /// Adds delta to the [`WaitGroup`].
   #[inline]
   pub fn add_running(&self, running: usize) {
-    self.inner.wg.add(running);
+    self.inner.waitings.fetch_add(running, Ordering::SeqCst);
   }
 
   /// Calls [`WaitGroup::done`] on the [`WaitGroup`].
   #[inline]
   pub fn done(&self) {
-    self.inner.wg.done();
+    if self
+      .inner
+      .waitings
+      .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
+        if v != 0 {
+          Some(v - 1)
+        } else {
+          None
+        }
+      })
+      .is_ok()
+    {
+      self.inner.event.notify(usize::MAX);
+    }
   }
 
   /// Signals the [`AsyncCloser::has_been_closed`] signal.
@@ -130,7 +156,14 @@ impl<S> AsyncCloser<S> {
   /// calls to balance out.)
   #[inline]
   pub async fn wait(&self) {
-    self.inner.wg.wait().await;
+    while self.inner.waitings.load(Ordering::SeqCst) != 0 {
+      let ln = self.inner.event.listen();
+      // Check the flag again after creating the listener.
+      if self.inner.waitings.load(Ordering::SeqCst) == 0 {
+        return;
+      }
+      ln.await;
+    }
   }
 
   /// Calls [`AsyncCloser::signal`], then [`AsyncCloser::wait`].
@@ -145,15 +178,22 @@ impl<S: AsyncSpawner> AsyncCloser<S> {
   /// Waits on the [`WaitGroup`]. (It waits for the AsyncCloser's initial value, [`AsyncCloser::add_running`], and [`AsyncCloser::done`]
   /// calls to balance out.)
   #[inline]
-  pub fn block_wait(&self) {
-    self.inner.wg.block_wait::<S>();
+  pub fn blocking_wait(&self) {
+    while self.inner.waitings.load(Ordering::SeqCst) != 0 {
+      let ln = self.inner.event.listen();
+      // Check the flag again after creating the listener.
+      if self.inner.waitings.load(Ordering::SeqCst) == 0 {
+        return;
+      }
+      ln.wait();
+    }
   }
 
   /// Like [`AsyncCloser::signal_and_wait`], but spawns and detach the waiting in a new task.
   #[inline]
   pub fn signal_and_wait_detach(&self) {
     self.signal();
-    let wg = self.inner.wg.clone();
+    let wg = self.clone();
     S::spawn_detach(async move {
       wg.wait().await;
     })

@@ -10,25 +10,25 @@ description = "Helpful structs to implement optimistic SSI (Serializable Snapsho
 [features]
 default = ["std"]
 std = ["parking_lot", "wg", "crossbeam-channel", "async-channel?/default", "futures-channel?/default", "thiserror", "crossbeam-utils/default", "scopeguard/use_std"]
-core = ["crossbeam-queue/alloc", "hashbrown/allocator-api2"]
-future = ["wg/future", "async-channel", "futures-util", "futures-channel"]
+core = ["crossbeam-queue/alloc", "hashbrown/allocator-api2", "event-listener"]
+future = ["async-channel", "futures-util", "futures-channel", "event-listener/default"]
 
-smol = ["dep:smol", "wg/smol", "future"]
-async-std = ["dep:async-std", "wg/async-std", "future"]
-tokio = ["dep:tokio", "wg/tokio", "futures-util"]
+smol = ["agnostic-lite/smol", "future"]
+async-std = ["agnostic-lite/async-std", "future"]
+tokio = ["agnostic-lite/tokio", "futures-util"]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+agnostic-lite = { version = "0.3", optional = true }
 atomic_refcell = "0.1"
 smallvec-wrapper.workspace = true
 crossbeam-utils = { workspace = true, default-features = false }
 scopeguard.workspace = true
 
 thiserror = { version = "1", optional = true }
-
 crossbeam-queue = { version = "0.3", optional = true, default-features = false }
 hashbrown = { version = "0.14", optional = true, default-features = false }
 
@@ -37,14 +37,11 @@ parking_lot = { version = "0.12", optional = true }
 wg = { version = "0.8", optional = true }
 
 async-channel = { version = "2", optional = true, default-features = false }
+event-listener = { version = "5", optional = true, default-features = false }
 futures-util = { version = "0.3", optional = true, default-features = false, features = ["async-await-macro"] }
 futures-channel = { version = "0.3", optional = true, default-features = false, features = ["alloc"] }
 
 tracing = { version = "0.1", optional = true, default-features = false }
-
-tokio = { version = "1", optional = true, default-features = false, features = ["rt", "sync", "macros"] }
-smol = { version = "2", optional = true }
-async-std = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

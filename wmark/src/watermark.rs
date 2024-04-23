@@ -8,11 +8,6 @@ pub use std_::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "future")))]
 pub mod future;
 
-/// Watermark implementations for the `tokio` runtime.
-#[cfg(feature = "tokio")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
-pub mod tokio;
-
 /// Watermark implementations for no_std environments.
 #[cfg(feature = "core")]
 #[cfg_attr(docsrs, doc(cfg(feature = "core")))]

@@ -1,8 +1,9 @@
 #![allow(clippy::blocks_in_conditions)]
 
 use std::{
+  future::Future,
   sync::atomic::{AtomicU32, Ordering},
-  // time::Duration,
+  time::Duration,
 };
 
 use async_txn::error::WtmError;
@@ -188,7 +189,11 @@ fn txn_read_after_write_smol() {
   smol::block_on(txn_read_after_write_in::<SmolSpawner>());
 }
 
-async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
+async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
+  yielder: impl Fn() -> Y + Send + Sync + 'static,
+) where
+  Y: Future<Output = ()> + Send + Sync + 'static,
+{
   let db: EquivalentDB<u64, u64, S> = EquivalentDB::new().await;
   let mut txn = db.write().await;
   for i in 0..40 {
@@ -216,6 +221,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
             total_balance += 100;
           }
           assert_eq!(total_balance, 4000);
+          yielder().await;
         }
       }
     }
@@ -252,27 +258,28 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner>() {
     .collect::<FuturesUnordered<_>>();
   while handles.next().await.is_some() {}
   closer1.signal_and_wait().await;
-  std::thread::sleep(std::time::Duration::from_millis(10));
+  std::thread::sleep(Duration::from_millis(10));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 32)]
 #[cfg(feature = "tokio")]
 async fn txn_commit_with_callback_tokio() {
-  txn_commit_with_callback_in::<TokioSpawner>().await;
+  txn_commit_with_callback_in::<TokioSpawner, _>(tokio::task::yield_now).await;
 }
 
 #[async_std::test]
 #[cfg(feature = "async-std")]
 async fn txn_commit_with_callback_async_std() {
-  txn_commit_with_callback_in::<AsyncStdSpawner>().await;
+  txn_commit_with_callback_in::<AsyncStdSpawner, _>(async_std::task::yield_now).await;
 }
 
-// #[test]
-// #[cfg(feature = "smol")]
-// fn txn_commit_with_callback_smol() {
-//   let ex = smol::Executor::new();
-//   futures::executor::block_on(ex.run(txn_commit_with_callback_in::<SmolSpawner>()));
-// }
+#[test]
+#[cfg(feature = "smol")]
+fn txn_commit_with_callback_smol() {
+  smol::block_on(txn_commit_with_callback_in::<SmolSpawner, _>(
+    smol::future::yield_now,
+  ));
+}
 
 async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts

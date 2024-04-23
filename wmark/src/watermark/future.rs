@@ -1,10 +1,8 @@
+use async_channel::{unbounded, Receiver, Sender};
 use atomic_refcell::AtomicRefCell as RefCell;
 use crossbeam_utils::CachePadded;
-use futures_channel::{
-  mpsc::{unbounded, UnboundedReceiver as Receiver, UnboundedSender as Sender},
-  oneshot,
-};
-use futures_util::{FutureExt, StreamExt};
+use futures_channel::oneshot;
+use futures_util::FutureExt;
 use smallvec_wrapper::MediumVec;
 
 use core::{
@@ -48,11 +46,12 @@ struct Inner<S> {
   last_index: CachePadded<AtomicU64>,
   name: Cow<'static, str>,
   mark_tx: Sender<Mark>,
+  mark_rx: Receiver<Mark>,
   _spawner: core::marker::PhantomData<S>,
 }
 
 impl<S: AsyncSpawner> Inner<S> {
-  async fn process(&self, mut mark_rx: Receiver<Mark>, closer: AsyncCloser<S>) {
+  async fn process(&self, closer: AsyncCloser<S>) {
     scopeguard::defer!(closer.done(););
 
     let mut indices: BinaryHeap<Reverse<u64>> = BinaryHeap::new();
@@ -130,8 +129,8 @@ impl<S: AsyncSpawner> Inner<S> {
     loop {
       futures_util::select_biased! {
         _ = closer.recv().fuse() => return,
-        mark = mark_rx.next().fuse() => match mark {
-          Some(mark) => {
+        mark = self.mark_rx.recv().fuse() => match mark {
+          Ok(mark) => {
             if let Some(wait_tx) = mark.waiter {
               if let MarkIndex::Single(index) = mark.index {
                 let done_until = self.done_until.load(Ordering::SeqCst);
@@ -148,7 +147,7 @@ impl<S: AsyncSpawner> Inner<S> {
               }
             }
           },
-          None => {
+          Err(_) => {
             // Channel closed.
             #[cfg(feature = "tracing")]
             tracing::error!(target: "watermark", err = "watermark has been dropped.");
@@ -174,7 +173,6 @@ impl<S: AsyncSpawner> Inner<S> {
 pub struct AsyncWaterMark<S: AsyncSpawner> {
   inner: Arc<Inner<S>>,
   initialized: bool,
-  mark_rx: Option<Receiver<Mark>>,
 }
 
 impl<S: AsyncSpawner> AsyncWaterMark<S> {
@@ -190,10 +188,10 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
         last_index: CachePadded::new(AtomicU64::new(0)),
         name,
         mark_tx,
+        mark_rx,
         _spawner: core::marker::PhantomData,
       }),
       initialized: false,
-      mark_rx: Some(mark_rx),
     }
   }
 
@@ -206,14 +204,16 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
   /// Initializes a WaterMark struct. MUST be called before using it.
   #[inline]
   pub fn init(&mut self, closer: AsyncCloser<S>) {
-    if let Some(mark_rx) = self.mark_rx.take() {
-      let inner = self.inner.clone();
-      self.initialized = true;
-
-      S::spawn_detach(async move {
-        inner.process(mark_rx, closer).await;
-      });
+    if self.initialized {
+      return;
     }
+
+    let inner = self.inner.clone();
+    self.initialized = true;
+
+    S::spawn_detach(async move {
+      inner.process(closer).await;
+    });
   }
 
   /// Sets the last index to the given value.
@@ -224,12 +224,13 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     self
       .inner
       .mark_tx
-      .unbounded_send(Mark {
+      .try_send(Mark {
         index: MarkIndex::Single(index),
         waiter: None,
         done: false,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)
+      .unwrap(); // we hold both rx and tx, so cannot fail
+    Ok(())
   }
 
   /// Works like [`begin`] but accepts multiple indices.
@@ -246,12 +247,13 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     self
       .inner
       .mark_tx
-      .unbounded_send(Mark {
+      .try_send(Mark {
         index: MarkIndex::Multiple(indices),
         waiter: None,
         done: false,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)
+      .unwrap(); // we hold both rx and tx, so cannot fail
+    Ok(())
   }
 
   /// Sets a single index as done.
@@ -261,12 +263,13 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     self
       .inner
       .mark_tx
-      .unbounded_send(Mark {
+      .try_send(Mark {
         index: MarkIndex::Single(index),
         waiter: None,
         done: true,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)
+      .unwrap(); // we hold both rx and tx, so cannot fail
+    Ok(())
   }
 
   /// Sets multiple indices as done.
@@ -276,12 +279,13 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     self
       .inner
       .mark_tx
-      .unbounded_send(Mark {
+      .try_send(Mark {
         index: MarkIndex::Multiple(indices),
         waiter: None,
         done: true,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)
+      .unwrap(); // we hold both rx and tx, so cannot fail
+    Ok(())
   }
 
   /// Returns the maximum index that has the property that all indices
@@ -321,12 +325,12 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
     self
       .inner
       .mark_tx
-      .unbounded_send(Mark {
+      .try_send(Mark {
         index: MarkIndex::Single(index),
         waiter: Some(wait_tx),
         done: false,
       })
-      .map_err(|_| WaterMarkError::ChannelClosed)?;
+      .unwrap(); // we hold both rx and tx, so cannot fail?
 
     let _ = wait_rx.await;
     Ok(())

@@ -1,5 +1,6 @@
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use crossbeam_queue::SegQueue;
+use event_listener::{Event, Listener};
 
 use alloc::sync::Arc;
 
@@ -115,6 +116,7 @@ pub struct Closer {
 #[derive(Debug)]
 struct CloserInner {
   wg: AtomicUsize,
+  event: Event,
   ctx: CancelContext,
   cancel: Canceler,
 }
@@ -127,6 +129,7 @@ impl CloserInner {
       wg: AtomicUsize::new(0),
       ctx,
       cancel,
+      event: Event::new(),
     }
   }
 
@@ -137,6 +140,7 @@ impl CloserInner {
       wg: AtomicUsize::new(initial),
       ctx,
       cancel,
+      event: Event::new(),
     }
   }
 }
@@ -167,7 +171,20 @@ impl Closer {
   /// Calls [`WaitGroup::done`] on the [`WaitGroup`].
   #[inline]
   pub fn done(&self) {
-    self.inner.wg.fetch_sub(1, Ordering::AcqRel);
+    if self
+      .inner
+      .wg
+      .fetch_update(Ordering::Release, Ordering::Acquire, |v| {
+        if v != 0 {
+          Some(v - 1)
+        } else {
+          None
+        }
+      })
+      .is_ok()
+    {
+      self.inner.event.notify(usize::MAX);
+    }
   }
 
   /// Signals the [`Closer::has_been_closed`] signal.
@@ -186,8 +203,13 @@ impl Closer {
   /// calls to balance out.)
   #[inline]
   pub fn wait(&self) {
-    while self.inner.wg.load(Ordering::Acquire) != 0 {
-      core::hint::spin_loop();
+    while self.inner.wg.load(Ordering::SeqCst) != 0 {
+      let ln = self.inner.event.listen();
+      // Check the flag again after creating the listener.
+      if self.inner.wg.load(Ordering::SeqCst) == 0 {
+        break;
+      }
+      ln.wait();
     }
   }
 

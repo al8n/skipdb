@@ -19,9 +19,6 @@ pub use closer::Closer;
 #[cfg(feature = "future")]
 pub use closer::AsyncCloser;
 
-#[cfg(feature = "tokio")]
-pub use closer::TokioCloser;
-
 mod watermark;
 
 #[cfg(feature = "std")]
@@ -33,23 +30,19 @@ pub use watermark::future::AsyncWaterMark;
 
 #[cfg(feature = "future")]
 #[cfg_attr(docsrs, doc(cfg(feature = "future")))]
-pub use wg::future::{AsyncSpawner, Detach};
-
-#[cfg(feature = "tokio")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
-pub use watermark::tokio::TokioWaterMark;
+pub use agnostic_lite::{AsyncSpawner, Detach};
 
 #[cfg(all(feature = "tokio", feature = "future"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "tokio", feature = "future"))))]
-pub use wg::future::TokioSpawner;
+pub use agnostic_lite::tokio::TokioSpawner;
 
 #[cfg(feature = "async-std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "async-std")))]
-pub use wg::future::AsyncStdSpawner;
+pub use agnostic_lite::async_std::AsyncStdSpawner;
 
 #[cfg(feature = "smol")]
 #[cfg_attr(docsrs, doc(cfg(feature = "smol")))]
-pub use wg::future::SmolSpawner;
+pub use agnostic_lite::smol::SmolSpawner;
 
 /// For use in no_std environments.
 #[cfg(feature = "core")]

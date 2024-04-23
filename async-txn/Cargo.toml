@@ -23,7 +23,6 @@ cheap-clone.workspace = true
 crossbeam-utils.workspace = true
 either.workspace = true
 indexmap.workspace = true
-pollster = "0.3"
 scopeguard = { workspace = true, features = ["use_std"] }
 smallvec-wrapper.workspace = true
 thiserror.workspace = true
