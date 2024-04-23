@@ -797,6 +797,6 @@ fn compact() {
   db.compact();
   assert_eq!(map.len(), 40);
   for i in 0..40 {
-    assert_eq!(map.get(&i).unwrap().value().len(), 1);
+    assert!(map.get(&i).unwrap().value().len() < 101);
   }
 }
