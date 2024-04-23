@@ -9,6 +9,7 @@ use std::{
 use async_txn::error::WtmError;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use rand::{rngs::OsRng, Rng};
+use skipdb_core::rev_range::WriteTransactionRevRange;
 use wmark::AsyncCloser;
 
 use super::*;
@@ -810,6 +811,144 @@ async fn txn_iteration_edge_case2_async_std() {
 #[cfg(feature = "smol")]
 fn txn_iteration_edge_case2_smol() {
   smol::block_on(txn_iteration_edge_case2_in::<SmolSpawner>());
+}
+
+/// a2, a3, b4 (del), b3, c2, c1
+/// Read at ts=4 -> a3, c2
+/// Read at ts=3 -> a3, b3, c2
+/// Read at ts=2 -> a2, c2
+/// Read at ts=1 -> c1
+async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
+  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+
+  // c1
+  {
+    let mut txn = db.write().await;
+
+    txn.insert(0, 0).unwrap();
+    txn.insert(u64::MAX, u64::MAX).unwrap();
+
+    txn.insert(3, 31).unwrap();
+    txn.commit().await.unwrap();
+    assert_eq!(1, db.version().await);
+  }
+
+  // a2, c2
+  {
+    let mut txn = db.write().await;
+    txn.insert(1, 12).unwrap();
+    txn.insert(3, 32).unwrap();
+    txn.commit().await.unwrap();
+    assert_eq!(2, db.version().await);
+  }
+
+  // b3
+  {
+    let mut txn = db.write().await;
+    txn.insert(1, 13).unwrap();
+    txn.insert(2, 23).unwrap();
+    txn.commit().await.unwrap();
+    assert_eq!(3, db.version().await);
+  }
+
+  // b4 (remove)
+  {
+    let mut txn = db.write().await;
+    txn.remove(2).unwrap();
+    txn.commit().await.unwrap();
+    assert_eq!(4, db.version().await);
+  }
+
+  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>,
+                    expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
+
+  let check_rev_iter = |itr: WriteTransactionRevRange<'_, _, _, u64, u64, BTreeCm<u64>>,
+                        expected: &[u64]| {
+    let mut i = 0;
+    for ent in itr {
+      assert_eq!(expected[i], *ent.value());
+      i += 1;
+    }
+    assert_eq!(expected.len(), i);
+  };
+
+  let mut txn = db.write().await;
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[13, 32]);
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 13]);
+
+  txn.wtm.__set_read_version(5);
+  let itr = txn.range(1..10).unwrap();
+  let mut count = 2;
+  for ent in itr {
+    if *ent.key() == 1 {
+      count -= 1;
+    }
+
+    if *ent.key() == 3 {
+      count -= 1;
+    }
+  }
+  assert_eq!(0, count);
+
+  let itr = txn.range(1..10).unwrap();
+  let mut count = 2;
+  for ent in itr {
+    if *ent.key() == 1 {
+      count -= 1;
+    }
+
+    if *ent.key() == 3 {
+      count -= 1;
+    }
+  }
+  assert_eq!(0, count);
+
+  txn.wtm.__set_read_version(3);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[13, 23, 32]);
+
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 23, 13]);
+
+  txn.wtm.__set_read_version(2);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[12, 32]);
+
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[32, 12]);
+
+  txn.wtm.__set_read_version(1);
+  let itr = txn.range(1..10).unwrap();
+  check_iter(itr, &[31]);
+  let itr = txn.range_rev(1..10).unwrap();
+  check_rev_iter(itr, &[31]);
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn txn_range_edge_case2_tokio() {
+  txn_range_edge_case2_in::<TokioSpawner>().await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn txn_range_edge_case2_async_std() {
+  txn_range_edge_case2_in::<AsyncStdSpawner>().await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn txn_range_edge_case2_smol() {
+  smol::block_on(txn_range_edge_case2_in::<SmolSpawner>());
 }
 
 async fn compact_in<S: AsyncSpawner, Y>(yielder: impl Fn() -> Y + Send + Sync + 'static)
