@@ -30,7 +30,7 @@ impl<'a, C: AsyncCmComparable> AsyncMarker<'a, C> {
   pub async fn mark_comparable<Q>(&mut self, k: &Q)
   where
     C::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync,
+    Q: Ord + ?Sized,
   {
     self.marker.mark_read_comparable(k).await;
   }
@@ -41,7 +41,7 @@ impl<'a, C: AsyncCmEquivalent> AsyncMarker<'a, C> {
   pub async fn mark_equivalent<Q>(&mut self, k: &Q)
   where
     C::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + ?Sized,
   {
     self.marker.mark_read_equivalent(k).await;
   }
@@ -114,13 +114,13 @@ pub trait AsyncCmEquivalent: AsyncCm {
   fn mark_read_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized + Sync;
+    Q: core::hash::Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on the order.
@@ -129,13 +129,13 @@ pub trait AsyncCmComparable: AsyncCm {
   fn mark_read_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: Ord + ?Sized + Sync;
+    Q: Ord + ?Sized;
 }
 
 /// A pending writes manager that can be used to store pending writes in a transaction.

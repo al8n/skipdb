@@ -146,7 +146,7 @@ where
   ) -> Result<bool, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self
@@ -167,7 +167,7 @@ where
   ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized + Sync,
+    Q: core::hash::Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self.wtm.get_equivalent_cm_comparable_pm_blocking(key)? {
