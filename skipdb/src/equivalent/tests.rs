@@ -776,6 +776,7 @@ fn compact() {
         let _ = txn
           .commit_with_callback::<std::convert::Infallible, ()>(|_| {})
           .unwrap();
+        std::thread::yield_now();
       })
     })
     .collect::<Vec<_>>();
