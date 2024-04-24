@@ -26,48 +26,6 @@ pub use write::*;
 
 pub use txn_core::{sync::*, types::*};
 
-/// Options for the [`Tm`].
-#[derive(Debug, Clone)]
-pub struct Options {
-  detect_conflicts: bool,
-}
-
-impl core::default::Default for Options {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-impl Options {
-  /// Create a new options with default values.
-  #[inline]
-  pub const fn new() -> Self {
-    Self {
-      detect_conflicts: true,
-    }
-  }
-
-  /// Returns whether the transactions would be checked for conflicts.
-  #[inline]
-  pub const fn detect_conflicts(&self) -> bool {
-    self.detect_conflicts
-  }
-
-  /// Set whether the transactions would be checked for conflicts.
-  #[inline]
-  pub fn set_detect_conflicts(&mut self, detect_conflicts: bool) -> &mut Self {
-    self.detect_conflicts = detect_conflicts;
-    self
-  }
-
-  /// Set whether the transactions would be checked for conflicts.
-  #[inline]
-  pub const fn with_detect_conflicts(mut self, detect_conflicts: bool) -> Self {
-    self.detect_conflicts = detect_conflicts;
-    self
-  }
-}
-
 /// A multi-writer multi-reader MVCC, ACID, Serializable Snapshot Isolation transaction manager.
 pub struct Tm<K, V, C, P> {
   inner: Arc<Oracle<C>>,
