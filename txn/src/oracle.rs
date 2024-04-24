@@ -205,17 +205,9 @@ impl<S> Drop for Oracle<S> {
   }
 }
 
+#[derive(Debug)]
 pub(super) struct CommittedTxn<C> {
   ts: u64,
   /// Keeps track of the entries written at timestamp ts.
   conflict_manager: Option<C>,
-}
-
-impl<C: core::fmt::Debug> core::fmt::Debug for CommittedTxn<C> {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    f.debug_struct("CommittedTxn")
-      .field("committed_version", &self.ts)
-      .field("conflict_manager", &self.conflict_manager)
-      .finish()
-  }
 }

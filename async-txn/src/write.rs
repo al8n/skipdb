@@ -520,7 +520,6 @@ where
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   C: AsyncCmComparable<Key = K>,
-  P: AsyncPwm<Key = K, Value = V>,
   S: AsyncSpawner,
 {
   /// Marks a key is read.
@@ -973,7 +972,7 @@ where
 
 #[cfg(test)]
 mod tests {
-  use std::convert::Infallible;
+  use std::{collections::BTreeSet, convert::Infallible, marker::PhantomData};
 
   use super::*;
 
@@ -1027,6 +1026,7 @@ mod tests {
 
     assert_eq!(wtm.contains_key_equivalent("6").await.unwrap(), None);
     assert_eq!(wtm.get_equivalent("6").await.unwrap(), None);
+    assert_eq!(wtm.contains_key_blocking(&"6".to_owned()).unwrap(), None);
 
     wtm.remove("5".into()).await.unwrap();
     wtm.rollback().await.unwrap();
@@ -1050,17 +1050,24 @@ mod tests {
     assert!(!wtm.is_discard());
     assert!(wtm.pwm().is_some());
     assert!(wtm.cm().is_some());
+    assert!(wtm.blocking_marker().is_some());
     assert!(wtm.marker_with_pm().is_some());
 
     let mut marker = wtm.marker().unwrap();
 
     marker.mark(&"1".to_owned()).await;
+    marker.mark_blocking(&"3".to_owned());
     marker.mark_equivalent("3").await;
+    marker.mark_equivalent_blocking("3");
     marker.mark_conflict(&"2".to_owned()).await;
+    marker.mark_conflict_equivalent_blocking("4");
     marker.mark_conflict_equivalent("4").await;
     wtm.mark_read(&"2".to_owned()).await;
+    wtm.mark_read_blocking(&"3".to_owned());
+    wtm.mark_read_equivalent_blocking("3");
     wtm.mark_conflict(&"1".to_owned()).await;
     wtm.mark_conflict_equivalent("2").await;
+    wtm.mark_conflict_equivalent_blocking("2");
     wtm.mark_read_equivalent("3").await;
 
     wtm.insert("5".into(), 5).await.unwrap();
@@ -1118,5 +1125,244 @@ mod tests {
       .unwrap();
 
     assert!(wtm.is_discard());
+  }
+
+  struct TestCm<K> {
+    conflict_keys: BTreeSet<usize>,
+    reads: BTreeSet<usize>,
+    _m: PhantomData<K>,
+  }
+
+  impl<K> Cm for TestCm<K> {
+    type Error = Infallible;
+
+    type Key = K;
+
+    type Options = ();
+
+    fn new(_options: Self::Options) -> Result<Self, Self::Error> {
+      Ok(Self {
+        conflict_keys: BTreeSet::new(),
+        reads: BTreeSet::new(),
+        _m: PhantomData,
+      })
+    }
+
+    fn mark_read(&mut self, key: &Self::Key) {
+      self.reads.insert(key as *const K as usize);
+    }
+
+    fn mark_conflict(&mut self, key: &Self::Key) {
+      self.conflict_keys.insert(key as *const K as usize);
+    }
+
+    fn has_conflict(&self, other: &Self) -> bool {
+      if self.reads.is_empty() {
+        return false;
+      }
+
+      for ro in self.reads.iter() {
+        if other.conflict_keys.contains(ro) {
+          return true;
+        }
+      }
+      false
+    }
+
+    fn rollback(&mut self) -> Result<(), Self::Error> {
+      self.conflict_keys.clear();
+      self.reads.clear();
+      Ok(())
+    }
+  }
+
+  impl<K> CmComparable for TestCm<K> {
+    fn mark_read_comparable<Q>(&mut self, key: &Q)
+    where
+      Self::Key: Borrow<Q>,
+      Q: Ord + ?Sized,
+    {
+      self.reads.insert(key as *const Q as *const () as usize);
+    }
+
+    fn mark_conflict_comparable<Q>(&mut self, key: &Q)
+    where
+      Self::Key: Borrow<Q>,
+      Q: Ord + ?Sized,
+    {
+      self
+        .conflict_keys
+        .insert(key as *const Q as *const () as usize);
+    }
+  }
+
+  #[async_std::test]
+  async fn wtm3() {
+    let tm = AsyncTm::<
+      Arc<u64>,
+      u64,
+      TestCm<Arc<u64>>,
+      IndexMapPwm<Arc<u64>, u64>,
+      wmark::AsyncStdSpawner,
+    >::new("test", 0)
+    .await;
+    let mut wtm = tm.write(Default::default(), ()).await.unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    let one = Arc::new(1);
+    let two = Arc::new(2);
+    let three = Arc::new(3);
+    let four = Arc::new(4);
+    let five = Arc::new(5);
+    marker.mark(&one).await;
+    marker.mark_comparable(&three).await;
+    marker.mark_conflict(&two).await;
+    marker.mark_conflict_comparable(&four).await;
+    wtm.mark_read(&two).await;
+    wtm.mark_conflict(&one).await;
+    wtm.mark_conflict_comparable(&two).await;
+    wtm.mark_read_comparable(&three).await;
+
+    wtm.insert(five.clone(), 5).await.unwrap();
+
+    assert_eq!(
+      wtm
+        .contains_key_comparable_cm_equivalent_pm(&five)
+        .await
+        .unwrap(),
+      Some(true)
+    );
+    assert_eq!(
+      wtm
+        .get_comparable_cm_equivalent_pm(&five)
+        .await
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    assert_eq!(
+      wtm
+        .contains_key_comparable_cm_equivalent_pm_blocking(&five)
+        .unwrap(),
+      Some(true)
+    );
+    assert_eq!(
+      wtm
+        .get_comparable_cm_equivalent_pm_blocking(&five)
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    let six = Arc::new(6);
+
+    assert_eq!(
+      wtm
+        .contains_key_comparable_cm_equivalent_pm(&six)
+        .await
+        .unwrap(),
+      None
+    );
+    assert_eq!(
+      wtm.get_comparable_cm_equivalent_pm(&six).await.unwrap(),
+      None
+    );
+    assert_eq!(
+      wtm
+        .contains_key_comparable_cm_equivalent_pm_blocking(&six)
+        .unwrap(),
+      None
+    );
+    assert_eq!(
+      wtm.get_comparable_cm_equivalent_pm_blocking(&six).unwrap(),
+      None
+    );
+  }
+
+  #[async_std::test]
+  async fn wtm4() {
+    let tm = AsyncTm::<
+      Arc<u64>,
+      u64,
+      TestCm<Arc<u64>>,
+      BTreePwm<Arc<u64>, u64>,
+      wmark::AsyncStdSpawner,
+    >::new("test", 0)
+    .await;
+    let mut wtm = tm.write((), ()).await.unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    let one = Arc::new(1);
+    let two = Arc::new(2);
+    let three = Arc::new(3);
+    let four = Arc::new(4);
+    let five = Arc::new(5);
+    marker.mark(&one).await;
+    marker.mark_blocking(&one);
+    marker.mark_comparable(&three).await;
+    marker.mark_comparable_blocking(&three);
+    marker.mark_conflict(&two).await;
+    marker.mark_conflict_blocking(&two);
+    marker.mark_conflict_comparable(&four).await;
+    marker.mark_conflict_comparable_blocking(&four);
+    wtm.mark_read(&two).await;
+    wtm.mark_read_blocking(&two);
+    wtm.mark_read_comparable_blocking(&two);
+    wtm.mark_conflict(&one).await;
+    wtm.mark_conflict_blocking(&one);
+    wtm.mark_conflict_comparable(&two).await;
+    wtm.mark_conflict_comparable_blocking(&two);
+    wtm.mark_read_comparable(&three).await;
+
+    wtm.insert(five.clone(), 5).await.unwrap();
+
+    assert_eq!(
+      wtm.contains_key_comparable(&five).await.unwrap(),
+      Some(true)
+    );
+    assert_eq!(
+      wtm
+        .get_comparable(&five)
+        .await
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    assert_eq!(
+      wtm.contains_key_comparable_blocking(&five).unwrap(),
+      Some(true)
+    );
+    assert_eq!(
+      wtm
+        .get_comparable_blocking(&five)
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    let six = Arc::new(6);
+
+    assert_eq!(wtm.contains_key_comparable(&six).await.unwrap(), None);
+    assert_eq!(wtm.get_comparable(&six).await.unwrap(), None);
+    assert_eq!(wtm.contains_key_comparable_blocking(&six).unwrap(), None);
+    assert_eq!(wtm.get_comparable_blocking(&six).unwrap(), None);
   }
 }
