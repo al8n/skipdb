@@ -13,7 +13,7 @@ pub struct WriteTransaction<K, V, S = RandomState> {
 
 impl<K, V, S> WriteTransaction<K, V, S>
 where
-  K: Ord + core::hash::Hash + Eq,
+  K: Ord + Hash + Eq,
   S: BuildHasher + Clone,
 {
   #[inline]
@@ -32,7 +32,7 @@ where
 
 impl<K, V, S> WriteTransaction<K, V, S>
 where
-  K: Ord + core::hash::Hash + Eq,
+  K: Ord + Hash + Eq,
   V: Send + 'static,
   S: BuildHasher,
 {
@@ -62,7 +62,7 @@ where
 
 impl<K, V, S> WriteTransaction<K, V, S>
 where
-  K: Ord + core::hash::Hash + Eq + Send + Sync + 'static,
+  K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
   S: BuildHasher + Send + Sync + 'static,
 {
@@ -104,7 +104,7 @@ where
 
 impl<K, V, S> WriteTransaction<K, V, S>
 where
-  K: Ord + core::hash::Hash + Eq,
+  K: Ord + Hash + Eq,
   V: 'static,
   S: BuildHasher,
 {
@@ -128,7 +128,7 @@ where
   ) -> Result<bool, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized,
+    Q: Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self.wtm.contains_key_equivalent_cm_comparable_pm(key)? {
@@ -146,7 +146,7 @@ where
   ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized,
+    Q: Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self.wtm.get_equivalent_cm_comparable_pm(key)? {

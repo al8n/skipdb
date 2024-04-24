@@ -280,7 +280,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     match self
       .pending_writes
@@ -318,7 +318,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if let Some((k, e)) = self
       .pending_writes
@@ -369,7 +369,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     match self
       .pending_writes
@@ -407,7 +407,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if let Some((k, e)) = self
       .pending_writes

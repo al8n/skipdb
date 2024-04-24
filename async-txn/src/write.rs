@@ -1,6 +1,6 @@
 use self::error::WtmError;
 
-use core::{borrow::Borrow, future::Future};
+use core::{borrow::Borrow, future::Future, hash::Hash};
 
 use super::*;
 
@@ -308,7 +308,7 @@ where
   pub async fn mark_read_equivalent<Q>(&mut self, k: &Q)
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_read_equivalent(k).await;
@@ -319,7 +319,7 @@ where
   pub async fn mark_conflict_equivalent<Q>(&mut self, k: &Q)
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_conflict_equivalent(k).await;
@@ -344,7 +344,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -387,7 +387,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -443,7 +443,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     match self
       .pending_writes
@@ -482,7 +482,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if let Some((k, e)) = self
       .pending_writes
@@ -654,7 +654,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     match self
       .pending_writes
@@ -693,7 +693,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if let Some((k, e)) = self
       .pending_writes
