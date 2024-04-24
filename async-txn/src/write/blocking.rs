@@ -1,5 +1,33 @@
 use super::*;
 
+impl<K, V, C, P, S> AsyncTm<K, V, C, P, S>
+where
+  C: Cm<Key = K>,
+  P: Pwm<Key = K, Value = V>,
+  S: AsyncSpawner,
+{
+  /// Create a new writable transaction with
+  /// the default pending writes manager to store the pending writes.
+  pub async fn write_with_blocking_cm_and_pwm(
+    &self,
+    pending_manager_opts: P::Options,
+    conflict_manager_opts: C::Options,
+  ) -> Result<AsyncWtm<K, V, C, P, S>, TransactionError<C::Error, P::Error>> {
+    let read_ts = self.inner.read_ts().await;
+    Ok(AsyncWtm {
+      orc: self.inner.clone(),
+      read_ts,
+      size: 0,
+      count: 0,
+      conflict_manager: Some(C::new(conflict_manager_opts).map_err(TransactionError::conflict)?),
+      pending_writes: Some(P::new(pending_manager_opts).map_err(TransactionError::pending)?),
+      duplicate_writes: OneOrMore::new(),
+      discarded: false,
+      done_read: false,
+    })
+  }
+}
+
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   C: Cm<Key = K>,

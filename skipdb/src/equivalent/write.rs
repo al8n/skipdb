@@ -23,10 +23,7 @@ where
       .tm
       .write(
         (),
-        Some(HashCmOptions::with_capacity(
-          db.inner.hasher.clone(),
-          cap.unwrap_or(8),
-        )),
+        HashCmOptions::with_capacity(db.inner.hasher.clone(), cap.unwrap_or(8)),
       )
       .unwrap();
     Self { db, wtm }

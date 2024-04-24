@@ -8,8 +8,8 @@ use super::*;
 use indexmap::IndexSet;
 
 /// Options for the [`HashCm`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct HashCmOptions<S> {
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct HashCmOptions<S = DefaultHasher> {
   /// The hasher used by the conflict manager.
   pub hasher: S,
   /// The initialized capacity of the conflict manager.

@@ -93,7 +93,7 @@ where
   pub fn write(
     &self,
     pending_manager_opts: P::Options,
-    conflict_manager_opts: Option<C::Options>,
+    conflict_manager_opts: C::Options,
   ) -> Result<Wtm<K, V, C, P>, TransactionError<C::Error, P::Error>> {
     let read_ts = self.inner.read_ts();
     Ok(Wtm {
@@ -101,11 +101,7 @@ where
       read_ts,
       size: 0,
       count: 0,
-      conflict_manager: if let Some(opts) = conflict_manager_opts {
-        Some(C::new(opts).map_err(TransactionError::conflict)?)
-      } else {
-        None
-      },
+      conflict_manager: Some(C::new(conflict_manager_opts).map_err(TransactionError::conflict)?),
       pending_writes: Some(P::new(pending_manager_opts).map_err(TransactionError::pending)?),
       duplicate_writes: OneOrMore::new(),
       discarded: false,

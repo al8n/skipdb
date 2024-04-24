@@ -16,8 +16,8 @@ where
   K: CheapClone + Ord,
 {
   #[inline]
-  pub(super) fn new(db: ComparableDb<K, V>, cap: Option<usize>) -> Self {
-    let wtm = db.inner.tm.write((), Some(cap)).unwrap();
+  pub(super) fn new(db: ComparableDb<K, V>) -> Self {
+    let wtm = db.inner.tm.write((), ()).unwrap();
     Self { db, wtm }
   }
 }

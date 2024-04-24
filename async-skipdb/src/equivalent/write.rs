@@ -24,10 +24,7 @@ where
       .tm
       .write_with_blocking_cm_and_pwm(
         (),
-        Some(HashCmOptions::with_capacity(
-          db.inner.hasher.clone(),
-          cap.unwrap_or(8),
-        )),
+        HashCmOptions::with_capacity(db.inner.hasher.clone(), cap.unwrap_or(8)),
       )
       .await
       .unwrap();

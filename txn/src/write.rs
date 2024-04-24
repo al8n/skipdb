@@ -946,3 +946,39 @@ impl<K, V, C, P> Wtm<K, V, C, P> {
     self.discarded
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn wtm2() {
+    let tm = Tm::<String, u64, HashCm<String>, IndexMapPwm<String, u64>>::new("test", 0);
+    let mut wtm = tm.write(Default::default(), Default::default()).unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    marker.mark(&"1".to_owned());
+    marker.mark_equivalent("3");
+    marker.mark_conflict(&"2".to_owned());
+    marker.mark_conflict_equivalent("4");
+    wtm.mark_read(&"2".to_owned());
+    wtm.mark_conflict(&"1".to_owned());
+    wtm.mark_conflict_equivalent("2");
+    wtm.mark_read_equivalent("3");
+
+    wtm.insert("5".into(), 5).unwrap();
+
+    assert_eq!(wtm.contains_key_equivalent("5").unwrap(), Some(true));
+    assert_eq!(
+      wtm.get_equivalent("5").unwrap().unwrap().value().unwrap(),
+      &5
+    );
+
+    assert_eq!(wtm.contains_key_equivalent("6").unwrap(), None);
+    assert_eq!(wtm.get_equivalent("6").unwrap(), None);
+  }
+}

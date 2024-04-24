@@ -44,6 +44,11 @@ impl<'a, C: Cm> Marker<'a, C> {
   pub fn mark(&mut self, k: &C::Key) {
     self.marker.mark_read(k);
   }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict(&mut self, k: &C::Key) {
+    self.marker.mark_conflict(k);
+  }
 }
 
 impl<'a, C: CmComparable> Marker<'a, C> {
@@ -55,6 +60,15 @@ impl<'a, C: CmComparable> Marker<'a, C> {
   {
     self.marker.mark_read_comparable(k);
   }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict_comparable<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_conflict_comparable(k);
+  }
 }
 
 impl<'a, C: CmEquivalent> Marker<'a, C> {
@@ -65,6 +79,15 @@ impl<'a, C: CmEquivalent> Marker<'a, C> {
     Q: core::hash::Hash + Eq + ?Sized,
   {
     self.marker.mark_read_equivalent(k);
+  }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict_equivalent<Q>(&mut self, k: &Q)
+  where
+    C::Key: core::borrow::Borrow<Q>,
+    Q: core::hash::Hash + Eq + ?Sized,
+  {
+    self.marker.mark_conflict_equivalent(k);
   }
 }
 
