@@ -36,7 +36,7 @@ impl<S> HashCmOptions<S> {
   }
 }
 
-/// A [`Cm`] conflict manager implementation that based on the [`Hash`](core::hash::Hash).
+/// A [`Cm`] conflict manager implementation that based on the [`Hash`](Hash).
 pub struct HashCm<K, S = DefaultHasher> {
   reads: MediumVec<u64>,
   conflict_keys: IndexSet<u64, S>,
@@ -56,7 +56,7 @@ impl<K, S: Clone> Clone for HashCm<K, S> {
 impl<K, S> Cm for HashCm<K, S>
 where
   S: BuildHasher,
-  K: core::hash::Hash + Eq,
+  K: Hash + Eq,
 {
   type Error = core::convert::Infallible;
   type Key = K;
@@ -115,13 +115,13 @@ where
 impl<K, S> CmEquivalent for HashCm<K, S>
 where
   S: BuildHasher,
-  K: core::hash::Hash + Eq,
+  K: Hash + Eq,
 {
   #[inline]
   fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.reads.push(fp);
@@ -131,7 +131,7 @@ where
   fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.conflict_keys.insert(fp);

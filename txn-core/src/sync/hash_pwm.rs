@@ -9,7 +9,7 @@ pub type IndexMapPwm<K, V, S = DefaultHasher> = IndexMap<K, EntryValue<V>, S>;
 
 impl<K, V, S> Pwm for IndexMap<K, EntryValue<V>, S>
 where
-  K: Eq + core::hash::Hash,
+  K: Eq + Hash,
   S: BuildHasher + Default,
 {
   type Error = Infallible;
@@ -106,14 +106,14 @@ where
 
 impl<K, V, S> PwmEquivalent for IndexMap<K, EntryValue<V>, S>
 where
-  K: Eq + core::hash::Hash,
+  K: Eq + Hash,
   S: BuildHasher + Default,
 {
   #[inline]
   fn get_equivalent<Q>(&self, key: &Q) -> Result<Option<&EntryValue<V>>, Self::Error>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     Ok(self.get(key))
   }
@@ -125,7 +125,7 @@ where
   ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     Ok(self.get_full(key).map(|(_, k, v)| (k, v)))
   }
@@ -134,7 +134,7 @@ where
   fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     Ok(self.contains_key(key))
   }
@@ -146,7 +146,7 @@ where
   ) -> Result<Option<(K, EntryValue<V>)>, Self::Error>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     Ok(self.shift_remove_entry(key))
   }
