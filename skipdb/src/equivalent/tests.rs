@@ -810,3 +810,59 @@ fn rollback() {
   txn.rollback().unwrap();
   assert!(txn.get(&1).unwrap().is_none());
 }
+
+#[test]
+fn iter() {
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let mut txn = db.write();
+  txn.insert(1, 1).unwrap();
+  txn.insert(2, 2).unwrap();
+  txn.insert(3, 3).unwrap();
+  txn.commit().unwrap();
+
+  let txn = db.read();
+  let iter = txn.iter();
+  let mut count = 0;
+  for ent in iter {
+    count += 1;
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+  }
+  assert_eq!(count, 3);
+
+  let iter = txn.iter_rev();
+  let mut count = 3;
+  for ent in iter {
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+    count -= 1;
+  }
+}
+
+#[test]
+fn range() {
+  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let mut txn = db.write();
+  txn.insert(1, 1).unwrap();
+  txn.insert(2, 2).unwrap();
+  txn.insert(3, 3).unwrap();
+  txn.commit().unwrap();
+
+  let txn = db.read();
+  let iter = txn.range(1..4);
+  let mut count = 0;
+  for ent in iter {
+    count += 1;
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+  }
+  assert_eq!(count, 3);
+
+  let iter = txn.range_rev(1..4);
+  let mut count = 3;
+  for ent in iter {
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+    count -= 1;
+  }
+}

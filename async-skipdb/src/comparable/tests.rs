@@ -1103,3 +1103,93 @@ async fn rollback_async_std() {
 fn rollback_smol() {
   smol::block_on(rollback_in::<SmolSpawner>());
 }
+
+async fn iter_in<S: AsyncSpawner>() {
+  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let mut txn = db.write().await;
+  txn.insert(1, 1).unwrap();
+  txn.insert(2, 2).unwrap();
+  txn.insert(3, 3).unwrap();
+  txn.commit().await.unwrap();
+
+  let txn = db.read().await;
+  let iter = txn.iter();
+  let mut count = 0;
+  for ent in iter {
+    count += 1;
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+  }
+  assert_eq!(count, 3);
+
+  let iter = txn.iter_rev();
+  let mut count = 3;
+  for ent in iter {
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+    count -= 1;
+  }
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn iter_tokio() {
+  iter_in::<TokioSpawner>().await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn iter_async_std() {
+  iter_in::<AsyncStdSpawner>().await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn iter_smol() {
+  smol::block_on(iter_in::<SmolSpawner>());
+}
+
+async fn range_in<S: AsyncSpawner>() {
+  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let mut txn = db.write().await;
+  txn.insert(1, 1).unwrap();
+  txn.insert(2, 2).unwrap();
+  txn.insert(3, 3).unwrap();
+  txn.commit().await.unwrap();
+
+  let txn = db.read().await;
+  let iter = txn.range(1..4);
+  let mut count = 0;
+  for ent in iter {
+    count += 1;
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+  }
+  assert_eq!(count, 3);
+
+  let iter = txn.range_rev(1..4);
+  let mut count = 3;
+  for ent in iter {
+    assert_eq!(ent.key(), &count);
+    assert_eq!(ent.value(), count);
+    count -= 1;
+  }
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn range_tokio() {
+  range_in::<TokioSpawner>().await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn range_async_std() {
+  range_in::<AsyncStdSpawner>().await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn range_smol() {
+  smol::block_on(range_in::<SmolSpawner>());
+}
