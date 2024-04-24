@@ -987,6 +987,8 @@ fn range2() {
   let mut count = 0;
   for ent in iter {
     count += 1;
+    let ent = ent.clone();
+    println!("{:?}", ent);
     assert_eq!(ent.key(), &count);
     assert_eq!(ent.value(), count);
     assert_eq!(ent.version(), 0);
@@ -996,6 +998,8 @@ fn range2() {
   let iter = txn.range_rev(1..4).unwrap();
   let mut count = 3;
   for ent in iter {
+    let ent = ent.clone();
+    println!("{:?}", ent);
     assert_eq!(ent.key(), &count);
     assert_eq!(ent.value(), count);
     assert_eq!(ent.version(), 0);
@@ -1013,6 +1017,8 @@ fn range2() {
   let mut count = 0;
   for ent in iter {
     count += 1;
+    let ent = ent.clone();
+    println!("{:?}", ent);
     assert_eq!(ent.key(), &count);
     assert_eq!(ent.value(), count);
   }

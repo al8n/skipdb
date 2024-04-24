@@ -1026,6 +1026,7 @@ mod tests {
 
     assert_eq!(wtm.contains_key_equivalent("6").await.unwrap(), None);
     assert_eq!(wtm.get_equivalent("6").await.unwrap(), None);
+    assert_eq!(wtm.contains_key_blocking(&"6".to_owned()).unwrap(), None);
 
     wtm.remove("5".into()).await.unwrap();
     wtm.rollback().await.unwrap();
