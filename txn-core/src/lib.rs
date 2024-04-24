@@ -14,11 +14,11 @@ pub use cheap_clone::CheapClone;
 
 /// Default hasher.
 #[cfg(feature = "std")]
-pub type DefaultHasher = std::collections::hash_map::DefaultHasher;
+pub type DefaultHasher = std::collections::hash_map::RandomState;
 
 /// Default hasher.
 #[cfg(not(feature = "std"))]
-pub type DefaultHasher = ahash::AHasher;
+pub type DefaultHasher = core::hash::BuildHasherDefault<ahash::AHasher>;
 
 /// Types
 pub mod types {

@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::hash_map::RandomState;
+use std::{collections::hash_map::RandomState, hash::Hash};
 
 mod write;
 pub use write::*;
@@ -30,11 +30,11 @@ impl<K, V, S> Inner<K, V, S> {
 
 /// A concurrent ACID, MVCC in-memory database based on [`crossbeam-skiplist`][crossbeam_skiplist].
 ///
-/// `EquivalentDb` requires key to be [`Ord`] and [`Hash`](core::hash::Hash).
+/// `EquivalentDb` requires key to be [`Ord`] and [`Hash`](Hash).
 ///
 /// Comparing to [`ComparableDb`](crate::comparable::ComparableDb),
 /// `EquivalentDb` has more flexible write transaction APIs and no clone happen.
-/// But, [`ComparableDb`](crate::comparable::ComparableDb) does not require the key to implement [`Hash`](core::hash::Hash).
+/// But, [`ComparableDb`](crate::comparable::ComparableDb) does not require the key to implement [`Hash`](Hash).
 pub struct EquivalentDb<K, V, S = RandomState> {
   inner: Arc<Inner<K, V, S>>,
 }
@@ -96,7 +96,7 @@ impl<K, V, S> EquivalentDb<K, V, S> {
 
 impl<K, V, S> EquivalentDb<K, V, S>
 where
-  K: Ord + Eq + core::hash::Hash,
+  K: Ord + Eq + Hash,
   V: 'static,
   S: BuildHasher + Clone,
 {
@@ -115,7 +115,7 @@ where
 
 impl<K, V, S> EquivalentDb<K, V, S>
 where
-  K: Ord + Eq + core::hash::Hash + Send + 'static,
+  K: Ord + Eq + Hash + Send + 'static,
   V: Send + 'static,
   S: BuildHasher + Clone,
 {

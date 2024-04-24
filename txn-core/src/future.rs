@@ -1,4 +1,4 @@
-use core::{borrow::Borrow, future::Future, ops::RangeBounds};
+use core::{borrow::Borrow, future::Future, hash::Hash, ops::RangeBounds};
 
 use super::{
   sync::*,
@@ -23,16 +23,30 @@ impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
   pub async fn mark(&mut self, k: &C::Key) {
     self.marker.mark_read(k).await;
   }
+
+  /// Marks a key is conflicted.
+  pub async fn mark_conflict(&mut self, k: &C::Key) {
+    self.marker.mark_conflict(k).await;
+  }
 }
 
 impl<'a, C: AsyncCmComparable> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub async fn mark_comparable<Q>(&mut self, k: &Q)
   where
-    C::Key: core::borrow::Borrow<Q>,
+    C::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     self.marker.mark_read_comparable(k).await;
+  }
+
+  /// Marks a key is conflicted.
+  pub async fn mark_conflict_comparable<Q>(&mut self, k: &Q)
+  where
+    C::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_conflict_comparable(k).await;
   }
 }
 
@@ -40,10 +54,19 @@ impl<'a, C: AsyncCmEquivalent> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub async fn mark_equivalent<Q>(&mut self, k: &Q)
   where
-    C::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     self.marker.mark_read_equivalent(k).await;
+  }
+
+  /// Marks a key is conflicted.
+  pub async fn mark_conflict_equivalent<Q>(&mut self, k: &Q)
+  where
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+  {
+    self.marker.mark_conflict_equivalent(k).await;
   }
 }
 
@@ -52,16 +75,30 @@ impl<'a, C: Cm> AsyncMarker<'a, C> {
   pub fn mark_blocking(&mut self, k: &C::Key) {
     self.marker.mark_read(k);
   }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict_blocking(&mut self, k: &C::Key) {
+    self.marker.mark_conflict(k);
+  }
 }
 
 impl<'a, C: CmComparable> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub fn mark_comparable_blocking<Q>(&mut self, k: &Q)
   where
-    C::Key: core::borrow::Borrow<Q>,
+    C::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     self.marker.mark_read_comparable(k);
+  }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict_comparable_blocking<Q>(&mut self, k: &Q)
+  where
+    C::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_conflict_comparable(k);
   }
 }
 
@@ -69,10 +106,19 @@ impl<'a, C: CmEquivalent> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub fn mark_equivalent_blocking<Q>(&mut self, k: &Q)
   where
-    C::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     self.marker.mark_read_equivalent(k);
+  }
+
+  /// Marks a key is conflicted.
+  pub fn mark_conflict_equivalent_blocking<Q>(&mut self, k: &Q)
+  where
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+  {
+    self.marker.mark_conflict_equivalent(k);
   }
 }
 
@@ -113,14 +159,14 @@ pub trait AsyncCmEquivalent: AsyncCm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
   fn mark_read_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_equivalent<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on the order.
@@ -128,13 +174,13 @@ pub trait AsyncCmComparable: AsyncCm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
   fn mark_read_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_comparable<Q>(&mut self, key: &Q) -> impl Future<Output = ()>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;
 }
 
@@ -258,8 +304,8 @@ pub trait AsyncPwmEquivalentRange: AsyncPwmRange + AsyncPwmEquivalent {
   /// Returns an iterator over the pending writes.
   fn range_equivalent<T, R>(&self, range: R) -> impl Future<Output = Self::Range<'_>>
   where
-    T: ?Sized + Eq + core::hash::Hash,
-    Self::Key: Borrow<T> + Eq + core::hash::Hash,
+    T: ?Sized + Eq + Hash,
+    Self::Key: Borrow<T> + Eq + Hash,
     R: RangeBounds<T>;
 }
 
@@ -272,7 +318,7 @@ pub trait AsyncPwmEquivalent: AsyncPwm {
   ) -> impl Future<Output = Result<Option<&EntryValue<Self::Value>>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Q: Hash + Eq + ?Sized;
 
   /// Optimized version of [`AsyncPwm::get_entry`] that accepts borrowed keys.
   fn get_entry_equivalent<Q>(
@@ -281,13 +327,13 @@ pub trait AsyncPwmEquivalent: AsyncPwm {
   ) -> impl Future<Output = Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Q: Hash + Eq + ?Sized;
 
   /// Optimized version of [`AsyncPwm::contains_key`] that accepts borrowed keys.
   fn contains_key_equivalent<Q>(&self, key: &Q) -> impl Future<Output = Result<bool, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Q: Hash + Eq + ?Sized;
 
   /// Optimized version of [`AsyncPwm::remove_entry`] that accepts borrowed keys.
   fn remove_entry_equivalent<Q>(
@@ -296,7 +342,7 @@ pub trait AsyncPwmEquivalent: AsyncPwm {
   ) -> impl Future<Output = Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>>
   where
     Self::Key: Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized;
+    Q: Hash + Eq + ?Sized;
 }
 
 /// An optimized version of the [`AsyncPwm`] trait that if your pending writes manager is depend on the order.
@@ -372,7 +418,7 @@ where
 {
   async fn mark_read_comparable<Q>(&mut self, key: &Q)
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as CmComparable>::mark_read_comparable(self, key)
@@ -380,7 +426,7 @@ where
 
   async fn mark_conflict_comparable<Q>(&mut self, key: &Q)
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as CmComparable>::mark_conflict_comparable(self, key)
@@ -393,16 +439,16 @@ where
 {
   async fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as CmEquivalent>::mark_read_equivalent(self, key)
   }
 
   async fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as CmEquivalent>::mark_conflict_equivalent(self, key)
   }
@@ -526,8 +572,8 @@ where
 {
   async fn range_equivalent<T, R>(&self, range: R) -> Self::Range<'_>
   where
-    T: ?Sized + Eq + core::hash::Hash,
-    Self::Key: Borrow<T> + Eq + core::hash::Hash,
+    T: ?Sized + Eq + Hash,
+    Self::Key: Borrow<T> + Eq + Hash,
     R: RangeBounds<T>,
   {
     <C as PwmEquivalentRange>::range_equivalent(self, range)
@@ -543,7 +589,7 @@ where
     key: &Q,
   ) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as PwmComparable>::get_comparable(self, key)
@@ -554,7 +600,7 @@ where
     key: &Q,
   ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as PwmComparable>::get_entry_comparable(self, key)
@@ -562,7 +608,7 @@ where
 
   async fn contains_key_comparable<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as PwmComparable>::contains_key_comparable(self, key)
@@ -573,7 +619,7 @@ where
     key: &Q,
   ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
+    Self::Key: Borrow<Q>,
     Q: Ord + ?Sized,
   {
     <T as PwmComparable>::remove_entry_comparable(self, key)
@@ -589,8 +635,8 @@ where
     key: &Q,
   ) -> Result<Option<&EntryValue<Self::Value>>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as PwmEquivalent>::get_equivalent(self, key)
   }
@@ -600,16 +646,16 @@ where
     key: &Q,
   ) -> Result<Option<(&Self::Key, &EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as PwmEquivalent>::get_entry_equivalent(self, key)
   }
 
   async fn contains_key_equivalent<Q>(&self, key: &Q) -> Result<bool, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as PwmEquivalent>::contains_key_equivalent(self, key)
   }
@@ -619,8 +665,8 @@ where
     key: &Q,
   ) -> Result<Option<(Self::Key, EntryValue<Self::Value>)>, Self::Error>
   where
-    Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
   {
     <T as PwmEquivalent>::remove_entry_equivalent(self, key)
   }

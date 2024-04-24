@@ -1,12 +1,11 @@
 use alloc::collections::BTreeSet;
 use cheap_clone::CheapClone;
-use smallvec_wrapper::TinyVec;
 
 use super::*;
 
 /// A [`Cm`] conflict manager implementation that based on the [`BTreeSet`](std::collections::BTreeSet).
 pub struct BTreeCm<K> {
-  reads: TinyVec<K>,
+  reads: BTreeSet<K>,
   conflict_keys: BTreeSet<K>,
 }
 
@@ -25,21 +24,19 @@ where
 {
   type Error = core::convert::Infallible;
   type Key = K;
-  type Options = Option<usize>;
+  type Options = ();
 
   #[inline]
-  fn new(options: Self::Options) -> Result<Self, Self::Error> {
+  fn new(_options: Self::Options) -> Result<Self, Self::Error> {
     Ok(Self {
-      reads: options
-        .map(TinyVec::with_capacity)
-        .unwrap_or_else(|| TinyVec::new()),
+      reads: BTreeSet::new(),
       conflict_keys: BTreeSet::new(),
     })
   }
 
   #[inline]
   fn mark_read(&mut self, key: &K) {
-    self.reads.push(key.cheap_clone());
+    self.reads.insert(key.cheap_clone());
   }
 
   #[inline]
@@ -66,5 +63,21 @@ where
     self.reads.clear();
     self.conflict_keys.clear();
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::{BTreeCm, Cm};
+
+  #[test]
+  fn test_btree_cm() {
+    let mut cm = BTreeCm::<u64>::new(()).unwrap();
+    cm.mark_read(&1);
+    cm.mark_read(&2);
+    cm.mark_conflict(&2);
+    cm.mark_conflict(&3);
+    let cm2 = cm.clone();
+    assert!(cm.has_conflict(&cm2));
   }
 }

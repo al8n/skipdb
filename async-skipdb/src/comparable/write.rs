@@ -17,11 +17,11 @@ where
   S: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: ComparableDb<K, V, S>, cap: Option<usize>) -> Self {
+  pub(super) async fn new(db: ComparableDb<K, V, S>) -> Self {
     let wtm = db
       .inner
       .tm
-      .write_with_blocking_cm_and_pwm((), Some(cap))
+      .write_with_blocking_cm_and_pwm((), ())
       .await
       .unwrap();
     Self { db, wtm }

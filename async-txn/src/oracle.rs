@@ -57,70 +57,51 @@ where
   ) -> CreateCommitTimestampResult<C> {
     let mut inner = self.inner.lock().await;
 
-    if let Some(conflict_manager) = conflict_manager.take() {
-      for committed_txn in inner.committed_txns.iter() {
-        // If the committed_txn.ts is less than txn.read_ts that implies that the
-        // committed_txn finished before the current transaction started.
-        // We don't need to check for conflict in that case.
-        // This change assumes linearizability. Lack of linearizability could
-        // cause the read ts of a new txn to be lower than the commit ts of
-        // a txn before it (@mrjn).
-        if committed_txn.ts <= read_ts {
-          continue;
-        }
+    let conflict_manager = conflict_manager.take().unwrap();
 
-        if let Some(old_conflict_manager) = &committed_txn.conflict_manager {
-          if conflict_manager.has_conflict(old_conflict_manager).await {
-            return CreateCommitTimestampResult::Conflict(Some(conflict_manager));
-          }
-        }
+    for committed_txn in inner.committed_txns.iter() {
+      // If the committed_txn.ts is less than txn.read_ts that implies that the
+      // committed_txn finished before the current transaction started.
+      // We don't need to check for conflict in that case.
+      // This change assumes linearizability. Lack of linearizability could
+      // cause the read ts of a new txn to be lower than the commit ts of
+      // a txn before it (@mrjn).
+      if committed_txn.ts <= read_ts {
+        continue;
       }
 
-      let ts = {
-        if !*done_read {
-          self.read_mark.done(read_ts).unwrap();
-          *done_read = true;
+      if let Some(old_conflict_manager) = &committed_txn.conflict_manager {
+        if conflict_manager.has_conflict(old_conflict_manager).await {
+          return CreateCommitTimestampResult::Conflict(Some(conflict_manager));
         }
-
-        self.cleanup_committed_transactions(true, &mut inner);
-
-        // This is the general case, when user doesn't specify the read and commit ts.
-        let ts = inner.next_txn_ts;
-        inner.next_txn_ts += 1;
-        self.txn_mark.begin(ts).unwrap();
-        ts
-      };
-
-      assert!(ts >= inner.last_cleanup_ts);
-
-      // We should ensure that txns are not added to o.committedTxns slice when
-      // conflict detection is disabled otherwise this slice would keep growing.
-      inner.committed_txns.push(CommittedTxn {
-        ts,
-        conflict_manager: Some(conflict_manager),
-      });
-
-      CreateCommitTimestampResult::Timestamp(ts)
-    } else {
-      let ts = {
-        if !*done_read {
-          self.read_mark.done(read_ts).unwrap();
-          *done_read = true;
-        }
-
-        self.cleanup_committed_transactions(false, &mut inner);
-
-        // This is the general case, when user doesn't specify the read and commit ts.
-        let ts = inner.next_txn_ts;
-        inner.next_txn_ts += 1;
-        self.txn_mark.begin(ts).unwrap();
-        ts
-      };
-
-      assert!(ts >= inner.last_cleanup_ts);
-
-      CreateCommitTimestampResult::Timestamp(ts)
+      }
     }
+
+    let ts = {
+      if !*done_read {
+        self.read_mark.done(read_ts).unwrap();
+        *done_read = true;
+      }
+
+      self.cleanup_committed_transactions(true, &mut inner);
+
+      // This is the general case, when user doesn't specify the read and commit ts.
+      let ts = inner.next_txn_ts;
+      inner.next_txn_ts += 1;
+      self.txn_mark.begin(ts).unwrap();
+      ts
+    };
+
+    assert!(ts >= inner.last_cleanup_ts);
+
+    // We should ensure that txns are not added to o.committedTxns slice when
+    // conflict detection is disabled otherwise this slice would keep growing.
+    inner.committed_txns.push(CommittedTxn {
+      ts,
+      conflict_manager: Some(conflict_manager),
+    });
+
+    CreateCommitTimestampResult::Timestamp(ts)
   }
 
   #[inline]

@@ -1,6 +1,6 @@
 use self::error::WtmError;
 
-use core::borrow::Borrow;
+use core::{borrow::Borrow, hash::Hash};
 
 use super::*;
 
@@ -288,7 +288,7 @@ where
   pub fn mark_read_equivalent<Q>(&mut self, k: &Q)
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_read_equivalent(k);
@@ -299,7 +299,7 @@ where
   pub fn mark_conflict_equivalent<Q>(&mut self, k: &Q)
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if let Some(ref mut conflict_manager) = self.conflict_manager {
       conflict_manager.mark_conflict_equivalent(k);
@@ -323,7 +323,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -365,7 +365,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + core::hash::Hash,
+    Q: ?Sized + Eq + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -419,7 +419,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -461,7 +461,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -639,7 +639,7 @@ where
   ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -681,7 +681,7 @@ where
   ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
   where
     K: Borrow<Q>,
-    Q: ?Sized + Eq + Ord + core::hash::Hash,
+    Q: ?Sized + Eq + Ord + Hash,
   {
     if self.discarded {
       return Err(TransactionError::Discard);
@@ -944,5 +944,41 @@ impl<K, V, C, P> Wtm<K, V, C, P> {
   #[inline]
   pub const fn is_discard(&self) -> bool {
     self.discarded
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn wtm2() {
+    let tm = Tm::<String, u64, HashCm<String>, IndexMapPwm<String, u64>>::new("test", 0);
+    let mut wtm = tm.write(Default::default(), Default::default()).unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    marker.mark(&"1".to_owned());
+    marker.mark_equivalent("3");
+    marker.mark_conflict(&"2".to_owned());
+    marker.mark_conflict_equivalent("4");
+    wtm.mark_read(&"2".to_owned());
+    wtm.mark_conflict(&"1".to_owned());
+    wtm.mark_conflict_equivalent("2");
+    wtm.mark_read_equivalent("3");
+
+    wtm.insert("5".into(), 5).unwrap();
+
+    assert_eq!(wtm.contains_key_equivalent("5").unwrap(), Some(true));
+    assert_eq!(
+      wtm.get_equivalent("5").unwrap().unwrap().value().unwrap(),
+      &5
+    );
+
+    assert_eq!(wtm.contains_key_equivalent("6").unwrap(), None);
+    assert_eq!(wtm.get_equivalent("6").unwrap(), None);
   }
 }

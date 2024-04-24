@@ -8,8 +8,8 @@ use super::*;
 use indexmap::IndexSet;
 
 /// Options for the [`HashCm`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct HashCmOptions<S> {
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct HashCmOptions<S = DefaultHasher> {
   /// The hasher used by the conflict manager.
   pub hasher: S,
   /// The initialized capacity of the conflict manager.
@@ -36,7 +36,7 @@ impl<S> HashCmOptions<S> {
   }
 }
 
-/// A [`Cm`] conflict manager implementation that based on the [`Hash`](core::hash::Hash).
+/// A [`Cm`] conflict manager implementation that based on the [`Hash`](Hash).
 pub struct HashCm<K, S = DefaultHasher> {
   reads: MediumVec<u64>,
   conflict_keys: IndexSet<u64, S>,
@@ -56,7 +56,7 @@ impl<K, S: Clone> Clone for HashCm<K, S> {
 impl<K, S> Cm for HashCm<K, S>
 where
   S: BuildHasher,
-  K: core::hash::Hash + Eq,
+  K: Hash + Eq,
 {
   type Error = core::convert::Infallible;
   type Key = K;
@@ -115,13 +115,13 @@ where
 impl<K, S> CmEquivalent for HashCm<K, S>
 where
   S: BuildHasher,
-  K: core::hash::Hash + Eq,
+  K: Hash + Eq,
 {
   #[inline]
   fn mark_read_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.reads.push(fp);
@@ -131,9 +131,30 @@ where
   fn mark_conflict_equivalent<Q>(&mut self, key: &Q)
   where
     Self::Key: core::borrow::Borrow<Q>,
-    Q: core::hash::Hash + Eq + ?Sized,
+    Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
     self.conflict_keys.insert(fp);
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use crate::sync::CmEquivalent;
+
+  use super::{Cm, HashCm, HashCmOptions};
+
+  #[test]
+  fn test_hash_cm() {
+    let mut cm = HashCm::<u64>::new(HashCmOptions::new(
+      std::collections::hash_map::RandomState::new(),
+    ))
+    .unwrap();
+    cm.mark_read(&1);
+    cm.mark_read(&2);
+    cm.mark_conflict(&3);
+    let mut cm2 = cm.clone();
+    cm2.mark_conflict_equivalent(&2);
+    assert!(cm.has_conflict(&cm2));
   }
 }

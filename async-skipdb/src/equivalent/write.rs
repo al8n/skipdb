@@ -13,7 +13,7 @@ pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq,
+  K: Ord + Hash + Eq,
   S: BuildHasher + Clone,
   SP: AsyncSpawner,
 {
@@ -24,10 +24,7 @@ where
       .tm
       .write_with_blocking_cm_and_pwm(
         (),
-        Some(HashCmOptions::with_capacity(
-          db.inner.hasher.clone(),
-          cap.unwrap_or(8),
-        )),
+        HashCmOptions::with_capacity(db.inner.hasher.clone(), cap.unwrap_or(8)),
       )
       .await
       .unwrap();
@@ -37,7 +34,7 @@ where
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq + Send + Sync + 'static,
+  K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
   S: BuildHasher + Send + Sync + 'static,
   SP: AsyncSpawner,
@@ -74,7 +71,7 @@ where
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq + Send + Sync + 'static,
+  K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
   S: BuildHasher + Send + Sync + 'static,
   SP: AsyncSpawner,
@@ -121,7 +118,7 @@ where
 
 impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
 where
-  K: Ord + core::hash::Hash + Eq,
+  K: Ord + Hash + Eq,
   V: 'static,
   S: BuildHasher,
   SP: AsyncSpawner,
@@ -146,7 +143,7 @@ where
   ) -> Result<bool, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized,
+    Q: Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self
@@ -167,7 +164,7 @@ where
   ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
-    Q: core::hash::Hash + Eq + Ord + ?Sized,
+    Q: Hash + Eq + Ord + ?Sized,
   {
     let version = self.wtm.version();
     match self.wtm.get_equivalent_cm_comparable_pm_blocking(key)? {
