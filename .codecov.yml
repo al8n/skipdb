@@ -2,8 +2,7 @@ codecov:
   require_ci_to_pass: false
 
 ignore:
-  - async-skipdb/src/comparable/tests.rs
-  - async-skipdb/src/equivalent/tests.rs
+  - txn-core/src/error.rs
 
 coverage:
   status:
