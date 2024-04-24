@@ -520,7 +520,6 @@ where
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
   C: AsyncCmComparable<Key = K>,
-  P: AsyncPwm<Key = K, Value = V>,
   S: AsyncSpawner,
 {
   /// Marks a key is read.
@@ -1050,17 +1049,24 @@ mod tests {
     assert!(!wtm.is_discard());
     assert!(wtm.pwm().is_some());
     assert!(wtm.cm().is_some());
+    assert!(wtm.blocking_marker().is_some());
     assert!(wtm.marker_with_pm().is_some());
 
     let mut marker = wtm.marker().unwrap();
 
     marker.mark(&"1".to_owned()).await;
+    marker.mark_blocking(&"3".to_owned());
     marker.mark_equivalent("3").await;
+    marker.mark_equivalent_blocking("3");
     marker.mark_conflict(&"2".to_owned()).await;
+    marker.mark_conflict_equivalent_blocking("4");
     marker.mark_conflict_equivalent("4").await;
     wtm.mark_read(&"2".to_owned()).await;
+    wtm.mark_read_blocking(&"3".to_owned());
+    wtm.mark_read_equivalent_blocking("3");
     wtm.mark_conflict(&"1".to_owned()).await;
     wtm.mark_conflict_equivalent("2").await;
+    wtm.mark_conflict_equivalent_blocking("2");
     wtm.mark_read_equivalent("3").await;
 
     wtm.insert("5".into(), 5).await.unwrap();
@@ -1304,12 +1310,20 @@ mod tests {
     let four = Arc::new(4);
     let five = Arc::new(5);
     marker.mark(&one).await;
+    marker.mark_blocking(&one);
     marker.mark_comparable(&three).await;
+    marker.mark_comparable_blocking(&three);
     marker.mark_conflict(&two).await;
+    marker.mark_conflict_blocking(&two);
     marker.mark_conflict_comparable(&four).await;
+    marker.mark_conflict_comparable_blocking(&four);
     wtm.mark_read(&two).await;
+    wtm.mark_read_blocking(&two);
+    wtm.mark_read_comparable_blocking(&two);
     wtm.mark_conflict(&one).await;
+    wtm.mark_conflict_blocking(&one);
     wtm.mark_conflict_comparable(&two).await;
+    wtm.mark_conflict_comparable_blocking(&two);
     wtm.mark_read_comparable(&three).await;
 
     wtm.insert(five.clone(), 5).await.unwrap();

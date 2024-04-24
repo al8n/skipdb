@@ -30,6 +30,62 @@ where
 
 impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
 where
+  C: CmComparable<Key = K>,
+  S: AsyncSpawner,
+{
+  /// Marks a key is read.
+  pub fn mark_read_comparable_blocking<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read_comparable(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict_comparable_blocking<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict_comparable(k);
+    }
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: CmEquivalent<Key = K>,
+  S: AsyncSpawner,
+{
+  /// Marks a key is read.
+  pub fn mark_read_equivalent_blocking<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Hash + Eq,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_read_equivalent(k);
+    }
+  }
+
+  /// Marks a key is conflict.
+  pub fn mark_conflict_equivalent_blocking<Q>(&mut self, k: &Q)
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Hash + Eq,
+  {
+    if let Some(ref mut conflict_manager) = self.conflict_manager {
+      conflict_manager.mark_conflict_equivalent(k);
+    }
+  }
+}
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
   C: Cm<Key = K>,
   S: AsyncSpawner,
 {
