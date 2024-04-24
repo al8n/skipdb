@@ -970,3 +970,72 @@ where
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use std::convert::Infallible;
+
+  use super::*;
+
+  #[async_std::test]
+  async fn wtm2() {
+    let tm = AsyncTm::<String, u64, HashCm<String>, IndexMapPwm<String, u64>, wmark::AsyncStdSpawner>::new("test", 0).await;
+    let mut wtm = tm
+      .write(Default::default(), Default::default())
+      .await
+      .unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    marker.mark(&"1".to_owned()).await;
+    marker.mark_equivalent("3").await;
+    marker.mark_conflict(&"2".to_owned()).await;
+    marker.mark_conflict_equivalent("4").await;
+    wtm.mark_read(&"2".to_owned()).await;
+    wtm.mark_conflict(&"1".to_owned()).await;
+    wtm.mark_conflict_equivalent("2").await;
+    wtm.mark_read_equivalent("3").await;
+
+    wtm.insert("5".into(), 5).await.unwrap();
+
+    assert_eq!(wtm.contains_key_equivalent("5").await.unwrap(), Some(true));
+    assert_eq!(
+      wtm
+        .get_equivalent("5")
+        .await
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    assert_eq!(wtm.contains_key(&"5".to_owned()).await.unwrap(), Some(true));
+    assert_eq!(
+      wtm
+        .get(&"5".to_owned())
+        .await
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    assert_eq!(wtm.contains_key_equivalent("6").await.unwrap(), None);
+    assert_eq!(wtm.get_equivalent("6").await.unwrap(), None);
+
+    wtm.remove("5".into()).await.unwrap();
+    wtm.rollback().await.unwrap();
+
+    wtm
+      .commit::<_, _, _, Infallible>(|_| async { Ok(()) })
+      .await
+      .unwrap();
+
+    assert!(wtm.is_discard());
+  }
+}

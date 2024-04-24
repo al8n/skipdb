@@ -36,6 +36,7 @@ futures = "0.3"
 [dev-dependencies]
 rand.workspace = true
 async-std = { version = "1", features = ["attributes"] }
+wmark = { workspace = true, features = ["future", "default", "async-std"] }
 
 [package.metadata.docs.rs]
 all-features = true
