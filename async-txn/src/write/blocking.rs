@@ -440,3 +440,92 @@ where
     }
   }
 }
+
+impl<K, V, C, P, S> AsyncWtm<K, V, C, P, S>
+where
+  C: CmComparable<Key = K>,
+  P: PwmComparable<Key = K, Value = V>,
+  S: AsyncSpawner,
+{
+  /// Returns `true` if the pending writes contains the key.
+  ///
+  /// - `Ok(None)`: means the key is not in the pending writes, the end user can read the key from the database.
+  /// - `Ok(Some(true))`: means the key is in the pending writes.
+  /// - `Ok(Some(false))`: means the key is in the pending writes and but is a remove entry.
+  pub fn contains_key_comparable_blocking<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<Option<bool>, TransactionError<C::Error, P::Error>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    match self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_comparable(key)
+      .map_err(TransactionError::pending)?
+    {
+      Some(ent) => {
+        // If the value is None, it means that the key is removed.
+        if ent.value.is_none() {
+          return Ok(Some(false));
+        }
+
+        // Fulfill from buffer.
+        Ok(Some(true))
+      }
+      None => {
+        // track reads. No need to track read if txn serviced it
+        // internally.
+        if let Some(ref mut conflict_manager) = self.conflict_manager {
+          conflict_manager.mark_read_comparable(key);
+        }
+
+        Ok(None)
+      }
+    }
+  }
+
+  /// Looks for the key in the pending writes, if such key is not in the pending writes,
+  /// the end user can read the key from the database.
+  pub fn get_comparable_blocking<'a, 'b: 'a, Q>(
+    &'a mut self,
+    key: &'b Q,
+  ) -> Result<Option<EntryRef<'a, K, V>>, TransactionError<C::Error, P::Error>>
+  where
+    K: Borrow<Q>,
+    Q: ?Sized + Ord,
+  {
+    if let Some((k, e)) = self
+      .pending_writes
+      .as_ref()
+      .unwrap()
+      .get_entry_comparable(key)
+      .map_err(TransactionError::Pwm)?
+    {
+      // If the value is None, it means that the key is removed.
+      if e.value.is_none() {
+        return Ok(None);
+      }
+
+      // Fulfill from buffer.
+      Ok(Some(EntryRef {
+        data: match &e.value {
+          Some(value) => EntryDataRef::Insert { key: k, value },
+          None => EntryDataRef::Remove(k),
+        },
+        version: e.version,
+      }))
+    } else {
+      // track reads. No need to track read if txn serviced it
+      // internally.
+      if let Some(ref mut conflict_manager) = self.conflict_manager {
+        conflict_manager.mark_read_comparable(key);
+      }
+
+      Ok(None)
+    }
+  }
+}

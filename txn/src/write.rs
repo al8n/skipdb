@@ -949,10 +949,12 @@ impl<K, V, C, P> Wtm<K, V, C, P> {
 
 #[cfg(test)]
 mod tests {
+  use std::{collections::BTreeSet, convert::Infallible, marker::PhantomData};
+
   use super::*;
 
   #[test]
-  fn wtm2() {
+  fn wtm() {
     let tm = Tm::<String, u64, HashCm<String>, IndexMapPwm<String, u64>>::new("test", 0);
     let mut wtm = tm.write(Default::default(), Default::default()).unwrap();
     assert!(!wtm.is_discard());
@@ -980,5 +982,161 @@ mod tests {
 
     assert_eq!(wtm.contains_key_equivalent("6").unwrap(), None);
     assert_eq!(wtm.get_equivalent("6").unwrap(), None);
+  }
+
+  struct TestCm<K> {
+    conflict_keys: BTreeSet<usize>,
+    reads: BTreeSet<usize>,
+    _m: PhantomData<K>,
+  }
+
+  impl<K> Cm for TestCm<K> {
+    type Error = Infallible;
+
+    type Key = K;
+
+    type Options = ();
+
+    fn new(_options: Self::Options) -> Result<Self, Self::Error> {
+      Ok(Self {
+        conflict_keys: BTreeSet::new(),
+        reads: BTreeSet::new(),
+        _m: PhantomData,
+      })
+    }
+
+    fn mark_read(&mut self, key: &Self::Key) {
+      self.reads.insert(key as *const K as usize);
+    }
+
+    fn mark_conflict(&mut self, key: &Self::Key) {
+      self.conflict_keys.insert(key as *const K as usize);
+    }
+
+    fn has_conflict(&self, other: &Self) -> bool {
+      if self.reads.is_empty() {
+        return false;
+      }
+
+      for ro in self.reads.iter() {
+        if other.conflict_keys.contains(ro) {
+          return true;
+        }
+      }
+      false
+    }
+
+    fn rollback(&mut self) -> Result<(), Self::Error> {
+      self.conflict_keys.clear();
+      self.reads.clear();
+      Ok(())
+    }
+  }
+
+  impl<K> CmComparable for TestCm<K> {
+    fn mark_read_comparable<Q>(&mut self, key: &Q)
+    where
+      Self::Key: Borrow<Q>,
+      Q: Ord + ?Sized,
+    {
+      self.reads.insert(key as *const Q as *const () as usize);
+    }
+
+    fn mark_conflict_comparable<Q>(&mut self, key: &Q)
+    where
+      Self::Key: Borrow<Q>,
+      Q: Ord + ?Sized,
+    {
+      self
+        .conflict_keys
+        .insert(key as *const Q as *const () as usize);
+    }
+  }
+
+  #[test]
+  fn wtm2() {
+    let tm = Tm::<Arc<u64>, u64, TestCm<Arc<u64>>, IndexMapPwm<Arc<u64>, u64>>::new("test", 0);
+    let mut wtm = tm.write(Default::default(), ()).unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    let one = Arc::new(1);
+    let two = Arc::new(2);
+    let three = Arc::new(3);
+    let four = Arc::new(4);
+    let five = Arc::new(5);
+    marker.mark(&one);
+    marker.mark_comparable(&three);
+    marker.mark_conflict(&two);
+    marker.mark_conflict_comparable(&four);
+    wtm.mark_read(&two);
+    wtm.mark_conflict(&one);
+    wtm.mark_conflict_comparable(&two);
+    wtm.mark_read_comparable(&three);
+
+    wtm.insert(five.clone(), 5).unwrap();
+
+    assert_eq!(
+      wtm.contains_key_comparable_cm_equivalent_pm(&five).unwrap(),
+      Some(true)
+    );
+    assert_eq!(
+      wtm
+        .get_comparable_cm_equivalent_pm(&five)
+        .unwrap()
+        .unwrap()
+        .value()
+        .unwrap(),
+      &5
+    );
+
+    let six = Arc::new(6);
+
+    assert_eq!(
+      wtm.contains_key_comparable_cm_equivalent_pm(&six).unwrap(),
+      None
+    );
+    assert_eq!(wtm.get_comparable_cm_equivalent_pm(&six).unwrap(), None);
+  }
+
+  #[test]
+  fn wtm3() {
+    let tm = Tm::<Arc<u64>, u64, TestCm<Arc<u64>>, BTreePwm<Arc<u64>, u64>>::new("test", 0);
+    let mut wtm = tm.write((), ()).unwrap();
+    assert!(!wtm.is_discard());
+    assert!(wtm.pwm().is_some());
+    assert!(wtm.cm().is_some());
+
+    let mut marker = wtm.marker().unwrap();
+
+    let one = Arc::new(1);
+    let two = Arc::new(2);
+    let three = Arc::new(3);
+    let four = Arc::new(4);
+    let five = Arc::new(5);
+    marker.mark(&one);
+    marker.mark_comparable(&three);
+    marker.mark_conflict(&two);
+    marker.mark_conflict_comparable(&four);
+    wtm.mark_read(&two);
+    wtm.mark_conflict(&one);
+    wtm.mark_conflict_comparable(&two);
+    wtm.mark_read_comparable(&three);
+
+    wtm.insert(five.clone(), 5).unwrap();
+
+    assert_eq!(wtm.contains_key_comparable(&five).unwrap(), Some(true));
+    assert_eq!(
+      wtm.get_comparable(&five).unwrap().unwrap().value().unwrap(),
+      &5
+    );
+
+    let six = Arc::new(6);
+
+    assert_eq!(wtm.contains_key_comparable(&six).unwrap(), None);
+    assert_eq!(wtm.get_comparable(&six).unwrap(), None);
   }
 }
