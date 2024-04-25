@@ -3,7 +3,7 @@
 </div>
 <div align="center">
 
-Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
+An embedded, in-memory, zero-copy, ACID, MVCC, almost lock-free and serializable snapshot isolation database engine.
 
 `async-skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
 
@@ -24,7 +24,7 @@ English | [简体中文][zh-cn-url]
 
 ## Introduction
 
-Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
+An embedded, in-memory, zero-copy, ACID, MVCC, almost lock-free and serializable snapshot isolation database engine.
 
 `async-skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
 
