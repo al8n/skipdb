@@ -28,12 +28,121 @@ Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 
 `skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
 
+For async usage, please see [`async-skipdb`](https://crates.io/crates/async-skipdb).
+
+## Features
+
+- ACID, MVCC, serializable snapshot isolation, concurrent safe and almost lock-free.
+- No extra allocation and copy, there is no `Arc` wrapper for both key and value stored in the database, which means that users provide `K` and `V`, and database store `K` and `V` directly.
+- Zero-copy and in-place compaction, which means there is no copy, no extra allocation when compacting.
+- Concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
+- Both read transaction and write transaction are `Send + Sync + 'static`, which means you do not need to handle annoying lifetime problem anymore.
+- Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
+- `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
+- 100% safe, skipdb sets `[forbid(unsafe_code)]`.
+
 ## Installation
 
 ```toml
 [dependencies]
 skipdb = "0.1"
 ```
+
+## Example
+
+- If your `K` implement `Hash`.
+
+  ```rust
+  use skipdb::equivalent::EquivalentDb;
+
+  #[derive(Debug)]
+  struct Person {
+    hobby: String,
+    age: u8,
+  }
+
+  fn main() {
+    let db: EquivalentDb<String, Person> = EquivalentDb::new();
+    
+    {
+      let alice = Person { hobby: "swim".to_string(), age: 20 };
+      let bob = Person { hobby: "run".to_string(), age: 30 };
+
+      let mut txn = db.write();
+      txn.insert("Alice".to_string(), alice).unwrap();
+      txn.insert("Bob".to_string(), bob).unwrap();
+
+      {
+        let alice = txn.get("Alice").unwrap().unwrap();
+        assert_eq!(alice.value().age, 20);
+        assert_eq!(alice.value().hobby, "swim");
+      }
+
+      txn.commit().unwrap();
+    }
+
+    {
+      let txn = db.read();
+      let alice = txn.get("Alice").unwrap();
+      assert_eq!(alice.value().age, 20);
+      assert_eq!(alice.value().hobby, "swim");
+
+      let bob = txn.get("Bob").unwrap();
+      assert_eq!(bob.value().age, 30);
+      assert_eq!(bob.value().hobby, "run"); 
+    }
+  }
+  ```
+
+- If your key cannot implement `Hash` for some reasons.
+
+  Then you can use `ComparableDb`, but this will require `K: CheapClone + Ord`, you can see [`cheap_clone`](https://crates.io/crates/cheap-clone) trait for more details.
+
+  ```rust
+  use skipdb::comparable::ComparableDb;
+
+  #[derive(Debug)]
+  struct Person {
+    name: String,
+    hobby: String,
+    age: u8,
+  }
+
+  fn main() {
+    let db: ComparableDb<u64, Person> = ComparableDb::new();
+  
+    {
+      let alice = Person { name: "Alice".to_string(), hobby: "swim".to_string(), age: 20 };
+      let bob = Person { name: "Bob".to_string(), hobby: "run".to_string(), age: 30 };
+
+      let mut txn = db.write();
+      txn.insert(1, alice).unwrap();
+      txn.insert(2, bob).unwrap();
+
+      {
+        let alice = txn.get(&1).unwrap().unwrap();
+        assert_eq!(alice.value().name, "Alice");
+        assert_eq!(alice.value().age, 20);
+        assert_eq!(alice.value().hobby, "swim");
+      }
+
+      txn.commit().unwrap();
+    }
+
+    {
+      let txn = db.read();
+      let alice = txn.get(&1).unwrap();
+      assert_eq!(alice.value().name, "Alice");
+      assert_eq!(alice.value().age, 20);
+      assert_eq!(alice.value().hobby, "swim");
+
+      let bob = txn.get(&2).unwrap();
+      assert_eq!(bob.value().name, "Bob");
+      assert_eq!(bob.value().age, 30);
+      assert_eq!(bob.value().hobby, "run"); 
+    }
+  }
+  ```
 
 #### License
 

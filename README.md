@@ -7,7 +7,10 @@
 </div>
 <div align="center">
 
-This repository the implementation of generic optimistic transaction manger, which is ACID, MVCC, concurrent with SSI (Serializable Snapshot Isolation) and a blazing fast MVCC & ACID in-memory database based on the transaction manager.
+This repository the implementation:
+
+1. Generic optimistic transaction manger, which supports concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
+2. An ACID, MVCC and WASM friendly in-memory database based on the transaction manager.
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/skipdb-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 <img alt="LoC" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fal8n%2F327b2a8aef9003246e45c6e47fe63937%2Fraw%2Fskipdb-total" height="22">
@@ -45,6 +48,68 @@ This repository the implementation of generic optimistic transaction manger, whi
 English | [简体中文][zh-cn-url]
 
 </div>
+
+## Features
+
+- ACID, MVCC, serializable snapshot isolation, concurrent safe and almost lock-free.
+- No extra allocation and copy, there is no `Arc` wrapper for both key and value stored in the database, which means that users provide `K` and `V`, and database store `K` and `V` directly.
+- Zero-copy and in-place compaction, which means there is no copy, no extra allocation when compacting.
+- Concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
+- Both read transaction and write transaction are `Send + Sync + 'static`, which means you do not need to handle annoying lifetime problem anymore.
+- Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
+- `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
+- Async version is runtime agnostic, `tokio`, `async-std`, `smol`, `wasm-bindgen-futures` and any other async runtime.
+- 100% safe, skipdb sets `[forbid(unsafe_code)]`.
+
+## Installation
+
+- For sync
+  
+  ```toml
+  [dependencies]
+  skipdb = "0.1"
+  ```
+
+- For async
+  - `tokio`
+
+    ```toml
+    [dependencies]
+    async-skipdb = { version = "0.1", features = ["tokio"] }
+    ```
+
+  - `async-std`
+
+    ```toml
+    [dependencies]
+    async-skipdb = { version = "0.1", features = ["async-std"] }
+    ```
+
+  - `smol`
+
+    ```toml
+    [dependencies]
+    async-skipdb = { version = "0.1", features = ["smol"] }
+    ```
+
+  - `wasm-bindgen-futures`
+
+    ```toml
+    [dependencies]
+    async-skipdb = { version = "0.1", features = ["wasm"] }
+    ```
+
+## Examples
+
+Please see [skipdb](./skipdb/) or [async-skipdb](./async-skipdb).
+
+## Crates
+
+- `skipdb`: sync version skipdb
+- `async-skipdb`: async version skipdb
+- `txn`: sync version serializable snapshot isolation and concurrent execution of transactions.
+- `async-txn`: async version serializable snapshot isolation and concurrent execution of transactions.
+- `wmark`: watermark
 
 #### License
 

@@ -18,7 +18,7 @@ async-std = ["async-txn/async-std"]
 wasm = ["async-txn/wasm"]
 
 [dependencies]
-cheap-clone = "0.1"
+cheap-clone = { workspace = true, features = ["std"] } 
 async-txn = { workspace = true, features = ["default"] }
 skipdb-core = { workspace = true, features = ["default"] }
 

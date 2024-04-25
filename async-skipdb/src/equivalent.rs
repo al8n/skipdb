@@ -11,17 +11,17 @@ mod tests;
 /// Database for [`smol`](https://crates.io/crates/smol) runtime.
 #[cfg(feature = "smol")]
 #[cfg_attr(docsrs, doc(cfg(feature = "smol")))]
-pub type SmolEquivalentDb<K, V, S> = EquivalentDb<K, V, SmolSpawner, S>;
+pub type SmolEquivalentDb<K, V, S = RandomState> = EquivalentDb<K, V, SmolSpawner, S>;
 
 /// Database for [`tokio`](https://crates.io/crates/tokio) runtime.
 #[cfg(feature = "tokio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
-pub type TokioEquivalentDb<K, V, S> = EquivalentDb<K, V, TokioSpawner, S>;
+pub type TokioEquivalentDb<K, V, S = RandomState> = EquivalentDb<K, V, TokioSpawner, S>;
 
 /// Database for [`async-std`](https://crates.io/crates/async-std) runtime.
 #[cfg(feature = "async-std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "async-std")))]
-pub type AsyncStdEquivalentDb<K, V, S> = EquivalentDb<K, V, AsyncStdSpawner, S>;
+pub type AsyncStdEquivalentDb<K, V, S = RandomState> = EquivalentDb<K, V, AsyncStdSpawner, S>;
 
 struct Inner<K, V, SP, S = RandomState>
 where
