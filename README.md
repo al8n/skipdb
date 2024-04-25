@@ -59,7 +59,7 @@ English | [简体中文][zh-cn-url]
 - Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
 - `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
 - Async version is runtime agnostic, `tokio`, `async-std`, `smol`, `wasm-bindgen-futures` and any other async runtime.
-- 100% safe, skipdb sets `[forbid(unsafe_code)]`.
+- 100% safe, sets `[forbid(unsafe_code)]`.
 
 ## Installation
 

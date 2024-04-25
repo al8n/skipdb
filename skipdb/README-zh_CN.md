@@ -1,5 +1,5 @@
 <div align="center">
-<h1>SkiplistDB</h1>
+<h1>SkipDB</h1>
 </div>
 <div align="center">
 
@@ -18,7 +18,7 @@ Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 [<img alt="crates.io" src="https://img.shields.io/crates/d/skipdb?color=critical&logo=data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/PjwhRE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xLjEvRFREL3N2ZzExLmR0ZCI+PHN2ZyB0PSIxNjQ1MTE3MzMyOTU5IiBjbGFzcz0iaWNvbiIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHAtaWQ9IjM0MjEiIGRhdGEtc3BtLWFuY2hvci1pZD0iYTMxM3guNzc4MTA2OS4wLmkzIiB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48ZGVmcz48c3R5bGUgdHlwZT0idGV4dC9jc3MiPjwvc3R5bGU+PC9kZWZzPjxwYXRoIGQ9Ik00NjkuMzEyIDU3MC4yNHYtMjU2aDg1LjM3NnYyNTZoMTI4TDUxMiA3NTYuMjg4IDM0MS4zMTIgNTcwLjI0aDEyOHpNMTAyNCA2NDAuMTI4QzEwMjQgNzgyLjkxMiA5MTkuODcyIDg5NiA3ODcuNjQ4IDg5NmgtNTEyQzEyMy45MDQgODk2IDAgNzYxLjYgMCA1OTcuNTA0IDAgNDUxLjk2OCA5NC42NTYgMzMxLjUyIDIyNi40MzIgMzAyLjk3NiAyODQuMTYgMTk1LjQ1NiAzOTEuODA4IDEyOCA1MTIgMTI4YzE1Mi4zMiAwIDI4Mi4xMTIgMTA4LjQxNiAzMjMuMzkyIDI2MS4xMkM5NDEuODg4IDQxMy40NCAxMDI0IDUxOS4wNCAxMDI0IDY0MC4xOTJ6IG0tMjU5LjItMjA1LjMxMmMtMjQuNDQ4LTEyOS4wMjQtMTI4Ljg5Ni0yMjIuNzItMjUyLjgtMjIyLjcyLTk3LjI4IDAtMTgzLjA0IDU3LjM0NC0yMjQuNjQgMTQ3LjQ1NmwtOS4yOCAyMC4yMjQtMjAuOTI4IDIuOTQ0Yy0xMDMuMzYgMTQuNC0xNzguMzY4IDEwNC4zMi0xNzguMzY4IDIxNC43MiAwIDExNy45NTIgODguODMyIDIxNC40IDE5Ni45MjggMjE0LjRoNTEyYzg4LjMyIDAgMTU3LjUwNC03NS4xMzYgMTU3LjUwNC0xNzEuNzEyIDAtODguMDY0LTY1LjkyLTE2NC45MjgtMTQ0Ljk2LTE3MS43NzZsLTI5LjUwNC0yLjU2LTUuODg4LTMwLjk3NnoiIGZpbGw9IiNmZmZmZmYiIHAtaWQ9IjM0MjIiIGRhdGEtc3BtLWFuY2hvci1pZD0iYTMxM3guNzc4MTA2OS4wLmkwIiBjbGFzcz0iIj48L3BhdGg+PC9zdmc+&style=for-the-badge" height="22">][crates-url]
 
 
-[English][en-us-url] | 简体中文
+English | [简体中文][zh-cn-url]
 
 </div>
 
@@ -28,12 +28,121 @@ Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
 
 `skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
 
+For async usage, please see [`async-skipdb`](https://crates.io/crates/async-skipdb).
+
+## Features
+
+- ACID, MVCC, serializable snapshot isolation, concurrent safe and almost lock-free.
+- No extra allocation and copy, there is no `Arc` wrapper for both key and value stored in the database, which means that users provide `K` and `V`, and database store `K` and `V` directly.
+- Zero-copy and in-place compaction, which means there is no copy, no extra allocation when compacting.
+- Concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
+- Both read transaction and write transaction are `Send + Sync + 'static`, which means you do not need to handle annoying lifetime problem anymore.
+- Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
+- `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
+- 100% safe, sets `[forbid(unsafe_code)]`.
+
 ## Installation
 
 ```toml
 [dependencies]
-skipdb = "0.0.0"
+skipdb = "0.1"
 ```
+
+## Example
+
+- If your `K` implement `Hash`.
+
+  ```rust
+  use skipdb::equivalent::EquivalentDb;
+
+  #[derive(Debug)]
+  struct Person {
+    hobby: String,
+    age: u8,
+  }
+
+  fn main() {
+    let db: EquivalentDb<String, Person> = EquivalentDb::new();
+    
+    {
+      let alice = Person { hobby: "swim".to_string(), age: 20 };
+      let bob = Person { hobby: "run".to_string(), age: 30 };
+
+      let mut txn = db.write();
+      txn.insert("Alice".to_string(), alice).unwrap();
+      txn.insert("Bob".to_string(), bob).unwrap();
+
+      {
+        let alice = txn.get("Alice").unwrap().unwrap();
+        assert_eq!(alice.value().age, 20);
+        assert_eq!(alice.value().hobby, "swim");
+      }
+
+      txn.commit().unwrap();
+    }
+
+    {
+      let txn = db.read();
+      let alice = txn.get("Alice").unwrap();
+      assert_eq!(alice.value().age, 20);
+      assert_eq!(alice.value().hobby, "swim");
+
+      let bob = txn.get("Bob").unwrap();
+      assert_eq!(bob.value().age, 30);
+      assert_eq!(bob.value().hobby, "run"); 
+    }
+  }
+  ```
+
+- If your key cannot implement `Hash` for some reasons.
+
+  Then you can use `ComparableDb`, but this will require `K: CheapClone + Ord`, you can see [`cheap_clone`](https://crates.io/crates/cheap-clone) trait for more details.
+
+  ```rust
+  use skipdb::comparable::ComparableDb;
+
+  #[derive(Debug)]
+  struct Person {
+    name: String,
+    hobby: String,
+    age: u8,
+  }
+
+  fn main() {
+    let db: ComparableDb<u64, Person> = ComparableDb::new();
+  
+    {
+      let alice = Person { name: "Alice".to_string(), hobby: "swim".to_string(), age: 20 };
+      let bob = Person { name: "Bob".to_string(), hobby: "run".to_string(), age: 30 };
+
+      let mut txn = db.write();
+      txn.insert(1, alice).unwrap();
+      txn.insert(2, bob).unwrap();
+
+      {
+        let alice = txn.get(&1).unwrap().unwrap();
+        assert_eq!(alice.value().name, "Alice");
+        assert_eq!(alice.value().age, 20);
+        assert_eq!(alice.value().hobby, "swim");
+      }
+
+      txn.commit().unwrap();
+    }
+
+    {
+      let txn = db.read();
+      let alice = txn.get(&1).unwrap();
+      assert_eq!(alice.value().name, "Alice");
+      assert_eq!(alice.value().age, 20);
+      assert_eq!(alice.value().hobby, "swim");
+
+      let bob = txn.get(&2).unwrap();
+      assert_eq!(bob.value().name, "Bob");
+      assert_eq!(bob.value().age, 30);
+      assert_eq!(bob.value().hobby, "run"); 
+    }
+  }
+  ```
 
 #### License
 
@@ -49,4 +158,4 @@ Copyright (c) 2024 Al Liu.
 [doc-url]: https://docs.rs/skipdb
 [crates-url]: https://crates.io/crates/skipdb
 [codecov-url]: https://app.codecov.io/gh/al8n/skipdb/
-[en-us-url]: https://github.com/al8n/skipdb/tree/main/README.md
+[zh-cn-url]: https://github.com/al8n/skipdb/tree/main/README-zh_CN.md

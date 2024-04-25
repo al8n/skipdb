@@ -39,7 +39,7 @@ For async usage, please see [`async-skipdb`](https://crates.io/crates/async-skip
 - Both read transaction and write transaction are `Send + Sync + 'static`, which means you do not need to handle annoying lifetime problem anymore.
 - Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
 - `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
-- 100% safe, skipdb sets `[forbid(unsafe_code)]`.
+- 100% safe, sets `[forbid(unsafe_code)]`.
 
 ## Installation
 

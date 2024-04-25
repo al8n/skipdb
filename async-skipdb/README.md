@@ -1,5 +1,5 @@
 <div align="center">
-<h1>SkipDB</h1>
+<h1>Async SkipDB</h1>
 </div>
 <div align="center">
 
@@ -40,7 +40,7 @@ For sync version, please see [`skipdb`](https://crates.io/crates/skipdb).
 - Lock-free and concurrent safe read transaction: the read transaction is totally concurrent safe and can be shared in multiple threads, there is no lock in read transaction.
 - `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
 - Runtime agnostic, `tokio`, `async-std`, `smol`, `wasm-bindgen-futures` and any other async runtime.
-- 100% safe, skipdb sets `[forbid(unsafe_code)]`.
+- 100% safe, sets `[forbid(unsafe_code)]`.
 
 ## Installation
 

@@ -1,5 +1,5 @@
 <div align="center">
-<h1>SkipDB</h1>
+<h1>Async SkipDB</h1>
 </div>
 <div align="center">
 
