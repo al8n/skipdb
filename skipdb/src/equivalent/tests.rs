@@ -230,6 +230,68 @@ fn txn_write_skew() {
   assert_eq!(2, db.version());
 }
 
+// https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
+#[test]
+fn txn_write_skew2() {
+  let db: EquivalentDb<&'static str, u64> = EquivalentDb::new();
+
+  // Setup
+  let mut txn = db.write();
+  txn.insert("a1", 10).unwrap();
+  txn.insert("a2", 20).unwrap();
+  txn.insert("b1", 100).unwrap();
+  txn.insert("b2", 200).unwrap();
+  txn.commit().unwrap();
+  assert_eq!(1, db.version());
+
+  //
+  let mut txn1 = db.write();
+  let val = txn1
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('a') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  txn1.insert("b3", 30).unwrap();
+  assert_eq!(30, val);
+
+  let mut txn2 = db.write();
+  let val = txn2
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('b') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  txn2.insert("a3", 300).unwrap();
+  assert_eq!(300, val);
+  txn2.commit().unwrap();
+  txn1.commit().unwrap_err();
+
+  let mut txn3 = db.write();
+  let val = txn3
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('a') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  assert_eq!(330, val);
+}
+
 #[test]
 fn txn_conflict_get() {
   let set_count = Arc::new(AtomicU32::new(0));

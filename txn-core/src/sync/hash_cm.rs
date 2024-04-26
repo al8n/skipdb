@@ -5,7 +5,7 @@ use crate::DefaultHasher;
 
 use super::*;
 
-use indexmap::IndexSet;
+use indexmap::IndexMap;
 
 /// Options for the [`HashCm`].
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -39,7 +39,7 @@ impl<S> HashCmOptions<S> {
 /// A [`Cm`] conflict manager implementation that based on the [`Hash`](Hash).
 pub struct HashCm<K, S = DefaultHasher> {
   reads: MediumVec<u64>,
-  conflict_keys: IndexSet<u64, S>,
+  conflict_keys: IndexMap<u64, Option<usize>, S>,
   _k: core::marker::PhantomData<K>,
 }
 
@@ -67,12 +67,12 @@ where
     Ok(match options.capacity {
       Some(capacity) => Self {
         reads: MediumVec::with_capacity(capacity),
-        conflict_keys: IndexSet::with_capacity_and_hasher(capacity, options.hasher),
+        conflict_keys: IndexMap::with_capacity_and_hasher(capacity, options.hasher),
         _k: core::marker::PhantomData,
       },
       None => Self {
         reads: MediumVec::new(),
-        conflict_keys: IndexSet::with_hasher(options.hasher),
+        conflict_keys: IndexMap::with_hasher(options.hasher),
         _k: core::marker::PhantomData,
       },
     })
@@ -87,7 +87,12 @@ where
   #[inline]
   fn mark_conflict(&mut self, key: &Self::Key) {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    self.conflict_keys.insert(fp);
+    let idx = if self.reads.is_empty() {
+      None
+    } else {
+      Some(self.reads.len() - 1)
+    };
+    self.conflict_keys.insert(fp, idx);
   }
 
   #[inline]
@@ -96,11 +101,37 @@ where
       return false;
     }
 
+    // check if there is any direct conflict
     for ro in self.reads.iter() {
-      if other.conflict_keys.contains(ro) {
+      if other.conflict_keys.contains_key(ro) {
         return true;
       }
     }
+
+    // check if there is any indirect conflict
+    for i in self
+      .conflict_keys
+      .iter()
+      .filter_map(|(_, idx)| idx.map(|idx| idx))
+    {
+      let happens_before_reads = &other.reads[..i];
+
+      for j in self
+        .conflict_keys
+        .iter()
+        .filter_map(|(_, idx)| idx.map(|idx| idx))
+      {
+        let other_happens_before_reads = &other.reads[..j];
+
+        if happens_before_reads
+          .iter()
+          .any(|ro| other_happens_before_reads.contains(ro))
+        {
+          return true;
+        }
+      }
+    }
+
     false
   }
 
@@ -134,7 +165,12 @@ where
     Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    self.conflict_keys.insert(fp);
+    let idx = if self.reads.is_empty() {
+      None
+    } else {
+      Some(self.reads.len() - 1)
+    };
+    self.conflict_keys.insert(fp, idx);
   }
 }
 

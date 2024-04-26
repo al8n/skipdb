@@ -361,6 +361,84 @@ fn txn_write_skew_smol() {
   smol::block_on(txn_write_skew_in::<SmolSpawner>());
 }
 
+// https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
+async fn txn_write_skew2_in<S: AsyncSpawner>() {
+  let db: ComparableDb<&'static str, u64, S> = ComparableDb::new().await;
+
+  // Setup
+  let mut txn = db.write().await;
+  txn.insert("a1", 10).unwrap();
+  txn.insert("a2", 20).unwrap();
+  txn.insert("b1", 100).unwrap();
+  txn.insert("b2", 200).unwrap();
+  txn.commit().await.unwrap();
+  assert_eq!(1, db.version().await);
+
+  let mut txn1 = db.write().await;
+  let val = txn1
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('a') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  txn1.insert("b3", 30).unwrap();
+  assert_eq!(30, val);
+
+  let mut txn2 = db.write().await;
+  let val = txn2
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('b') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  txn2.insert("a3", 300).unwrap();
+  assert_eq!(300, val);
+  txn2.commit().await.unwrap();
+  txn1.commit().await.unwrap_err();
+
+  let mut txn3 = db.write().await;
+  let val = txn3
+    .iter()
+    .unwrap()
+    .filter_map(|ele| {
+      if ele.key().starts_with('a') {
+        Some(*ele.value())
+      } else {
+        None
+      }
+    })
+    .sum::<u64>();
+  assert_eq!(330, val);
+}
+
+#[tokio::test]
+#[cfg(feature = "tokio")]
+async fn txn_write_skew2_tokio() {
+  txn_write_skew2_in::<TokioSpawner>().await;
+}
+
+#[async_std::test]
+#[cfg(feature = "async-std")]
+async fn txn_write_skew2_async_std() {
+  txn_write_skew2_in::<AsyncStdSpawner>().await;
+}
+
+#[test]
+#[cfg(feature = "smol")]
+fn txn_write_skew2_smol() {
+  smol::block_on(txn_write_skew2_in::<SmolSpawner>());
+}
+
 async fn txn_conflict_get_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
