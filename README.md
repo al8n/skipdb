@@ -49,9 +49,29 @@ English | [简体中文][zh-cn-url]
 
 </div>
 
-## Features
+## Introduction
 
-- ACID, MVCC, serializable snapshot isolation, concurrent safe and almost lock-free.
+This repository contains a transaction framework (`async-txn` and `txn`) based on optimistic concurrency control, which is inspired by [`foundationdb`'s paper](https://www.foundationdb.org/files/fdb-paper.pdf) and [`badger`](https://github.com/dgraph-io/badger).
+
+This repository contains two kinds of in-memory key-value database which supports both async (`async-skipdb`) and sync (`skipdb`):
+
+1. `SerializableDb`
+
+   Supports both concurrent execution of full serializable snapshot isolation transactions and optimistic concurrency control transactions.
+
+   Transactions are created by `SerializableDb::serializable_write` can handle all kinds of write skew correctly.
+
+   Transactions are created by `SerializableDb::optimistic_write` can handle all kinds of direct dependent write skew, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew3` and `write_skew4` for more details).
+
+2. `OptimisticDb`
+
+   Only support oncurrent execution of optimistic concurrency control, which means the write transaction cannot detect all kinds of write skew.
+
+   All kinds of direct dependent write skew can be handled correctly, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew3` and `write_skew4` for more details).
+
+### Features
+
+- Atomicity, Consistency, Isolation, MVCC, concurrent safe and almost lock-free.
 - No extra allocation and copy, there is no `Arc` wrapper for both key and value stored in the database, which means that users provide `K` and `V`, and database store `K` and `V` directly.
 - Zero-copy and in-place compaction, which means there is no copy, no extra allocation when compacting.
 - Concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
@@ -60,6 +80,7 @@ English | [简体中文][zh-cn-url]
 - `BTreeMap` like user friendly API and all iterators implement `Iterator` trait, which means users use Rust powerful conbinators when iterating over the database.
 - Async version is runtime agnostic, `tokio`, `async-std`, `smol`, `wasm-bindgen-futures` and any other async runtime.
 - 100% safe, sets `[forbid(unsafe_code)]`.
+
 
 ## Installation
 
@@ -102,14 +123,6 @@ English | [简体中文][zh-cn-url]
 ## Examples
 
 Please see [skipdb](./skipdb/) or [async-skipdb](./async-skipdb).
-
-## Crates
-
-- `skipdb`: sync version skipdb
-- `async-skipdb`: async version skipdb
-- `txn`: sync version serializable snapshot isolation and concurrent execution of transactions.
-- `async-txn`: async version serializable snapshot isolation and concurrent execution of transactions.
-- `wmark`: watermark
 
 #### License
 
