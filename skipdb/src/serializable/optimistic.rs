@@ -8,7 +8,7 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
-/// A read only transaction over the [`OptimisticDb`],
+/// A optimistic concurrency control transaction over the [`SerializableDb`].
 pub struct OptimisticTransaction<K, V> {
   pub(super) db: SerializableDb<K, V>,
   pub(super) wtm: Wtm<K, V, BTreeCm<K>, BTreePwm<K, V>>,

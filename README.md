@@ -10,7 +10,7 @@
 This repository the implementation:
 
 1. Generic optimistic transaction manger, which supports concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
-2. An ACID, MVCC and WASM friendly in-memory database based on the transaction manager.
+2. An atomicity, consistency, isolation, MVCC and WASM friendly in-memory database based on the transaction manager.
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/skipdb-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 <img alt="LoC" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fal8n%2F327b2a8aef9003246e45c6e47fe63937%2Fraw%2Fskipdb-total" height="22">

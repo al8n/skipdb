@@ -47,13 +47,14 @@ impl<K, V, SP: AsyncSpawner, S> Inner<K, V, SP, S> {
   }
 }
 
-/// A concurrent ACID, MVCC in-memory database based on [`crossbeam-skiplist`][crossbeam_skiplist].
+/// A concurrent MVCC in-memory key-value database.
 ///
 /// `OptimisticDb` requires key to be [`Ord`] and [`Hash`](Hash).
 ///
-/// Comparing to [`SerializableDb`](crate::serializable::SerializableDb),
-/// `OptimisticDb` has more flexible write transaction APIs and no clone happen.
-/// But, [`SerializableDb`](crate::serializable::SerializableDb) does not require the key to implement [`Hash`](Hash).
+/// Comparing to [`SerializableDb`](crate::serializable::SerializableDb):
+/// 1. `SerializableDb` support full serializable snapshot isolation, which can detect both direct dependencies and indirect dependencies.
+/// 2. `SerializableDb` does not require key to implement [`Hash`](core::hash::Hash).
+/// 3. But, [`OptimisticDb`](crate::optimistic::OptimisticDb) has more flexible write transaction APIs and no clone happen.
 pub struct OptimisticDb<K, V, SP: AsyncSpawner, S = RandomState> {
   inner: Arc<Inner<K, V, SP, S>>,
 }

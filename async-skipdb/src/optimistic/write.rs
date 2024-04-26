@@ -5,7 +5,7 @@ use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
-/// A read only transaction over the [`OptimisticDb`],
+/// A optimistic concurrency control transaction over the [`OptimisticDb`].
 pub struct OptimisticTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
   db: OptimisticDb<K, V, SP, S>,
   pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,

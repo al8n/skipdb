@@ -5,7 +5,7 @@ use txn::{error::WtmError, HashCmOptions, PwmComparableRange};
 
 use super::*;
 
-/// A read only transaction over the [`OptimisticDb`],
+/// A optimistic concurrency control transaction over the [`OptimisticDb`].
 pub struct OptimisticTransaction<K, V, S = RandomState> {
   db: OptimisticDb<K, V, S>,
   pub(super) wtm: Wtm<K, V, HashCm<K, S>, BTreePwm<K, V>>,
