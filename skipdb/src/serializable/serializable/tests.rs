@@ -229,7 +229,7 @@ fn txn_write_skew() {
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
-fn txn_write_skew2() {
+fn txn_write_skew_intersecting_data() {
   let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup
@@ -290,7 +290,7 @@ fn txn_write_skew2() {
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
-fn txn_write_skew3() {
+fn txn_write_skew_intersecting_data2() {
   let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup
@@ -339,7 +339,7 @@ fn txn_write_skew3() {
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
-fn txn_write_skew4() {
+fn txn_write_skew_intersecting_data3() {
   let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup

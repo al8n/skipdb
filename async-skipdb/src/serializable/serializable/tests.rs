@@ -359,7 +359,7 @@ fn txn_write_skew_smol() {
 }
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-async fn txn_write_skew2_in<S: AsyncSpawner>() {
+async fn txn_write_skew_intersecting_data_in<S: AsyncSpawner>() {
   let db: SerializableDb<&'static str, u64, S> = SerializableDb::new().await;
 
   // Setup
@@ -420,24 +420,24 @@ async fn txn_write_skew2_in<S: AsyncSpawner>() {
 
 #[tokio::test]
 #[cfg(feature = "tokio")]
-async fn txn_write_skew2_tokio() {
-  txn_write_skew2_in::<TokioSpawner>().await;
+async fn txn_write_skew_intersecting_data_tokio() {
+  txn_write_skew_intersecting_data_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
 #[cfg(feature = "async-std")]
-async fn txn_write_skew2_async_std() {
-  txn_write_skew2_in::<AsyncStdSpawner>().await;
+async fn txn_write_skew_intersecting_data_async_std() {
+  txn_write_skew_intersecting_data_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
 #[cfg(feature = "smol")]
-fn txn_write_skew2_smol() {
-  smol::block_on(txn_write_skew2_in::<SmolSpawner>());
+fn txn_write_skew_intersecting_data_smol() {
+  smol::block_on(txn_write_skew_intersecting_data_in::<SmolSpawner>());
 }
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-async fn txn_write_skew3<S: AsyncSpawner>() {
+async fn txn_write_skew_intersecting_data2<S: AsyncSpawner>() {
   let db: SerializableDb<&'static str, u64, S> = SerializableDb::new().await;
 
   // Setup
@@ -486,24 +486,24 @@ async fn txn_write_skew3<S: AsyncSpawner>() {
 
 #[tokio::test]
 #[cfg(feature = "tokio")]
-async fn txn_write_skew3_tokio() {
-  txn_write_skew3::<TokioSpawner>().await;
+async fn txn_write_skew_intersecting_data2_tokio() {
+  txn_write_skew_intersecting_data2::<TokioSpawner>().await;
 }
 
 #[async_std::test]
 #[cfg(feature = "async-std")]
-async fn txn_write_skew3_async_std() {
-  txn_write_skew3::<AsyncStdSpawner>().await;
+async fn txn_write_skew_intersecting_data2_async_std() {
+  txn_write_skew_intersecting_data2::<AsyncStdSpawner>().await;
 }
 
 #[test]
 #[cfg(feature = "smol")]
-fn txn_write_skew3_smol() {
-  smol::block_on(txn_write_skew3::<SmolSpawner>());
+fn txn_write_skew_intersecting_data2_smol() {
+  smol::block_on(txn_write_skew_intersecting_data2::<SmolSpawner>());
 }
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-async fn txn_write_skew4<S: AsyncSpawner>() {
+async fn txn_write_skew_intersecting_data3<S: AsyncSpawner>() {
   let db: SerializableDb<&'static str, u64, S> = SerializableDb::new().await;
 
   // Setup
@@ -550,20 +550,20 @@ async fn txn_write_skew4<S: AsyncSpawner>() {
 
 #[tokio::test]
 #[cfg(feature = "tokio")]
-async fn txn_write_skew4_tokio() {
-  txn_write_skew4::<TokioSpawner>().await;
+async fn txn_write_skew_intersecting_data3_tokio() {
+  txn_write_skew_intersecting_data3::<TokioSpawner>().await;
 }
 
 #[async_std::test]
 #[cfg(feature = "async-std")]
-async fn txn_write_skew4_async_std() {
-  txn_write_skew4::<AsyncStdSpawner>().await;
+async fn txn_write_skew_intersecting_data3_async_std() {
+  txn_write_skew_intersecting_data3::<AsyncStdSpawner>().await;
 }
 
 #[test]
 #[cfg(feature = "smol")]
-fn txn_write_skew4_smol() {
-  smol::block_on(txn_write_skew4::<SmolSpawner>());
+fn txn_write_skew_intersecting_data3_smol() {
+  smol::block_on(txn_write_skew_intersecting_data3::<SmolSpawner>());
 }
 
 async fn txn_conflict_get_in<S: AsyncSpawner>() {
