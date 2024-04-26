@@ -97,6 +97,8 @@ where
 
   #[inline]
   fn has_conflict(&self, other: &Self) -> bool {
+    println!("read {:?}", self.reads);
+    println!("conflict {:?}", self.conflict_keys);
     if self.reads.is_empty() {
       return false;
     }
