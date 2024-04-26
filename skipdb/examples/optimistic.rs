@@ -1,4 +1,4 @@
-use skipdb::equivalent::EquivalentDb;
+use skipdb::optimistic::OptimisticDb;
 
 #[derive(Debug)]
 struct Person {
@@ -7,7 +7,7 @@ struct Person {
 }
 
 fn main() {
-  let db: EquivalentDb<String, Person> = EquivalentDb::new();
+  let db: OptimisticDb<String, Person> = OptimisticDb::new();
 
   {
     let alice = Person {

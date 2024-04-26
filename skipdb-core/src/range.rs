@@ -46,7 +46,7 @@ where
 }
 
 /// An iterator over a subset of entries of the database.
-pub struct WriteTransactionRange<'a, Q, R, K, V, C>
+pub struct TransactionRange<'a, Q, R, K, V, C>
 where
   K: Ord + Borrow<Q>,
   R: RangeBounds<Q> + 'a,
@@ -60,7 +60,7 @@ where
   marker: Option<Marker<'a, C>>,
 }
 
-impl<'a, Q, R, K, V, C> WriteTransactionRange<'a, Q, R, K, V, C>
+impl<'a, Q, R, K, V, C> TransactionRange<'a, Q, R, K, V, C>
 where
   K: Ord + Borrow<Q>,
   Q: Ord + ?Sized,
@@ -83,7 +83,7 @@ where
     committed: Range<'a, Q, R, K, V>,
     marker: Option<Marker<'a, C>>,
   ) -> Self {
-    let mut iterator = WriteTransactionRange {
+    let mut iterator = TransactionRange {
       pendings,
       committed,
       next_pending: None,
@@ -99,7 +99,7 @@ where
   }
 }
 
-impl<'a, Q, R, K, V, C> Iterator for WriteTransactionRange<'a, Q, R, K, V, C>
+impl<'a, Q, R, K, V, C> Iterator for TransactionRange<'a, Q, R, K, V, C>
 where
   K: Ord + Borrow<Q>,
   Q: Ord + ?Sized,

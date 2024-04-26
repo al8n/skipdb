@@ -1,28 +1,31 @@
 use skipdb_core::rev_range::WriteTransactionRevRange;
 use txn::{error::WtmError, PwmComparableRange};
 
-use std::convert::Infallible;
+use std::{convert::Infallible, ops::Bound};
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDb`],
-pub struct WriteTransaction<K, V> {
-  pub(super) db: ComparableDb<K, V>,
+#[cfg(test)]
+mod tests;
+
+/// A read only transaction over the [`OptimisticDb`],
+pub struct OptimisticTransaction<K, V> {
+  pub(super) db: SerializableDb<K, V>,
   pub(super) wtm: Wtm<K, V, BTreeCm<K>, BTreePwm<K, V>>,
 }
 
-impl<K, V> WriteTransaction<K, V>
+impl<K, V> OptimisticTransaction<K, V>
 where
   K: CheapClone + Ord,
 {
   #[inline]
-  pub(super) fn new(db: ComparableDb<K, V>) -> Self {
+  pub(super) fn new(db: SerializableDb<K, V>) -> Self {
     let wtm = db.inner.tm.write((), ()).unwrap();
     Self { db, wtm }
   }
 }
 
-impl<K, V> WriteTransaction<K, V>
+impl<K, V> OptimisticTransaction<K, V>
 where
   K: CheapClone + Ord,
   V: Send + 'static,
@@ -51,7 +54,7 @@ where
   }
 }
 
-impl<K, V> WriteTransaction<K, V>
+impl<K, V> OptimisticTransaction<K, V>
 where
   K: CheapClone + Ord + Send + Sync + 'static,
   V: Send + Sync + 'static,
@@ -92,7 +95,7 @@ where
   }
 }
 
-impl<K, V> WriteTransaction<K, V>
+impl<K, V> OptimisticTransaction<K, V>
 where
   K: CheapClone + Ord,
 {
@@ -161,15 +164,16 @@ where
   #[inline]
   pub fn iter(
     &mut self,
-  ) -> Result<WriteTransactionIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
-  {
+  ) -> Result<TransactionIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
+    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let start: Bound<K> = Bound::Unbounded;
+    let end: Bound<K> = Bound::Unbounded;
+    marker.mark_range((start, end));
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
-    Ok(WriteTransactionIter::new(pendings, committed, Some(marker)))
+    Ok(TransactionIter::new(pendings, committed, None))
   }
 
   /// Iterate over the entries of the write transaction in reverse order.
@@ -179,8 +183,10 @@ where
   ) -> Result<WriteTransactionRevIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
   {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
+    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let start: Bound<K> = Bound::Unbounded;
+    let end: Bound<K> = Bound::Unbounded;
+    marker.mark_range((start, end));
     let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 
@@ -196,10 +202,7 @@ where
   pub fn range<'a, Q, R>(
     &'a mut self,
     range: R,
-  ) -> Result<
-    WriteTransactionRange<'a, Q, R, K, V, BTreeCm<K>>,
-    TransactionError<Infallible, Infallible>,
-  >
+  ) -> Result<TransactionRange<'a, Q, R, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
   where
     K: Borrow<Q>,
     R: RangeBounds<Q> + 'a,
@@ -212,11 +215,27 @@ where
     let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range(range, version);
 
-    Ok(WriteTransactionRange::new(
-      pendings,
-      committed,
-      Some(marker),
-    ))
+    Ok(TransactionRange::new(pendings, committed, Some(marker)))
+  }
+
+  /// Returns an iterator over the subset of entries of the database.
+  #[inline]
+  pub fn range_ssi<'a, R>(
+    &'a mut self,
+    range: R,
+  ) -> Result<TransactionRange<'a, K, R, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
+  where
+    R: RangeBounds<K> + 'a,
+  {
+    let version = self.wtm.version();
+    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    let start = range.start_bound();
+    let end = range.end_bound();
+    marker.mark_range((start, end));
+    let pendings = pm.range_comparable((start, end));
+    let committed = self.db.inner.map.range(range, version);
+
+    Ok(TransactionRange::new(pendings, committed, Some(marker)))
   }
 
   /// Returns an iterator over the subset of entries of the database in reverse order.

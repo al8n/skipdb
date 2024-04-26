@@ -2,7 +2,7 @@ use skipdb_core::rev_range::RevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDb`],
+/// A read only transaction over the [`OptimisticDb`],
 pub struct ReadTransaction<K, V, I, C, S>
 where
   S: AsyncSpawner,

@@ -15,7 +15,7 @@ use wmark::AsyncCloser;
 use super::*;
 
 async fn begin_tx_readable_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, Vec<u8>, S> = ComparableDb::new().await;
+  let db: OptimisticDb<&'static str, Vec<u8>, S> = OptimisticDb::new().await;
   let tx = db.read().await;
   assert_eq!(tx.version(), 0);
 }
@@ -39,7 +39,7 @@ fn begin_tx_readable_smol() {
 }
 
 async fn begin_tx_writeable_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, Vec<u8>, S> = ComparableDb::new().await;
+  let db: OptimisticDb<&'static str, Vec<u8>, S> = OptimisticDb::new().await;
   let tx = db.write().await;
   assert_eq!(tx.version(), 0);
 }
@@ -63,14 +63,14 @@ fn begin_tx_writeable_smol() {
 }
 
 async fn writeable_tx_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, &'static str, S> = ComparableDb::new().await;
+  let db: OptimisticDb<&'static str, &'static str, S> = OptimisticDb::new().await;
   {
     let mut tx = db.write().await;
     assert_eq!(tx.version(), 0);
 
     tx.insert("foo", "foo1").unwrap();
-    assert_eq!(*tx.get(&"foo").unwrap().unwrap().value(), "foo1");
-    assert!(tx.contains_key(&"foo").unwrap());
+    assert_eq!(*tx.get("foo").unwrap().unwrap().value(), "foo1");
+    assert!(tx.contains_key("foo").unwrap());
     tx.commit().await.unwrap();
   }
 
@@ -101,7 +101,7 @@ fn writeable_tx_smol() {
 }
 
 async fn txn_simple_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   {
     let mut txn = db.write().await;
@@ -148,7 +148,7 @@ fn txn_simple_smol() {
 async fn txn_read_after_write_in<S: AsyncSpawner>() {
   const N: u64 = 100;
 
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   let mut handles = (0..N)
     .map(|i| {
@@ -197,7 +197,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
 ) where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
   let mut txn = db.write().await;
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
@@ -251,7 +251,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
         }
 
         // We are only doing writes, so there won't be any conflicts.
-        txn
+        let _a = txn
           .commit_with_task::<_, std::convert::Infallible, ()>(|_| async {})
           .await
           .unwrap()
@@ -259,14 +259,12 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
       })
     })
     .collect::<FuturesUnordered<_>>();
-
   while handles.next().await.is_some() {}
-
   closer1.signal_and_wait().await;
   std::thread::sleep(Duration::from_millis(10));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
 #[cfg(feature = "tokio")]
 async fn txn_commit_with_callback_tokio() {
   txn_commit_with_callback_in::<TokioSpawner, _>(tokio::task::yield_now).await;
@@ -290,7 +288,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   // Set balance to $100 in each account.
   let mut txn = db.write().await;
@@ -300,7 +298,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   assert_eq!(1, db.version().await);
 
   async fn get_bal<'a, S: AsyncSpawner>(
-    txn: &'a mut WriteTransaction<u64, u64, S>,
+    txn: &'a mut OptimisticTransaction<u64, u64, S>,
     k: &'a u64,
   ) -> u64 {
     let item = txn.get(k).unwrap().unwrap();
@@ -363,7 +361,7 @@ fn txn_write_skew_smol() {
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 async fn txn_write_skew2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<&'static str, u64, S> = OptimisticDb::new().await;
 
   // Setup
   let mut txn = db.write().await;
@@ -443,7 +441,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+    let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -452,6 +450,7 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
         let mut txn = db1.write().await;
         if txn.get(&100).unwrap().is_none() {
           txn.insert(100, 999).unwrap();
+
           #[allow(clippy::blocks_in_conditions)]
           match txn
             .commit_with_task::<_, std::convert::Infallible, _>(|e| async move {
@@ -462,8 +461,8 @@ async fn txn_conflict_get_in<S: AsyncSpawner>() {
             })
             .await
           {
-            Ok(handle) => {
-              let _ = handle.await;
+            Ok(h) => {
+              let _ = h.await;
             }
             Err(e) => assert!(matches!(
               e,
@@ -501,7 +500,7 @@ fn txn_conflict_get_smol() {
 }
 
 async fn txn_versions_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   let k0 = 0;
   for i in 1..10 {
@@ -511,7 +510,7 @@ async fn txn_versions_in<S: AsyncSpawner>() {
     assert_eq!(i, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>, i: u64| {
     let mut count = 0;
     for ent in itr {
       assert_eq!(ent.key(), &k0);
@@ -521,7 +520,8 @@ async fn txn_versions_in<S: AsyncSpawner>() {
     assert_eq!(1, count) // should only loop once.
   };
 
-  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                        i: u64| {
     let mut count = 0;
     for ent in itr {
       assert_eq!(ent.key(), &k0);
@@ -577,7 +577,7 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+    let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -596,7 +596,6 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
 
         if !found {
           txn.insert(100, 999).unwrap();
-
           match txn
             .commit_with_task::<_, std::convert::Infallible, ()>(|e| async move {
               match e {
@@ -606,8 +605,8 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
             })
             .await
           {
-            Ok(handle) => {
-              let _ = handle.await;
+            Ok(h) => {
+              let _ = h.await;
             }
             Err(e) => assert!(matches!(
               e,
@@ -651,7 +650,7 @@ fn txn_conflict_iter_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   // c1
   {
@@ -693,7 +692,8 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                    expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
@@ -702,7 +702,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, BTreeCm<u64>>,
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
                         expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -766,7 +766,7 @@ fn txn_iteration_edge_case_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   // c1
   {
@@ -802,7 +802,8 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+                    expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value());
@@ -811,7 +812,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, BTreeCm<u64>>,
+  let check_rev_iter = |itr: WriteTransactionRevIter<'_, u64, u64, HashCm<u64, RandomState>>,
                         expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -899,7 +900,7 @@ fn txn_iteration_edge_case2_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
 
   // c1
   {
@@ -939,7 +940,7 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>,
+  let check_iter = |itr: TransactionRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
                     expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -949,15 +950,16 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let check_rev_iter = |itr: WriteTransactionRevRange<'_, _, _, u64, u64, BTreeCm<u64>>,
-                        expected: &[u64]| {
-    let mut i = 0;
-    for ent in itr {
-      assert_eq!(expected[i], *ent.value());
-      i += 1;
-    }
-    assert_eq!(expected.len(), i);
-  };
+  let check_rev_iter =
+    |itr: WriteTransactionRevRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
+     expected: &[u64]| {
+      let mut i = 0;
+      for ent in itr {
+        assert_eq!(expected[i], *ent.value());
+        i += 1;
+      }
+      assert_eq!(expected.len(), i);
+    };
 
   let mut txn = db.write().await;
   let itr = txn.range(1..10).unwrap();
@@ -1035,7 +1037,7 @@ async fn compact_in<S: AsyncSpawner, Y>(yielder: impl Fn() -> Y + Send + Sync + 
 where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
   let mut txn = db.write().await;
   let k = 88;
   for i in 0..40 {
@@ -1142,7 +1144,7 @@ fn compact_smol() {
 }
 
 async fn rollback_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
   let mut txn = db.write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -1183,7 +1185,7 @@ fn rollback_smol() {
 }
 
 async fn iter_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
   let mut txn = db.write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -1228,7 +1230,7 @@ fn iter_smol() {
 }
 
 async fn range_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: OptimisticDb<u64, u64, S> = OptimisticDb::new().await;
   let mut txn = db.write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();

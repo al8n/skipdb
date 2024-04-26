@@ -51,6 +51,13 @@ impl<'a, C: Cm> Marker<'a, C> {
   }
 }
 
+impl<'a, C: CmRange> Marker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_range(&mut self, range: impl RangeBounds<<C as Cm>::Key>) {
+    self.marker.mark_range(range);
+  }
+}
+
 impl<'a, C: CmComparable> Marker<'a, C> {
   /// Marks a key is operated.
   pub fn mark_comparable<Q>(&mut self, k: &Q)
@@ -71,6 +78,17 @@ impl<'a, C: CmComparable> Marker<'a, C> {
   }
 }
 
+impl<'a, C: CmComparableRange> Marker<'a, C> {
+  /// Marks a range is operated.
+  pub fn mark_range_comparable<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_range_comparable(range);
+  }
+}
+
 impl<'a, C: CmEquivalent> Marker<'a, C> {
   /// Marks a key is operated.
   pub fn mark_equivalent<Q>(&mut self, k: &Q)
@@ -88,6 +106,17 @@ impl<'a, C: CmEquivalent> Marker<'a, C> {
     Q: Hash + Eq + ?Sized,
   {
     self.marker.mark_conflict_equivalent(k);
+  }
+}
+
+impl<'a, C: CmEquivalentRange> Marker<'a, C> {
+  /// Marks a range is operated.
+  pub fn mark_range_equivalent<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+  {
+    self.marker.mark_range_equivalent(range);
   }
 }
 
@@ -123,6 +152,12 @@ pub trait Cm: Sized {
   fn rollback(&mut self) -> Result<(), Self::Error>;
 }
 
+/// A extended trait of the [`Cm`] trait that can be used to manage the range of keys.
+pub trait CmRange: Cm + Sized {
+  /// Mark the range is read.
+  fn mark_range(&mut self, range: impl RangeBounds<<Self as Cm>::Key>);
+}
+
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on hash.
 pub trait CmEquivalent: Cm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
@@ -138,6 +173,15 @@ pub trait CmEquivalent: Cm {
     Q: Hash + Eq + ?Sized;
 }
 
+/// An optimized version of the [`CmRange`] trait that if your conflict manager is depend on hash.
+pub trait CmEquivalentRange: CmRange + Sized {
+  /// Mark the range is read.
+  fn mark_range_equivalent<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
+}
+
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on the order.
 pub trait CmComparable: Cm {
   /// Optimized version of [`mark_read`] that accepts borrowed keys. Optional to implement.
@@ -148,6 +192,15 @@ pub trait CmComparable: Cm {
 
   /// Optimized version of [`mark_conflict`] that accepts borrowed keys. Optional to implement.
   fn mark_conflict_comparable<Q>(&mut self, key: &Q)
+  where
+    Self::Key: Borrow<Q>,
+    Q: Ord + ?Sized;
+}
+
+/// An optimized version of the [`CmRange`] trait that if your conflict manager is depend on the order.
+pub trait CmComparableRange: CmRange + CmComparable {
+  /// Mark the range is read.
+  fn mark_range_comparable<Q>(&mut self, range: impl RangeBounds<Q>)
   where
     Self::Key: Borrow<Q>,
     Q: Ord + ?Sized;

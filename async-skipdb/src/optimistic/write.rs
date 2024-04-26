@@ -5,20 +5,20 @@ use skipdb_core::rev_range::WriteTransactionRevRange;
 
 use super::*;
 
-/// A read only transaction over the [`EquivalentDb`],
-pub struct WriteTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
-  db: EquivalentDb<K, V, SP, S>,
+/// A read only transaction over the [`OptimisticDb`],
+pub struct OptimisticTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
+  db: OptimisticDb<K, V, SP, S>,
   pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
 }
 
-impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
   K: Ord + Hash + Eq,
   S: BuildHasher + Clone,
   SP: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: EquivalentDb<K, V, SP, S>, cap: Option<usize>) -> Self {
+  pub(super) async fn new(db: OptimisticDb<K, V, SP, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
@@ -32,7 +32,7 @@ where
   }
 }
 
-impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
   K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
@@ -69,7 +69,7 @@ where
   }
 }
 
-impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
   K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
@@ -116,7 +116,7 @@ where
   }
 }
 
-impl<K, V, SP, S> WriteTransaction<K, V, SP, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
   K: Ord + Hash + Eq,
   V: 'static,
@@ -199,8 +199,7 @@ where
   #[inline]
   pub fn iter(
     &mut self,
-  ) -> Result<WriteTransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>>
-  {
+  ) -> Result<TransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
     let (marker, pm) = self
       .wtm
@@ -210,7 +209,7 @@ where
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
-    Ok(WriteTransactionIter::new(pendings, committed, Some(marker)))
+    Ok(TransactionIter::new(pendings, committed, Some(marker)))
   }
 
   /// Iterate over the entries of the write transaction in reverse order.
@@ -243,7 +242,7 @@ where
     &'a mut self,
     range: R,
   ) -> Result<
-    WriteTransactionRange<'a, Q, R, K, V, HashCm<K, S>>,
+    TransactionRange<'a, Q, R, K, V, HashCm<K, S>>,
     TransactionError<Infallible, Infallible>,
   >
   where
@@ -261,11 +260,7 @@ where
     let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range(range, version);
 
-    Ok(WriteTransactionRange::new(
-      pendings,
-      committed,
-      Some(marker),
-    ))
+    Ok(TransactionRange::new(pendings, committed, Some(marker)))
   }
 
   /// Returns an iterator over the subset of entries of the database in reverse order.

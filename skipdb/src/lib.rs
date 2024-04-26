@@ -11,12 +11,12 @@ use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 
 use txn::{error::TransactionError, BTreePwm, HashCm, Rtm, Tm, Wtm};
 
-/// `EquivalentDb` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
-/// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`ComparableDb`] instead.
-pub mod equivalent;
+/// `OptimisticDb` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
+/// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`SerializableDb`] instead.
+pub mod optimistic;
 
-/// `ComparableDb` implementation, which requires `K` implements [`Ord`] and [`CheapClone`](cheap_clone::CheapClone). If your `K` implements both [`Hash`](core::hash::Hash) and [`Ord`], you are recommended to use [`EquivalentDb`](crate::equivalent::EquivalentDb) instead.
-pub mod comparable;
+/// `SerializableDb` implementation, which requires `K` implements [`Ord`] and [`CheapClone`](cheap_clone::CheapClone). If your `K` implements both [`Hash`](core::hash::Hash) and [`Ord`], you are recommended to use [`OptimisticDb`](crate::optimistic::OptimisticDb) instead.
+pub mod serializable;
 
 mod read;
 pub use read::*;

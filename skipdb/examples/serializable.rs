@@ -1,4 +1,4 @@
-use skipdb::comparable::ComparableDb;
+use skipdb::serializable::SerializableDb;
 
 #[derive(Debug)]
 struct Person {
@@ -8,7 +8,7 @@ struct Person {
 }
 
 fn main() {
-  let db: ComparableDb<u64, Person> = ComparableDb::new();
+  let db: SerializableDb<u64, Person> = SerializableDb::new();
 
   {
     let alice = Person {
@@ -22,7 +22,7 @@ fn main() {
       age: 30,
     };
 
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, alice).unwrap();
     txn.insert(2, bob).unwrap();
 

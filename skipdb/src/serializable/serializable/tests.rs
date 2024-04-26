@@ -4,31 +4,29 @@ use std::{
 };
 
 use rand::Rng;
-use skipdb_core::rev_range::WriteTransactionRevRange;
-use txn::error::WtmError;
 use wmark::Closer;
 
 use super::*;
 
 #[test]
 fn begin_tx_readable() {
-  let db: ComparableDb<&'static str, Vec<u8>> = ComparableDb::new();
+  let db: SerializableDb<&'static str, Vec<u8>> = SerializableDb::new();
   let tx = db.read();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn begin_tx_writeable() {
-  let db: ComparableDb<&'static str, Vec<u8>> = ComparableDb::new();
-  let tx = db.write();
+  let db: SerializableDb<&'static str, Vec<u8>> = SerializableDb::new();
+  let tx = db.serializable_write();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn writeable_tx() {
-  let db: ComparableDb<&'static str, &'static str> = ComparableDb::new();
+  let db: SerializableDb<&'static str, &'static str> = SerializableDb::new();
   {
-    let mut tx = db.write();
+    let mut tx = db.serializable_write();
     assert_eq!(tx.version(), 0);
 
     tx.insert("foo", "foo1").unwrap();
@@ -47,10 +45,10 @@ fn writeable_tx() {
 
 #[test]
 fn txn_simple() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     for i in 0..10 {
       if let Err(e) = txn.insert(i, i) {
         panic!("{e}");
@@ -76,7 +74,7 @@ fn txn_simple() {
 fn txn_read_after_write() {
   const N: u64 = 100;
 
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   let handles = (0..N)
     .map(|i| {
@@ -85,7 +83,7 @@ fn txn_read_after_write() {
         let k = i;
         let v = i;
 
-        let mut txn = db.write();
+        let mut txn = db.serializable_write();
         txn.insert(k, v).unwrap();
         txn.commit().unwrap();
 
@@ -107,8 +105,8 @@ fn txn_read_after_write() {
 fn txn_commit_with_callback() {
   use rand::thread_rng;
 
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
   }
@@ -143,7 +141,7 @@ fn txn_commit_with_callback() {
     .map(|_| {
       let db1 = db.clone();
       std::thread::spawn(move || {
-        let mut txn = db1.write();
+        let mut txn = db1.serializable_write();
         for i in 0..20 {
           let mut rng = thread_rng();
           let r = rng.gen_range(0..100);
@@ -179,23 +177,23 @@ fn txn_write_skew() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   // Set balance to $100 in each account.
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert(a999, 100).unwrap();
   txn.insert(a888, 100).unwrap();
   txn.commit().unwrap();
   assert_eq!(1, db.version());
 
-  let get_bal = |txn: &mut WriteTransaction<u64, u64>, k: &u64| -> u64 {
+  let get_bal = |txn: &mut SerializableTransaction<u64, u64>, k: &u64| -> u64 {
     let item = txn.get(k).unwrap().unwrap();
     let val = *item.value();
     val
   };
 
   // Start two transactions, each would read both accounts and deduct from one account.
-  let mut txn1 = db.write();
+  let mut txn1 = db.serializable_write();
 
   let mut sum = get_bal(&mut txn1, &a999);
   sum += get_bal(&mut txn1, &a888);
@@ -209,7 +207,7 @@ fn txn_write_skew() {
   assert_eq!(100, sum);
   // Don't commit yet.
 
-  let mut txn2 = db.write();
+  let mut txn2 = db.serializable_write();
 
   let mut sum = get_bal(&mut txn2, &a999);
   sum += get_bal(&mut txn2, &a888);
@@ -232,10 +230,10 @@ fn txn_write_skew() {
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
 fn txn_write_skew2() {
-  let db: ComparableDb<&'static str, u64> = ComparableDb::new();
+  let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert("a1", 10).unwrap();
   txn.insert("a2", 20).unwrap();
   txn.insert("b1", 100).unwrap();
@@ -243,8 +241,7 @@ fn txn_write_skew2() {
   txn.commit().unwrap();
   assert_eq!(1, db.version());
 
-  //
-  let mut txn1 = db.write();
+  let mut txn1 = db.serializable_write();
   let val = txn1
     .iter()
     .unwrap()
@@ -259,7 +256,7 @@ fn txn_write_skew2() {
   txn1.insert("b3", 30).unwrap();
   assert_eq!(30, val);
 
-  let mut txn2 = db.write();
+  let mut txn2 = db.serializable_write();
   let val = txn2
     .iter()
     .unwrap()
@@ -276,7 +273,7 @@ fn txn_write_skew2() {
   txn2.commit().unwrap();
   txn1.commit().unwrap_err();
 
-  let mut txn3 = db.write();
+  let mut txn3 = db.serializable_write();
   let val = txn3
     .iter()
     .unwrap()
@@ -294,10 +291,10 @@ fn txn_write_skew2() {
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
 fn txn_write_skew3() {
-  let db: ComparableDb<&'static str, u64> = ComparableDb::new();
+  let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert("a1", 10).unwrap();
   txn.insert("b1", 100).unwrap();
   txn.insert("b2", 200).unwrap();
@@ -305,7 +302,7 @@ fn txn_write_skew3() {
   assert_eq!(1, db.version());
 
   //
-  let mut txn1 = db.write();
+  let mut txn1 = db.serializable_write();
   let val = txn1
     .range("a".."b")
     .unwrap()
@@ -314,7 +311,7 @@ fn txn_write_skew3() {
   txn1.insert("b3", 10).unwrap();
   assert_eq!(10, val);
 
-  let mut txn2 = db.write();
+  let mut txn2 = db.serializable_write();
   let val = txn2
     .range("b".."c")
     .unwrap()
@@ -325,7 +322,7 @@ fn txn_write_skew3() {
   txn2.commit().unwrap();
   txn1.commit().unwrap_err();
 
-  let mut txn3 = db.write();
+  let mut txn3 = db.serializable_write();
   let val = txn3
     .iter()
     .unwrap()
@@ -343,17 +340,16 @@ fn txn_write_skew3() {
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
 fn txn_write_skew4() {
-  let db: ComparableDb<&'static str, u64> = ComparableDb::new();
+  let db: SerializableDb<&'static str, u64> = SerializableDb::new();
 
   // Setup
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert("b1", 100).unwrap();
   txn.insert("b2", 200).unwrap();
   txn.commit().unwrap();
   assert_eq!(1, db.version());
 
-  //
-  let mut txn1 = db.write();
+  let mut txn1 = db.serializable_write();
   let val = txn1
     .range("a".."b")
     .unwrap()
@@ -362,7 +358,7 @@ fn txn_write_skew4() {
   txn1.insert("b3", 0).unwrap();
   assert_eq!(0, val);
 
-  let mut txn2 = db.write();
+  let mut txn2 = db.serializable_write();
   let val = txn2
     .range("b".."c")
     .unwrap()
@@ -373,7 +369,7 @@ fn txn_write_skew4() {
   txn2.commit().unwrap();
   txn1.commit().unwrap_err();
 
-  let mut txn3 = db.write();
+  let mut txn3 = db.serializable_write();
   let val = txn3
     .iter()
     .unwrap()
@@ -393,13 +389,13 @@ fn txn_conflict_get() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64> = ComparableDb::new();
+    let db: SerializableDb<u64, u64> = SerializableDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
       let set_count1 = set_count.clone();
       std::thread::spawn(move || {
-        let mut txn = db1.write();
+        let mut txn = db1.serializable_write();
         if txn.get(&100).unwrap().is_none() {
           txn.insert(100, 999).unwrap();
           if let Err(e) = txn.commit_with_callback::<std::convert::Infallible, _>(move |e| {
@@ -427,17 +423,17 @@ fn txn_conflict_get() {
 
 #[test]
 fn txn_versions() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   let k0 = 0;
   for i in 1..10 {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(k0, i).unwrap();
     txn.commit().unwrap();
     assert_eq!(i, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
     let mut count = 0;
     for ent in itr {
       assert_eq!(ent.key(), &k0);
@@ -458,7 +454,7 @@ fn txn_versions() {
   };
 
   for i in 1..10 {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.wtm.__set_read_version(i); // Read version at i.
 
     let v = i;
@@ -475,7 +471,7 @@ fn txn_versions() {
     check_rev_iter(itr, i);
   }
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   let item = txn.get(&k0).unwrap().unwrap();
   let val = *item.value();
   assert_eq!(9, val)
@@ -486,13 +482,13 @@ fn txn_conflict_iter() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64> = ComparableDb::new();
+    let db: SerializableDb<u64, u64> = SerializableDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
       let set_count1 = set_count.clone();
       std::thread::spawn(move || {
-        let mut txn = db1.write();
+        let mut txn = db1.serializable_write();
 
         let itr = txn.iter().unwrap();
         let mut found = false;
@@ -536,11 +532,11 @@ fn txn_conflict_iter() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   // c1
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(3, 31).unwrap();
     txn.commit().unwrap();
     assert_eq!(1, db.version());
@@ -548,7 +544,7 @@ fn txn_iteration_edge_case() {
 
   // a2, c2
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().unwrap();
@@ -557,7 +553,7 @@ fn txn_iteration_edge_case() {
 
   // b3
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().unwrap();
@@ -565,20 +561,20 @@ fn txn_iteration_edge_case() {
   }
 
   // b4, c4(remove) (uncommitted)
-  let mut txn4 = db.write();
+  let mut txn4 = db.serializable_write();
   txn4.insert(2, 24).unwrap();
   txn4.remove(3).unwrap();
   assert_eq!(3, db.version());
 
   // b4 (remove)
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.remove(2).unwrap();
     txn.commit().unwrap();
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
@@ -597,7 +593,7 @@ fn txn_iteration_edge_case() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   let itr = txn.iter().unwrap();
   let itr5 = txn4.iter().unwrap();
   check_iter(itr, &[13, 32]);
@@ -634,11 +630,11 @@ fn txn_iteration_edge_case() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case2() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   // c1
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(3, 31).unwrap();
     txn.commit().unwrap();
     assert_eq!(1, db.version());
@@ -646,7 +642,7 @@ fn txn_iteration_edge_case2() {
 
   // a2, c2
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().unwrap();
@@ -655,7 +651,7 @@ fn txn_iteration_edge_case2() {
 
   // b3
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().unwrap();
@@ -664,13 +660,13 @@ fn txn_iteration_edge_case2() {
 
   // b4 (remove)
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.remove(2).unwrap();
     txn.commit().unwrap();
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value());
@@ -689,7 +685,7 @@ fn txn_iteration_edge_case2() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   let itr = txn.iter().unwrap();
   check_iter(itr, &[13, 32]);
   let itr = txn.iter_rev().unwrap();
@@ -750,11 +746,11 @@ fn txn_iteration_edge_case2() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_range_edge_case2() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
 
   // c1
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
 
     txn.insert(0, 0).unwrap();
     txn.insert(u64::MAX, u64::MAX).unwrap();
@@ -766,7 +762,7 @@ fn txn_range_edge_case2() {
 
   // a2, c2
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().unwrap();
@@ -775,7 +771,7 @@ fn txn_range_edge_case2() {
 
   // b3
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().unwrap();
@@ -784,14 +780,13 @@ fn txn_range_edge_case2() {
 
   // b4 (remove)
   {
-    let mut txn = db.write();
+    let mut txn = db.serializable_write();
     txn.remove(2).unwrap();
     txn.commit().unwrap();
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>,
-                    expected: &[u64]| {
+  let check_iter = |itr: TransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value());
@@ -810,7 +805,7 @@ fn txn_range_edge_case2() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   let itr = txn.range(1..10).unwrap();
   check_iter(itr, &[13, 32]);
   let itr = txn.range_rev(1..10).unwrap();
@@ -868,8 +863,8 @@ fn txn_range_edge_case2() {
 fn compact() {
   use rand::thread_rng;
 
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   let k = 88;
   for i in 0..40 {
     txn.insert(k, i).unwrap();
@@ -877,7 +872,7 @@ fn compact() {
   }
   txn.commit().unwrap();
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.remove(k).unwrap();
   txn.commit().unwrap();
 
@@ -911,7 +906,7 @@ fn compact() {
     .map(|_| {
       let db1 = db.clone();
       std::thread::spawn(move || {
-        let mut txn = db1.write();
+        let mut txn = db1.serializable_write();
         for i in 0..20 {
           let mut rng = thread_rng();
           let r = rng.gen_range(0..100);
@@ -958,8 +953,8 @@ fn compact() {
 
 #[test]
 fn rollback() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   txn.insert(1, 1).unwrap();
   txn.rollback().unwrap();
   assert!(txn.get(&1).unwrap().is_none());
@@ -967,8 +962,8 @@ fn rollback() {
 
 #[test]
 fn iter() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
@@ -995,8 +990,8 @@ fn iter() {
 
 #[test]
 fn iter2() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
@@ -1022,7 +1017,7 @@ fn iter2() {
 
   txn.commit().unwrap();
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert(4, 4).unwrap();
   txn.insert(5, 5).unwrap();
   txn.insert(6, 6).unwrap();
@@ -1049,8 +1044,8 @@ fn iter2() {
 
 #[test]
 fn range() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
@@ -1077,8 +1072,8 @@ fn range() {
 
 #[test]
 fn range2() {
-  let db: ComparableDb<u64, u64> = ComparableDb::new();
-  let mut txn = db.write();
+  let db: SerializableDb<u64, u64> = SerializableDb::new();
+  let mut txn = db.serializable_write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
@@ -1104,7 +1099,7 @@ fn range2() {
 
   txn.commit().unwrap();
 
-  let mut txn = db.write();
+  let mut txn = db.serializable_write();
   txn.insert(4, 4).unwrap();
   txn.insert(5, 5).unwrap();
   txn.insert(6, 6).unwrap();

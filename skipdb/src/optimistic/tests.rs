@@ -12,21 +12,21 @@ use super::*;
 
 #[test]
 fn begin_tx_readable() {
-  let db: EquivalentDb<&'static str, Vec<u8>> = EquivalentDb::new();
+  let db: OptimisticDb<&'static str, Vec<u8>> = OptimisticDb::new();
   let tx = db.read();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn begin_tx_writeable() {
-  let db: EquivalentDb<&'static str, Vec<u8>> = EquivalentDb::new();
+  let db: OptimisticDb<&'static str, Vec<u8>> = OptimisticDb::new();
   let tx = db.write();
   assert_eq!(tx.version(), 0);
 }
 
 #[test]
 fn writeable_tx() {
-  let db: EquivalentDb<&'static str, &'static str> = EquivalentDb::new();
+  let db: OptimisticDb<&'static str, &'static str> = OptimisticDb::new();
   {
     let mut tx = db.write();
     assert_eq!(tx.version(), 0);
@@ -45,7 +45,7 @@ fn writeable_tx() {
 
 #[test]
 fn txn_simple() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   {
     let mut txn = db.write();
@@ -77,7 +77,7 @@ fn txn_simple() {
 fn txn_read_after_write() {
   const N: u64 = 100;
 
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   let handles = (0..N)
     .map(|i| {
@@ -108,7 +108,7 @@ fn txn_read_after_write() {
 fn txn_commit_with_callback() {
   use rand::thread_rng;
 
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
@@ -180,7 +180,7 @@ fn txn_write_skew() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   // Set balance to $100 in each account.
   let mut txn = db.write();
@@ -189,7 +189,7 @@ fn txn_write_skew() {
   txn.commit().unwrap();
   assert_eq!(1, db.version());
 
-  let get_bal = |txn: &mut WriteTransaction<u64, u64>, k: &u64| -> u64 {
+  let get_bal = |txn: &mut OptimisticTransaction<u64, u64>, k: &u64| -> u64 {
     let item = txn.get(k).unwrap().unwrap();
     let val = *item.value();
     val
@@ -233,7 +233,7 @@ fn txn_write_skew() {
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
 #[test]
 fn txn_write_skew2() {
-  let db: EquivalentDb<&'static str, u64> = EquivalentDb::new();
+  let db: OptimisticDb<&'static str, u64> = OptimisticDb::new();
 
   // Setup
   let mut txn = db.write();
@@ -244,7 +244,6 @@ fn txn_write_skew2() {
   txn.commit().unwrap();
   assert_eq!(1, db.version());
 
-  //
   let mut txn1 = db.write();
   let val = txn1
     .iter()
@@ -292,108 +291,12 @@ fn txn_write_skew2() {
   assert_eq!(330, val);
 }
 
-// https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-#[test]
-fn txn_write_skew3() {
-  let db: EquivalentDb<&'static str, u64> = EquivalentDb::new();
-
-  // Setup
-  let mut txn = db.write();
-  txn.insert("a1", 10).unwrap();
-  txn.insert("b1", 100).unwrap();
-  txn.insert("b2", 200).unwrap();
-  txn.commit().unwrap();
-  assert_eq!(1, db.version());
-
-  let mut txn1 = db.write();
-  let val = txn1
-    .range("a".."b")
-    .unwrap()
-    .map(|ele| *ele.value())
-    .sum::<u64>();
-  txn1.insert("b3", 10).unwrap();
-  assert_eq!(10, val);
-
-  let mut txn2 = db.write();
-  let val = txn2
-    .range("b".."c")
-    .unwrap()
-    .map(|ele| *ele.value())
-    .sum::<u64>();
-  txn2.insert("a3", 300).unwrap();
-  assert_eq!(300, val);
-  txn2.commit().unwrap();
-  txn1.commit().unwrap_err();
-
-  let mut txn3 = db.write();
-  let val = txn3
-    .iter()
-    .unwrap()
-    .filter_map(|ele| {
-      if ele.key().starts_with('a') {
-        Some(*ele.value())
-      } else {
-        None
-      }
-    })
-    .sum::<u64>();
-  assert_eq!(310, val);
-}
-
-// https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-#[test]
-fn txn_write_skew4() {
-  let db: EquivalentDb<&'static str, u64> = EquivalentDb::new();
-
-  // Setup
-  let mut txn = db.write();
-  txn.insert("b1", 100).unwrap();
-  txn.insert("b2", 200).unwrap();
-  txn.commit().unwrap();
-  assert_eq!(1, db.version());
-
-  //
-  let mut txn1 = db.write();
-  let val = txn1
-    .range("a".."b")
-    .unwrap()
-    .map(|ele| *ele.value())
-    .sum::<u64>();
-  txn1.insert("b3", 0).unwrap();
-  assert_eq!(0, val);
-
-  let mut txn2 = db.write();
-  let val = txn2
-    .range("b".."c")
-    .unwrap()
-    .map(|ele| *ele.value())
-    .sum::<u64>();
-  txn2.insert("a3", 300).unwrap();
-  assert_eq!(300, val);
-  txn2.commit().unwrap();
-  txn1.commit().unwrap_err();
-
-  let mut txn3 = db.write();
-  let val = txn3
-    .iter()
-    .unwrap()
-    .filter_map(|ele| {
-      if ele.key().starts_with('a') {
-        Some(*ele.value())
-      } else {
-        None
-      }
-    })
-    .sum::<u64>();
-  assert_eq!(300, val);
-}
-
 #[test]
 fn txn_conflict_get() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+    let db: OptimisticDb<u64, u64> = OptimisticDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -427,7 +330,7 @@ fn txn_conflict_get() {
 
 #[test]
 fn txn_versions() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   let k0 = 0;
   for i in 1..10 {
@@ -437,7 +340,7 @@ fn txn_versions() {
     assert_eq!(i, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>, i: u64| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>, i: u64| {
     let mut count = 0;
     for ent in itr {
       assert_eq!(ent.key(), &k0);
@@ -487,7 +390,7 @@ fn txn_conflict_iter() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+    let db: OptimisticDb<u64, u64> = OptimisticDb::new();
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
@@ -537,7 +440,7 @@ fn txn_conflict_iter() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   // c1
   {
@@ -579,7 +482,7 @@ fn txn_iteration_edge_case() {
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
                     expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -636,7 +539,7 @@ fn txn_iteration_edge_case() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_iteration_edge_case2() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   // c1
   {
@@ -672,7 +575,7 @@ fn txn_iteration_edge_case2() {
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
+  let check_iter = |itr: TransactionIter<'_, u64, u64, HashCm<u64, RandomState>>,
                     expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -753,7 +656,7 @@ fn txn_iteration_edge_case2() {
 /// Read at ts=1 -> c1
 #[test]
 fn txn_range_edge_case2() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
 
   // c1
   {
@@ -793,7 +696,7 @@ fn txn_range_edge_case2() {
     assert_eq!(4, db.version());
   }
 
-  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
+  let check_iter = |itr: TransactionRange<'_, _, _, u64, u64, HashCm<u64, RandomState>>,
                     expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
@@ -872,7 +775,7 @@ fn txn_range_edge_case2() {
 fn compact() {
   use rand::thread_rng;
 
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   let k = 88;
   for i in 0..40 {
@@ -962,7 +865,7 @@ fn compact() {
 
 #[test]
 fn rollback() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.rollback().unwrap();
@@ -971,7 +874,7 @@ fn rollback() {
 
 #[test]
 fn iter() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -999,7 +902,7 @@ fn iter() {
 
 #[test]
 fn iter2() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -1053,7 +956,7 @@ fn iter2() {
 
 #[test]
 fn iter3() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(4, 4).unwrap();
   txn.insert(5, 5).unwrap();
@@ -1107,7 +1010,7 @@ fn iter3() {
 
 #[test]
 fn range() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -1135,7 +1038,7 @@ fn range() {
 
 #[test]
 fn range2() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
@@ -1193,7 +1096,7 @@ fn range2() {
 
 #[test]
 fn range3() {
-  let db: EquivalentDb<u64, u64> = EquivalentDb::new();
+  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
   let mut txn = db.write();
   txn.insert(4, 4).unwrap();
   txn.insert(5, 5).unwrap();
