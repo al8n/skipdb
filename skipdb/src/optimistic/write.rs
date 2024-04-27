@@ -184,7 +184,6 @@ where
   ) -> Result<TransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
@@ -201,7 +200,6 @@ where
   > {
     let version = self.wtm.version();
     let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
     let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 

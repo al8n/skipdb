@@ -58,6 +58,13 @@ impl<'a, C: CmRange> Marker<'a, C> {
   }
 }
 
+impl<'a, C: CmIter> Marker<'a, C> {
+  /// Marks a key is operated.
+  pub fn mark_iter(&mut self) {
+    self.marker.mark_iter();
+  }
+}
+
 impl<'a, C: CmComparable> Marker<'a, C> {
   /// Marks a key is operated.
   pub fn mark_comparable<Q>(&mut self, k: &Q)
@@ -156,6 +163,18 @@ pub trait Cm: Sized {
 pub trait CmRange: Cm + Sized {
   /// Mark the range is read.
   fn mark_range(&mut self, range: impl RangeBounds<<Self as Cm>::Key>);
+}
+
+/// A extended trait of the [`Cm`] trait that can be used to manage the iterator of keys.
+pub trait CmIter: Cm + Sized {
+  /// Mark the iterator is operated, this is useful to detect the indirect conflict.
+  fn mark_iter(&mut self);
+}
+
+impl<T: CmRange> CmIter for T {
+  fn mark_iter(&mut self) {
+    self.mark_range(..);
+  }
 }
 
 /// An optimized version of the [`Cm`] trait that if your conflict manager is depend on hash.

@@ -61,13 +61,13 @@ This repository contains two kinds of in-memory key-value database which support
 
    Transactions are created by `SerializableDb::serializable_write` can handle all kinds of write skew correctly.
 
-   Transactions are created by `SerializableDb::optimistic_write` can handle all kinds of direct dependent write skew, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew_intersecting_data2` and `write_skew_intersecting_data3` for more details).
+   Transactions are created by `SerializableDb::optimistic_write` can handle all kinds of direct dependent write skew, but cannot handle all kinds of indirect dependent write skew e.g. https://wiki.postgresql.org/wiki/SSI#Intersecting_Data.
 
 2. `OptimisticDb`
 
    Only support oncurrent execution of optimistic concurrency control, which means the write transaction cannot detect all kinds of write skew.
 
-   All kinds of direct dependent write skew can be handled correctly, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew_intersecting_data2` and `write_skew_intersecting_data3` for more details).
+   All kinds of direct dependent write skew can be handled correctly, but cannot handle all kinds of indirect dependent write skew e.g. https://wiki.postgresql.org/wiki/SSI#Intersecting_Data.
 
 ### Features
 

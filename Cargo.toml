@@ -38,7 +38,7 @@ wmark = { path = "wmark", version = "0.1", default-features = false }
 txn-core = { path = "txn-core", version = "0.1", default-features = false }
 txn = { path = "txn", version = "0.1", default-features = false }
 async-txn = { path = "async-txn", version = "0.1", default-features = false }
-skipdb-core = { path = "skipdb-core", version = "0.1", default-features = false }
+skipdb-core = { path = "skipdb-core", version = "0.2", default-features = false }
 
 
 [workspace.metadata.docs.rs]
