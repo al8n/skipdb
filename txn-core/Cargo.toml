@@ -17,6 +17,7 @@ std = ["alloc", "smallvec-wrapper/std", "indexmap/default", "thiserror"]
 [dependencies]
 ahash = "0.8"
 cheap-clone.workspace = true
+either.workspace = true
 
 thiserror = { workspace = true, optional = true }
 indexmap = { workspace = true, optional = true }

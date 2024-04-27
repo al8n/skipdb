@@ -5,7 +5,13 @@ use crate::DefaultHasher;
 
 use super::*;
 
-use indexmap::IndexMap;
+use indexmap::IndexSet;
+
+#[derive(Clone, Copy, Debug)]
+enum Read {
+  Single(u64),
+  All,
+}
 
 /// Options for the [`HashCm`].
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -38,8 +44,8 @@ impl<S> HashCmOptions<S> {
 
 /// A [`Cm`] conflict manager implementation that based on the [`Hash`](Hash).
 pub struct HashCm<K, S = DefaultHasher> {
-  reads: MediumVec<u64>,
-  conflict_keys: IndexMap<u64, Option<usize>, S>,
+  reads: MediumVec<Read>,
+  conflict_keys: IndexSet<u64, S>,
   _k: core::marker::PhantomData<K>,
 }
 
@@ -67,12 +73,12 @@ where
     Ok(match options.capacity {
       Some(capacity) => Self {
         reads: MediumVec::with_capacity(capacity),
-        conflict_keys: IndexMap::with_capacity_and_hasher(capacity, options.hasher),
+        conflict_keys: IndexSet::with_capacity_and_hasher(capacity, options.hasher),
         _k: core::marker::PhantomData,
       },
       None => Self {
         reads: MediumVec::new(),
-        conflict_keys: IndexMap::with_hasher(options.hasher),
+        conflict_keys: IndexSet::with_hasher(options.hasher),
         _k: core::marker::PhantomData,
       },
     })
@@ -81,55 +87,33 @@ where
   #[inline]
   fn mark_read(&mut self, key: &K) {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    self.reads.push(fp);
+    self.reads.push(Read::Single(fp));
   }
 
   #[inline]
   fn mark_conflict(&mut self, key: &Self::Key) {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    let idx = if self.reads.is_empty() {
-      None
-    } else {
-      Some(self.reads.len() - 1)
-    };
-    self.conflict_keys.insert(fp, idx);
+    self.conflict_keys.insert(fp);
   }
 
   #[inline]
   fn has_conflict(&self, other: &Self) -> bool {
-    println!("read {:?}", self.reads);
-    println!("conflict {:?}", self.conflict_keys);
     if self.reads.is_empty() {
       return false;
     }
 
     // check if there is any direct conflict
     for ro in self.reads.iter() {
-      if other.conflict_keys.contains_key(ro) {
-        return true;
-      }
-    }
-
-    // check if there is any indirect conflict
-    for i in self
-      .conflict_keys
-      .iter()
-      .filter_map(|(_, idx)| idx.map(|idx| idx))
-    {
-      let happens_before_reads = &other.reads[..i];
-
-      for j in self
-        .conflict_keys
-        .iter()
-        .filter_map(|(_, idx)| idx.map(|idx| idx))
-      {
-        let other_happens_before_reads = &other.reads[..j];
-
-        if happens_before_reads
-          .iter()
-          .any(|ro| other_happens_before_reads.contains(ro))
-        {
-          return true;
+      match ro {
+        Read::Single(ro) => {
+          if other.conflict_keys.contains(ro) {
+            return true;
+          }
+        }
+        Read::All => {
+          if !other.conflict_keys.is_empty() {
+            return true;
+          }
         }
       }
     }
@@ -145,6 +129,16 @@ where
   }
 }
 
+impl<K, S> CmIter for HashCm<K, S>
+where
+  S: BuildHasher,
+  K: Hash + Eq,
+{
+  fn mark_iter(&mut self) {
+    self.reads.push(Read::All);
+  }
+}
+
 impl<K, S> CmEquivalent for HashCm<K, S>
 where
   S: BuildHasher,
@@ -157,7 +151,7 @@ where
     Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    self.reads.push(fp);
+    self.reads.push(Read::Single(fp));
   }
 
   #[inline]
@@ -167,12 +161,7 @@ where
     Q: Hash + Eq + ?Sized,
   {
     let fp = self.conflict_keys.hasher().hash_one(key);
-    let idx = if self.reads.is_empty() {
-      None
-    } else {
-      Some(self.reads.len() - 1)
-    };
-    self.conflict_keys.insert(fp, idx);
+    self.conflict_keys.insert(fp);
   }
 }
 

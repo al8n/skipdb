@@ -183,8 +183,8 @@ where
     &mut self,
   ) -> Result<TransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
+    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    marker.mark_iter();
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
@@ -200,8 +200,8 @@ where
     TransactionError<Infallible, Infallible>,
   > {
     let version = self.wtm.version();
-    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-
+    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
+    marker.mark_iter();
     let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 
