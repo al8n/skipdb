@@ -39,7 +39,7 @@ where
 }
 
 /// Iterator over the entries of the write transaction.
-pub struct WriteTransactionIter<'a, K, V, C> {
+pub struct TransactionIter<'a, K, V, C> {
   committed: Iter<'a, K, V>,
   pendings: BTreeMapIter<'a, K, EntryValue<V>>,
   next_pending: Option<(&'a K, &'a EntryValue<V>)>,
@@ -48,7 +48,7 @@ pub struct WriteTransactionIter<'a, K, V, C> {
   marker: Option<Marker<'a, C>>,
 }
 
-impl<'a, K, V, C> WriteTransactionIter<'a, K, V, C>
+impl<'a, K, V, C> TransactionIter<'a, K, V, C>
 where
   C: Cm<Key = K>,
   K: Ord,
@@ -69,7 +69,7 @@ where
     committed: Iter<'a, K, V>,
     marker: Option<Marker<'a, C>>,
   ) -> Self {
-    let mut iterator = WriteTransactionIter {
+    let mut iterator = TransactionIter {
       pendings,
       committed,
       next_pending: None,
@@ -85,7 +85,7 @@ where
   }
 }
 
-impl<'a, K, V, C> Iterator for WriteTransactionIter<'a, K, V, C>
+impl<'a, K, V, C> Iterator for TransactionIter<'a, K, V, C>
 where
   K: Ord,
   C: Cm<Key = K>,

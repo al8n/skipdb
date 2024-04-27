@@ -30,6 +30,64 @@ impl<'a, C: AsyncCm> AsyncMarker<'a, C> {
   }
 }
 
+impl<'a, C: AsyncCmRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub async fn mark_range(&mut self, range: impl RangeBounds<C::Key>) {
+    self.marker.mark_range(range).await;
+  }
+}
+
+impl<'a, C: CmRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub fn mark_range_blocking(&mut self, range: impl RangeBounds<C::Key>) {
+    self.marker.mark_range(range);
+  }
+}
+
+impl<'a, C: AsyncCmEquivalentRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub async fn mark_range_equivalent<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+  {
+    self.marker.mark_range_equivalent(range).await;
+  }
+}
+
+impl<'a, C: CmEquivalentRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub fn mark_range_equivalent_blocking<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+  {
+    self.marker.mark_range_equivalent(range);
+  }
+}
+
+impl<'a, C: AsyncCmComparableRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub async fn mark_range_comparable<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_range_comparable(range).await;
+  }
+}
+
+impl<'a, C: CmComparableRange> AsyncMarker<'a, C> {
+  /// Marks a range is operated.
+  pub fn mark_range_comparable_blocking<Q>(&mut self, range: impl RangeBounds<Q>)
+  where
+    C::Key: Borrow<Q>,
+    Q: Ord + ?Sized,
+  {
+    self.marker.mark_range_comparable(range);
+  }
+}
+
 impl<'a, C: AsyncCmComparable> AsyncMarker<'a, C> {
   /// Marks a key is operated.
   pub async fn mark_comparable<Q>(&mut self, k: &Q)
@@ -152,6 +210,30 @@ pub trait AsyncCm: Sized {
 
   /// Rollback the conflict manager.
   fn rollback(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
+}
+
+/// A extended trait of the [`AsyncCm`] trait that can be used to manage the range of keys.
+pub trait AsyncCmRange: Cm + Sized {
+  /// Mark the range is read.
+  fn mark_range(&mut self, range: impl RangeBounds<<Self as Cm>::Key>) -> impl Future<Output = ()>;
+}
+
+/// An optimized version of the [`AsyncCmRange`] trait that if your conflict manager is depend on hash.
+pub trait AsyncCmEquivalentRange: AsyncCmRange + Sized {
+  /// Mark the range is read.
+  fn mark_range_equivalent<Q>(&mut self, range: impl RangeBounds<Q>) -> impl Future<Output = ()>
+  where
+    Self::Key: Borrow<Q>,
+    Q: Hash + Eq + ?Sized;
+}
+
+/// An optimized version of the [`AsyncCmRange`] trait that if your conflict manager is depend on the order.
+pub trait AsyncCmComparableRange: AsyncCmRange + CmComparable {
+  /// Mark the range is read.
+  fn mark_range_comparable<Q>(&mut self, range: impl RangeBounds<Q>) -> impl Future<Output = ()>
+  where
+    Self::Key: Borrow<Q>,
+    Q: Ord + ?Sized;
 }
 
 /// An optimized version of the [`AsyncCm`] trait that if your conflict manager is depend on hash.

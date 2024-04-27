@@ -1,38 +1,43 @@
+use std::{convert::Infallible, future::Future};
+
 use async_txn::{error::WtmError, PwmComparableRange};
 use skipdb_core::rev_range::WriteTransactionRevRange;
 
-use std::{convert::Infallible, future::Future};
-
 use super::*;
 
-/// A read only transaction over the [`EquivalentDb`],
-pub struct WriteTransaction<K, V, S: AsyncSpawner> {
-  pub(super) db: ComparableDb<K, V, S>,
-  pub(super) wtm: AsyncWtm<K, V, BTreeCm<K>, BTreePwm<K, V>, S>,
+/// A optimistic concurrency control transaction over the [`OptimisticDb`].
+pub struct OptimisticTransaction<K, V, SP: AsyncSpawner, S = RandomState> {
+  db: OptimisticDb<K, V, SP, S>,
+  pub(super) wtm: AsyncWtm<K, V, HashCm<K, S>, BTreePwm<K, V>, SP>,
 }
 
-impl<K, V, S> WriteTransaction<K, V, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
-  K: CheapClone + Ord,
-  S: AsyncSpawner,
+  K: Ord + Hash + Eq,
+  S: BuildHasher + Clone,
+  SP: AsyncSpawner,
 {
   #[inline]
-  pub(super) async fn new(db: ComparableDb<K, V, S>) -> Self {
+  pub(super) async fn new(db: OptimisticDb<K, V, SP, S>, cap: Option<usize>) -> Self {
     let wtm = db
       .inner
       .tm
-      .write_with_blocking_cm_and_pwm((), ())
+      .write_with_blocking_cm_and_pwm(
+        (),
+        HashCmOptions::with_capacity(db.inner.hasher.clone(), cap.unwrap_or(8)),
+      )
       .await
       .unwrap();
     Self { db, wtm }
   }
 }
 
-impl<K, V, S> WriteTransaction<K, V, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
-  K: CheapClone + Ord + Send + Sync + 'static,
+  K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
-  S: AsyncSpawner,
+  S: BuildHasher + Send + Sync + 'static,
+  SP: AsyncSpawner,
 {
   /// Commits the transaction, following these steps:
   ///
@@ -44,13 +49,15 @@ where
   ///
   /// 4. Batch up all writes, write them to database.
   ///
-  /// 5. If callback is provided, database will return immediately after checking
+  /// 5. If callback is provided, Badger will return immediately after checking
   /// for conflicts. Writes to the database will happen in the background.  If
   /// there is a conflict, an error will be returned and the callback will not
   /// run. If there are no conflicts, the callback will be called in the
   /// background upon successful completion of writes or any error during write.
   #[inline]
-  pub async fn commit(&mut self) -> Result<(), WtmError<Infallible, Infallible, Infallible>> {
+  pub async fn commit(
+    &mut self,
+  ) -> Result<(), WtmError<Infallible, Infallible, core::convert::Infallible>> {
     let db = self.db.clone();
     self
       .wtm
@@ -62,11 +69,12 @@ where
   }
 }
 
-impl<K, V, S> WriteTransaction<K, V, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
-  K: CheapClone + Ord + Send + Sync + 'static,
+  K: Ord + Hash + Eq + Send + Sync + 'static,
   V: Send + Sync + 'static,
-  S: AsyncSpawner,
+  S: BuildHasher + Send + Sync + 'static,
+  SP: AsyncSpawner,
 {
   /// Acts like [`commit`](WriteTransaction::commit), but takes a callback, which gets run via a
   /// thread to avoid blocking this function. Following these steps:
@@ -87,10 +95,10 @@ where
   pub async fn commit_with_task<Fut, E, R>(
     &mut self,
     callback: impl FnOnce(Result<(), E>) -> Fut + Send + 'static,
-  ) -> Result<S::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
+  ) -> Result<SP::JoinHandle<R>, WtmError<Infallible, Infallible, E>>
   where
-    E: std::error::Error + Send,
     Fut: Future<Output = R> + Send + 'static,
+    E: std::error::Error + Send,
     R: Send + 'static,
   {
     let db = self.db.clone();
@@ -108,10 +116,12 @@ where
   }
 }
 
-impl<K, V, S> WriteTransaction<K, V, S>
+impl<K, V, SP, S> OptimisticTransaction<K, V, SP, S>
 where
-  K: CheapClone + Ord,
-  S: AsyncSpawner,
+  K: Ord + Hash + Eq,
+  V: 'static,
+  S: BuildHasher,
+  SP: AsyncSpawner,
 {
   /// Returns the read version of the transaction.
   #[inline]
@@ -127,12 +137,19 @@ where
 
   /// Returns true if the given key exists in the database.
   #[inline]
-  pub fn contains_key(
+  pub fn contains_key<Q>(
     &mut self,
-    key: &K,
-  ) -> Result<bool, TransactionError<Infallible, Infallible>> {
+    key: &Q,
+  ) -> Result<bool, TransactionError<Infallible, Infallible>>
+  where
+    K: Borrow<Q>,
+    Q: Hash + Eq + Ord + ?Sized,
+  {
     let version = self.wtm.version();
-    match self.wtm.contains_key_blocking(key)? {
+    match self
+      .wtm
+      .contains_key_equivalent_cm_comparable_pm_blocking(key)?
+    {
       Some(true) => Ok(true),
       Some(false) => Ok(false),
       None => Ok(self.db.inner.map.contains_key(key, version)),
@@ -141,12 +158,16 @@ where
 
   /// Get a value from the database.
   #[inline]
-  pub fn get<'a, 'b: 'a>(
+  pub fn get<'a, 'b: 'a, Q>(
     &'a mut self,
-    key: &'b K,
-  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>> {
+    key: &'b Q,
+  ) -> Result<Option<Ref<'a, K, V>>, TransactionError<Infallible, Infallible>>
+  where
+    K: Borrow<Q>,
+    Q: Hash + Eq + Ord + ?Sized,
+  {
     let version = self.wtm.version();
-    match self.wtm.get_blocking(key)? {
+    match self.wtm.get_equivalent_cm_comparable_pm_blocking(key)? {
       Some(v) => {
         if v.value().is_some() {
           Ok(Some(v.into()))
@@ -178,8 +199,7 @@ where
   #[inline]
   pub fn iter(
     &mut self,
-  ) -> Result<WriteTransactionIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
-  {
+  ) -> Result<TransactionIter<'_, K, V, HashCm<K, S>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
     let (marker, pm) = self
       .wtm
@@ -189,15 +209,17 @@ where
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
-    Ok(WriteTransactionIter::new(pendings, committed, Some(marker)))
+    Ok(TransactionIter::new(pendings, committed, Some(marker)))
   }
 
   /// Iterate over the entries of the write transaction in reverse order.
   #[inline]
   pub fn iter_rev(
     &mut self,
-  ) -> Result<WriteTransactionRevIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
-  {
+  ) -> Result<
+    WriteTransactionRevIter<'_, K, V, HashCm<K, S>>,
+    TransactionError<Infallible, Infallible>,
+  > {
     let version = self.wtm.version();
     let (marker, pm) = self
       .wtm
@@ -220,7 +242,7 @@ where
     &'a mut self,
     range: R,
   ) -> Result<
-    WriteTransactionRange<'a, Q, R, K, V, BTreeCm<K>>,
+    TransactionRange<'a, Q, R, K, V, HashCm<K, S>>,
     TransactionError<Infallible, Infallible>,
   >
   where
@@ -238,11 +260,7 @@ where
     let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range(range, version);
 
-    Ok(WriteTransactionRange::new(
-      pendings,
-      committed,
-      Some(marker),
-    ))
+    Ok(TransactionRange::new(pendings, committed, Some(marker)))
   }
 
   /// Returns an iterator over the subset of entries of the database in reverse order.
@@ -251,7 +269,7 @@ where
     &'a mut self,
     range: R,
   ) -> Result<
-    WriteTransactionRevRange<'a, Q, R, K, V, BTreeCm<K>>,
+    WriteTransactionRevRange<'a, Q, R, K, V, HashCm<K, S>>,
     TransactionError<Infallible, Infallible>,
   >
   where
@@ -266,11 +284,11 @@ where
       .ok_or(TransactionError::Discard)?;
     let start = range.start_bound();
     let end = range.end_bound();
-    let pendings = pm.range_comparable((start, end)).rev();
+    let pendings = pm.range_comparable((start, end));
     let committed = self.db.inner.map.range_rev(range, version);
 
     Ok(WriteTransactionRevRange::new(
-      pendings,
+      pendings.rev(),
       committed,
       Some(marker),
     ))

@@ -1,4 +1,4 @@
-use async_skipdb::equivalent::TokioEquivalentDb;
+use async_skipdb::optimistic::TokioOptimisticDb;
 
 #[derive(Debug)]
 struct Person {
@@ -8,7 +8,7 @@ struct Person {
 
 #[tokio::main]
 async fn main() {
-  let db: TokioEquivalentDb<String, Person> = TokioEquivalentDb::new().await;
+  let db: TokioOptimisticDb<String, Person> = TokioOptimisticDb::new().await;
 
   {
     let alice = Person {

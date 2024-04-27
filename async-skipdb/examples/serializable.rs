@@ -1,4 +1,4 @@
-use async_skipdb::comparable::TokioComparableDb;
+use async_skipdb::serializable::TokioSerializableDb;
 
 #[derive(Debug)]
 struct Person {
@@ -9,7 +9,7 @@ struct Person {
 
 #[tokio::main]
 async fn main() {
-  let db: TokioComparableDb<u64, Person> = TokioComparableDb::new().await;
+  let db: TokioSerializableDb<u64, Person> = TokioSerializableDb::new().await;
 
   {
     let alice = Person {
@@ -23,7 +23,7 @@ async fn main() {
       age: 30,
     };
 
-    let mut txn = db.write().await;
+    let mut txn = db.serializable_write().await;
     txn.insert(1, alice).unwrap();
     txn.insert(2, bob).unwrap();
 

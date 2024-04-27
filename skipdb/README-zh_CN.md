@@ -3,9 +3,7 @@
 </div>
 <div align="center">
 
-Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
-
-`skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
+An embedded, in-memory, zero-copy, atomicity, consistency, MVCC, almost lock-free and serializable snapshot isolation database engine.
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/skipdb-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 [<img alt="Build" src="https://img.shields.io/github/actions/workflow/status/al8n/skipdb/ci.yml?logo=Github-Actions&style=for-the-badge" height="22">][CI-url]
@@ -24,15 +22,31 @@ English | [简体中文][zh-cn-url]
 
 ## Introduction
 
-Blazing fast ACID and MVCC in memory database based on lock-free skiplist.
+An embedded, in-memory, zero-copy, MVCC, almost lock-free and serializable snapshot isolation database engine.
 
-`skipdb` uses the same SSI (Serializable Snapshot Isolation) transaction model used in [`badger`](https://github.com/dgraph-io/badger).
+`skipdb`'s SSI (Serializable Snapshot Isolation) transaction model is referenced to [`foundationdb`'s paper](https://www.foundationdb.org/files/fdb-paper.pdf) and [`badger`](https://github.com/dgraph-io/badger).
 
 For async usage, please see [`async-skipdb`](https://crates.io/crates/async-skipdb).
 
+This crate contains two kinds of in-memory key-value database:
+
+1. `SerializableDb`
+
+   Supports both concurrent execution of full serializable snapshot isolation transactions and optimistic concurrency control transactions.
+
+   Transactions are created by `SerializableDb::serializable_write` can handle all kinds of write skew correctly.
+
+   Transactions are created by `SerializableDb::optimistic_write` can handle all kinds of direct dependent write skew, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew_intersecting_data2` and `write_skew_intersecting_data3` for more details).
+
+2. `OptimisticDb`
+
+   Only support oncurrent execution of optimistic concurrency control, which means the write transaction cannot detect all kinds of write skew.
+
+   All kinds of direct dependent write skew can be handled correctly, but cannot handle all kinds of indirect dependent write skew e.g. range intersection between two concurrent transactions (see unit tests `write_skew_intersecting_data2` and `write_skew_intersecting_data3` for more details).
+
 ## Features
 
-- ACID, MVCC, serializable snapshot isolation, concurrent safe and almost lock-free.
+- Atomicity, Consistency, Isolation, MVCC, concurrent safe and almost lock-free.
 - No extra allocation and copy, there is no `Arc` wrapper for both key and value stored in the database, which means that users provide `K` and `V`, and database store `K` and `V` directly.
 - Zero-copy and in-place compaction, which means there is no copy, no extra allocation when compacting.
 - Concurrent execution of transactions, providing serializable snapshot isolation, avoiding write skews.
@@ -50,56 +64,8 @@ skipdb = "0.1"
 
 ## Example
 
-- If your `K` implement `Hash`.
-
   ```rust
-  use skipdb::equivalent::EquivalentDb;
-
-  #[derive(Debug)]
-  struct Person {
-    hobby: String,
-    age: u8,
-  }
-
-  fn main() {
-    let db: EquivalentDb<String, Person> = EquivalentDb::new();
-    
-    {
-      let alice = Person { hobby: "swim".to_string(), age: 20 };
-      let bob = Person { hobby: "run".to_string(), age: 30 };
-
-      let mut txn = db.write();
-      txn.insert("Alice".to_string(), alice).unwrap();
-      txn.insert("Bob".to_string(), bob).unwrap();
-
-      {
-        let alice = txn.get("Alice").unwrap().unwrap();
-        assert_eq!(alice.value().age, 20);
-        assert_eq!(alice.value().hobby, "swim");
-      }
-
-      txn.commit().unwrap();
-    }
-
-    {
-      let txn = db.read();
-      let alice = txn.get("Alice").unwrap();
-      assert_eq!(alice.value().age, 20);
-      assert_eq!(alice.value().hobby, "swim");
-
-      let bob = txn.get("Bob").unwrap();
-      assert_eq!(bob.value().age, 30);
-      assert_eq!(bob.value().hobby, "run"); 
-    }
-  }
-  ```
-
-- If your key cannot implement `Hash` for some reasons.
-
-  Then you can use `ComparableDb`, but this will require `K: CheapClone + Ord`, you can see [`cheap_clone`](https://crates.io/crates/cheap-clone) trait for more details.
-
-  ```rust
-  use skipdb::comparable::ComparableDb;
+  use skipdb::serializable::SerializableDb;
 
   #[derive(Debug)]
   struct Person {
@@ -109,13 +75,13 @@ skipdb = "0.1"
   }
 
   fn main() {
-    let db: ComparableDb<u64, Person> = ComparableDb::new();
+    let db: SerializableDb<u64, Person> = SerializableDb::new();
   
     {
       let alice = Person { name: "Alice".to_string(), hobby: "swim".to_string(), age: 20 };
       let bob = Person { name: "Bob".to_string(), hobby: "run".to_string(), age: 30 };
 
-      let mut txn = db.write();
+      let mut txn = db.serializable_write();
       txn.insert(1, alice).unwrap();
       txn.insert(2, bob).unwrap();
 

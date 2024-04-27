@@ -1,21 +1,18 @@
 #![allow(clippy::blocks_in_conditions)]
 
 use std::{
-  future::Future,
   sync::atomic::{AtomicU32, Ordering},
   time::Duration,
 };
 
-use async_txn::error::WtmError;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use rand::{rngs::OsRng, Rng};
-use skipdb_core::rev_range::WriteTransactionRevRange;
 use wmark::AsyncCloser;
 
 use super::*;
 
 async fn begin_tx_readable_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, Vec<u8>, S> = ComparableDb::new().await;
+  let db: SerializableDb<&'static str, Vec<u8>, S> = SerializableDb::new().await;
   let tx = db.read().await;
   assert_eq!(tx.version(), 0);
 }
@@ -39,8 +36,8 @@ fn begin_tx_readable_smol() {
 }
 
 async fn begin_tx_writeable_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, Vec<u8>, S> = ComparableDb::new().await;
-  let tx = db.write().await;
+  let db: SerializableDb<&'static str, Vec<u8>, S> = SerializableDb::new().await;
+  let tx = db.optimistic_write().await;
   assert_eq!(tx.version(), 0);
 }
 
@@ -63,9 +60,9 @@ fn begin_tx_writeable_smol() {
 }
 
 async fn writeable_tx_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, &'static str, S> = ComparableDb::new().await;
+  let db: SerializableDb<&'static str, &'static str, S> = SerializableDb::new().await;
   {
-    let mut tx = db.write().await;
+    let mut tx = db.optimistic_write().await;
     assert_eq!(tx.version(), 0);
 
     tx.insert("foo", "foo1").unwrap();
@@ -101,10 +98,10 @@ fn writeable_tx_smol() {
 }
 
 async fn txn_simple_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     for i in 0..10 {
       if let Err(e) = txn.insert(i, i) {
         panic!("{e}");
@@ -148,7 +145,7 @@ fn txn_simple_smol() {
 async fn txn_read_after_write_in<S: AsyncSpawner>() {
   const N: u64 = 100;
 
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   let mut handles = (0..N)
     .map(|i| {
@@ -157,7 +154,7 @@ async fn txn_read_after_write_in<S: AsyncSpawner>() {
         let k = i;
         let v = i;
 
-        let mut txn = db.write().await;
+        let mut txn = db.optimistic_write().await;
         txn.insert(k, v).unwrap();
         txn.commit().await.unwrap();
 
@@ -197,8 +194,8 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
 ) where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
-  let mut txn = db.write().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
+  let mut txn = db.optimistic_write().await;
   for i in 0..40 {
     txn.insert(i, 100).unwrap();
   }
@@ -235,7 +232,7 @@ async fn txn_commit_with_callback_in<S: AsyncSpawner, Y>(
     .map(|_| {
       let db1 = db.clone();
       S::spawn(async move {
-        let mut txn = db1.write().await;
+        let mut txn = db1.optimistic_write().await;
         for i in 0..20 {
           let mut rng = OsRng;
           let r = rng.gen_range(0..100);
@@ -290,17 +287,17 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   // accounts
   let a999 = 999;
   let a888 = 888;
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   // Set balance to $100 in each account.
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert(a999, 100).unwrap();
   txn.insert(a888, 100).unwrap();
   txn.commit().await.unwrap();
   assert_eq!(1, db.version().await);
 
   async fn get_bal<'a, S: AsyncSpawner>(
-    txn: &'a mut WriteTransaction<u64, u64, S>,
+    txn: &'a mut OptimisticTransaction<u64, u64, S>,
     k: &'a u64,
   ) -> u64 {
     let item = txn.get(k).unwrap().unwrap();
@@ -309,7 +306,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   }
 
   // Start two transactions, each would read both accounts and deduct from one account.
-  let mut txn1 = db.write().await;
+  let mut txn1 = db.optimistic_write().await;
 
   let mut sum = get_bal(&mut txn1, &a999).await;
   sum += get_bal(&mut txn1, &a888).await;
@@ -323,7 +320,7 @@ async fn txn_write_skew_in<S: AsyncSpawner>() {
   assert_eq!(100, sum);
   // Don't commit yet.
 
-  let mut txn2 = db.write().await;
+  let mut txn2 = db.optimistic_write().await;
 
   let mut sum = get_bal(&mut txn2, &a999).await;
   sum += get_bal(&mut txn2, &a888).await;
@@ -362,11 +359,11 @@ fn txn_write_skew_smol() {
 }
 
 // https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-async fn txn_write_skew2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<&'static str, u64, S> = ComparableDb::new().await;
+async fn txn_write_skew_intersecting_data_in<S: AsyncSpawner>() {
+  let db: SerializableDb<&'static str, u64, S> = SerializableDb::new().await;
 
   // Setup
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert("a1", 10).unwrap();
   txn.insert("a2", 20).unwrap();
   txn.insert("b1", 100).unwrap();
@@ -374,7 +371,7 @@ async fn txn_write_skew2_in<S: AsyncSpawner>() {
   txn.commit().await.unwrap();
   assert_eq!(1, db.version().await);
 
-  let mut txn1 = db.write().await;
+  let mut txn1 = db.optimistic_write().await;
   let val = txn1
     .iter()
     .unwrap()
@@ -389,7 +386,7 @@ async fn txn_write_skew2_in<S: AsyncSpawner>() {
   txn1.insert("b3", 30).unwrap();
   assert_eq!(30, val);
 
-  let mut txn2 = db.write().await;
+  let mut txn2 = db.optimistic_write().await;
   let val = txn2
     .iter()
     .unwrap()
@@ -406,7 +403,7 @@ async fn txn_write_skew2_in<S: AsyncSpawner>() {
   txn2.commit().await.unwrap();
   txn1.commit().await.unwrap_err();
 
-  let mut txn3 = db.write().await;
+  let mut txn3 = db.optimistic_write().await;
   let val = txn3
     .iter()
     .unwrap()
@@ -423,33 +420,33 @@ async fn txn_write_skew2_in<S: AsyncSpawner>() {
 
 #[tokio::test]
 #[cfg(feature = "tokio")]
-async fn txn_write_skew2_tokio() {
-  txn_write_skew2_in::<TokioSpawner>().await;
+async fn txn_write_skew_intersecting_data_tokio() {
+  txn_write_skew_intersecting_data_in::<TokioSpawner>().await;
 }
 
 #[async_std::test]
 #[cfg(feature = "async-std")]
-async fn txn_write_skew2_async_std() {
-  txn_write_skew2_in::<AsyncStdSpawner>().await;
+async fn txn_write_skew_intersecting_data_async_std() {
+  txn_write_skew_intersecting_data_in::<AsyncStdSpawner>().await;
 }
 
 #[test]
 #[cfg(feature = "smol")]
-fn txn_write_skew2_smol() {
-  smol::block_on(txn_write_skew2_in::<SmolSpawner>());
+fn txn_write_skew_intersecting_data_smol() {
+  smol::block_on(txn_write_skew_intersecting_data_in::<SmolSpawner>());
 }
 
 async fn txn_conflict_get_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+    let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
       let set_count1 = set_count.clone();
       S::spawn(async move {
-        let mut txn = db1.write().await;
+        let mut txn = db1.optimistic_write().await;
         if txn.get(&100).unwrap().is_none() {
           txn.insert(100, 999).unwrap();
           #[allow(clippy::blocks_in_conditions)]
@@ -501,17 +498,17 @@ fn txn_conflict_get_smol() {
 }
 
 async fn txn_versions_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   let k0 = 0;
   for i in 1..10 {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(k0, i).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(i, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, i: u64| {
     let mut count = 0;
     for ent in itr {
       assert_eq!(ent.key(), &k0);
@@ -532,7 +529,7 @@ async fn txn_versions_in<S: AsyncSpawner>() {
   };
 
   for i in 1..10 {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.wtm.__set_read_version(i); // Read version at i.
 
     let v = i;
@@ -549,7 +546,7 @@ async fn txn_versions_in<S: AsyncSpawner>() {
     check_rev_iter(itr, i);
   }
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   let item = txn.get(&k0).unwrap().unwrap();
   let val = *item.value();
   assert_eq!(9, val)
@@ -577,13 +574,13 @@ async fn txn_conflict_iter_in<S: AsyncSpawner>() {
   let set_count = Arc::new(AtomicU32::new(0));
 
   for _ in 0..10 {
-    let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+    let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
     set_count.store(0, Ordering::SeqCst);
     let handles = (0..16).map(|_| {
       let db1 = db.clone();
       let set_count1 = set_count.clone();
       S::spawn(async move {
-        let mut txn = db1.write().await;
+        let mut txn = db1.optimistic_write().await;
 
         let itr = txn.iter().unwrap();
         let mut found = false;
@@ -651,11 +648,11 @@ fn txn_conflict_iter_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   // c1
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(3, 31).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(1, db.version().await);
@@ -663,7 +660,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
 
   // a2, c2
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().await.unwrap();
@@ -672,7 +669,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
 
   // b3
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().await.unwrap();
@@ -680,20 +677,20 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
   }
 
   // b4, c4(remove) (uncommitted)
-  let mut txn4 = db.write().await;
+  let mut txn4 = db.optimistic_write().await;
   txn4.insert(2, 24).unwrap();
   txn4.remove(3).unwrap();
   assert_eq!(3, db.version().await);
 
   // b4 (remove)
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.remove(2).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value(), "read_vs={}", ent.version());
@@ -712,7 +709,7 @@ async fn txn_iteration_edge_case_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   let itr = txn.iter().unwrap();
   let itr5 = txn4.iter().unwrap();
   check_iter(itr, &[13, 32]);
@@ -766,11 +763,11 @@ fn txn_iteration_edge_case_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   // c1
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(3, 31).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(1, db.version().await);
@@ -778,7 +775,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
 
   // a2, c2
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().await.unwrap();
@@ -787,7 +784,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
 
   // b3
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().await.unwrap();
@@ -796,13 +793,13 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
 
   // b4 (remove)
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.remove(2).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
+  let check_iter = |itr: TransactionIter<'_, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value());
@@ -821,7 +818,7 @@ async fn txn_iteration_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   let itr = txn.iter().unwrap();
   check_iter(itr, &[13, 32]);
   let itr = txn.iter_rev().unwrap();
@@ -899,11 +896,11 @@ fn txn_iteration_edge_case2_smol() {
 /// Read at ts=2 -> a2, c2
 /// Read at ts=1 -> c1
 async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
 
   // c1
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
 
     txn.insert(0, 0).unwrap();
     txn.insert(u64::MAX, u64::MAX).unwrap();
@@ -915,7 +912,7 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
 
   // a2, c2
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 12).unwrap();
     txn.insert(3, 32).unwrap();
     txn.commit().await.unwrap();
@@ -924,7 +921,7 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
 
   // b3
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.insert(1, 13).unwrap();
     txn.insert(2, 23).unwrap();
     txn.commit().await.unwrap();
@@ -933,14 +930,13 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
 
   // b4 (remove)
   {
-    let mut txn = db.write().await;
+    let mut txn = db.optimistic_write().await;
     txn.remove(2).unwrap();
     txn.commit().await.unwrap();
     assert_eq!(4, db.version().await);
   }
 
-  let check_iter = |itr: WriteTransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>,
-                    expected: &[u64]| {
+  let check_iter = |itr: TransactionRange<'_, _, _, u64, u64, BTreeCm<u64>>, expected: &[u64]| {
     let mut i = 0;
     for ent in itr {
       assert_eq!(expected[i], *ent.value());
@@ -959,7 +955,7 @@ async fn txn_range_edge_case2_in<S: AsyncSpawner>() {
     assert_eq!(expected.len(), i);
   };
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   let itr = txn.range(1..10).unwrap();
   check_iter(itr, &[13, 32]);
   let itr = txn.range_rev(1..10).unwrap();
@@ -1035,8 +1031,8 @@ async fn compact_in<S: AsyncSpawner, Y>(yielder: impl Fn() -> Y + Send + Sync + 
 where
   Y: Future<Output = ()> + Send + Sync + 'static,
 {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
-  let mut txn = db.write().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
+  let mut txn = db.optimistic_write().await;
   let k = 88;
   for i in 0..40 {
     txn.insert(k, i).unwrap();
@@ -1044,7 +1040,7 @@ where
   }
   txn.commit().await.unwrap();
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   txn.remove(k).unwrap();
   txn.commit().await.unwrap();
 
@@ -1079,7 +1075,7 @@ where
     .map(|_| {
       let db1 = db.clone();
       S::spawn(async move {
-        let mut txn = db1.write().await;
+        let mut txn = db1.optimistic_write().await;
         for i in 0..20 {
           let mut rng = OsRng;
           let r = rng.gen_range(0..100);
@@ -1142,14 +1138,14 @@ fn compact_smol() {
 }
 
 async fn rollback_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
-  let mut txn = db.write().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
   txn.commit().await.unwrap();
 
-  let mut txn = db.write().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert(4, 4).unwrap();
   txn.insert(5, 5).unwrap();
   txn.insert(6, 6).unwrap();
@@ -1183,8 +1179,8 @@ fn rollback_smol() {
 }
 
 async fn iter_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
-  let mut txn = db.write().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();
@@ -1228,8 +1224,8 @@ fn iter_smol() {
 }
 
 async fn range_in<S: AsyncSpawner>() {
-  let db: ComparableDb<u64, u64, S> = ComparableDb::new().await;
-  let mut txn = db.write().await;
+  let db: SerializableDb<u64, u64, S> = SerializableDb::new().await;
+  let mut txn = db.optimistic_write().await;
   txn.insert(1, 1).unwrap();
   txn.insert(2, 2).unwrap();
   txn.insert(3, 3).unwrap();

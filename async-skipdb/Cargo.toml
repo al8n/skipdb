@@ -1,12 +1,12 @@
 [package]
 name = "async-skipdb"
-version = "0.1.5"
+version = "0.2.0"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation = "https://docs.rs/async-skipdb"
-description = "An embedded, in-memory, zero-copy, ACID, MVCC, almost lock-free and serializable snapshot isolation database engine."
+description = "An embedded, in-memory, zero-copy, atomicity, consistency, MVCC, almost lock-free and serializable snapshot isolation database engine."
 license.workspace = true
 keywords = ["database", "key-value-store", "memdb", "embedded-database", "memodb"]
 categories = ["database-implementations", "concurrency", "data-structures", "asynchronous"]
