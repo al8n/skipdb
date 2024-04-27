@@ -10,6 +10,8 @@ use wmark::Closer;
 
 use super::*;
 
+mod write_skew;
+
 #[test]
 fn begin_tx_readable() {
   let db: OptimisticDb<&'static str, Vec<u8>> = OptimisticDb::new();
@@ -173,122 +175,6 @@ fn txn_commit_with_callback() {
 
   closer1.signal_and_wait();
   std::thread::sleep(Duration::from_millis(10));
-}
-
-#[test]
-fn txn_write_skew() {
-  // accounts
-  let a999 = 999;
-  let a888 = 888;
-  let db: OptimisticDb<u64, u64> = OptimisticDb::new();
-
-  // Set balance to $100 in each account.
-  let mut txn = db.write();
-  txn.insert(a999, 100).unwrap();
-  txn.insert(a888, 100).unwrap();
-  txn.commit().unwrap();
-  assert_eq!(1, db.version());
-
-  let get_bal = |txn: &mut OptimisticTransaction<u64, u64>, k: &u64| -> u64 {
-    let item = txn.get(k).unwrap().unwrap();
-    let val = *item.value();
-    val
-  };
-
-  // Start two transactions, each would read both accounts and deduct from one account.
-  let mut txn1 = db.write();
-
-  let mut sum = get_bal(&mut txn1, &a999);
-  sum += get_bal(&mut txn1, &a888);
-  assert_eq!(200, sum);
-  txn1.insert(a999, 0).unwrap(); // Deduct 100 from a999
-
-  // Let's read this back.
-  let mut sum = get_bal(&mut txn1, &a999);
-  assert_eq!(0, sum);
-  sum += get_bal(&mut txn1, &a888);
-  assert_eq!(100, sum);
-  // Don't commit yet.
-
-  let mut txn2 = db.write();
-
-  let mut sum = get_bal(&mut txn2, &a999);
-  sum += get_bal(&mut txn2, &a888);
-  assert_eq!(200, sum);
-  txn2.insert(a888, 0).unwrap(); // Deduct 100 from a888
-
-  // Let's read this back.
-  let mut sum = get_bal(&mut txn2, &a999);
-  assert_eq!(100, sum);
-  sum += get_bal(&mut txn2, &a888);
-  assert_eq!(100, sum);
-
-  // Commit both now.
-  txn1.commit().unwrap();
-  txn2.commit().unwrap_err(); // This should fail
-
-  assert_eq!(2, db.version());
-}
-
-// https://wiki.postgresql.org/wiki/SSI#Intersecting_Data
-#[test]
-fn txn_write_skew_intersecting_data() {
-  let db: OptimisticDb<&'static str, u64> = OptimisticDb::new();
-
-  // Setup
-  let mut txn = db.write();
-  txn.insert("a1", 10).unwrap();
-  txn.insert("a2", 20).unwrap();
-  txn.insert("b1", 100).unwrap();
-  txn.insert("b2", 200).unwrap();
-  txn.commit().unwrap();
-  assert_eq!(1, db.version());
-
-  let mut txn1 = db.write();
-  let val = txn1
-    .iter()
-    .unwrap()
-    .filter_map(|ele| {
-      if ele.key().starts_with('a') {
-        Some(*ele.value())
-      } else {
-        None
-      }
-    })
-    .sum::<u64>();
-  txn1.insert("b3", 30).unwrap();
-  assert_eq!(30, val);
-
-  let mut txn2 = db.write();
-  let val = txn2
-    .iter()
-    .unwrap()
-    .filter_map(|ele| {
-      if ele.key().starts_with('b') {
-        Some(*ele.value())
-      } else {
-        None
-      }
-    })
-    .sum::<u64>();
-  txn2.insert("a3", 300).unwrap();
-  assert_eq!(300, val);
-  txn2.commit().unwrap();
-  txn1.commit().unwrap_err();
-
-  let mut txn3 = db.write();
-  let val = txn3
-    .iter()
-    .unwrap()
-    .filter_map(|ele| {
-      if ele.key().starts_with('a') {
-        Some(*ele.value())
-      } else {
-        None
-      }
-    })
-    .sum::<u64>();
-  assert_eq!(330, val);
 }
 
 #[test]

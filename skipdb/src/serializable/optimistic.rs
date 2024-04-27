@@ -1,7 +1,7 @@
 use skipdb_core::rev_range::WriteTransactionRevRange;
 use txn::{error::WtmError, PwmComparableRange};
 
-use std::{convert::Infallible, ops::Bound};
+use std::convert::Infallible;
 
 use super::*;
 
@@ -166,14 +166,11 @@ where
     &mut self,
   ) -> Result<TransactionIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>> {
     let version = self.wtm.version();
-    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-    let start: Bound<K> = Bound::Unbounded;
-    let end: Bound<K> = Bound::Unbounded;
-    marker.mark_range((start, end));
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
     let committed = self.db.inner.map.iter(version);
     let pendings = pm.iter();
 
-    Ok(TransactionIter::new(pendings, committed, None))
+    Ok(TransactionIter::new(pendings, committed, Some(marker)))
   }
 
   /// Iterate over the entries of the write transaction in reverse order.
@@ -183,10 +180,7 @@ where
   ) -> Result<WriteTransactionRevIter<'_, K, V, BTreeCm<K>>, TransactionError<Infallible, Infallible>>
   {
     let version = self.wtm.version();
-    let (mut marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
-    let start: Bound<K> = Bound::Unbounded;
-    let end: Bound<K> = Bound::Unbounded;
-    marker.mark_range((start, end));
+    let (marker, pm) = self.wtm.marker_with_pm().ok_or(TransactionError::Discard)?;
     let committed = self.db.inner.map.iter_rev(version);
     let pendings = pm.iter().rev();
 
