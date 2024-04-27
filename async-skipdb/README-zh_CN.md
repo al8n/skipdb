@@ -62,28 +62,28 @@ This crate contains two kinds of in-memory key-value database:
 
   ```toml
   [dependencies]
-  async-skipdb = { version = "0.1", features = ["tokio"] }
+  async-skipdb = { version = "0.2", features = ["tokio"] }
   ```
 
 - `async-std`
 
   ```toml
   [dependencies]
-  async-skipdb = { version = "0.1", features = ["async-std"] }
+  async-skipdb = { version = "0.2", features = ["async-std"] }
   ```
 
 - `smol`
 
   ```toml
   [dependencies]
-  async-skipdb = { version = "0.1", features = ["smol"] }
+  async-skipdb = { version = "0.2", features = ["smol"] }
   ```
 
 - `wasm-bindgen-futures`
 
   ```toml
   [dependencies]
-  async-skipdb = { version = "0.1", features = ["wasm"] }
+  async-skipdb = { version = "0.2", features = ["wasm"] }
   ```
 
 ## Example

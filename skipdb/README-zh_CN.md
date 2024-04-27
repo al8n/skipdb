@@ -59,7 +59,7 @@ This crate contains two kinds of in-memory key-value database:
 
 ```toml
 [dependencies]
-skipdb = "0.1"
+skipdb = "0.2"
 ```
 
 ## Example
