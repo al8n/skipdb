@@ -1,3 +1,4 @@
+use skipdb_core::types::Values;
 use std::{collections::hash_map::RandomState, hash::Hash};
 
 use super::*;
@@ -134,6 +135,7 @@ impl<K, V, SP, S> OptimisticDb<K, V, SP, S>
 where
   K: Ord + Eq + Hash + Send + 'static,
   V: Send + 'static,
+  Values<V>: Send,
   SP: AsyncSpawner,
 {
   /// Compact the database.

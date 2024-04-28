@@ -1,4 +1,5 @@
 pub use cheap_clone::CheapClone;
+use skipdb_core::types::Values;
 use txn::BTreeCm;
 
 use super::*;
@@ -126,6 +127,7 @@ impl<K, V> SerializableDb<K, V>
 where
   K: CheapClone + Ord + Send + 'static,
   V: Send + 'static,
+  Values<V>: Send,
 {
   /// Compact the database.
   #[inline]

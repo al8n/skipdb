@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(warnings)]
+#![forbid(unsafe_code)]
 #![allow(clippy::type_complexity)]
 
 extern crate alloc;
@@ -182,6 +183,7 @@ impl<K, V> SkipCore<K, V>
 where
   K: Ord + Send + 'static,
   V: Send + 'static,
+  Values<V>: Send,
 {
   pub fn compact(&self, new_discard_version: u64) {
     match self

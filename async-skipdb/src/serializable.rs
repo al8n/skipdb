@@ -1,5 +1,6 @@
 use async_txn::{AsyncSpawner, BTreeCm};
 pub use cheap_clone::CheapClone;
+use skipdb_core::types::Values;
 
 use super::*;
 
@@ -136,6 +137,7 @@ impl<K, V, S> SerializableDb<K, V, S>
 where
   K: CheapClone + Ord + Send + 'static,
   V: Send + 'static,
+  Values<V>: Send,
   S: AsyncSpawner,
 {
   /// Compact the database.
