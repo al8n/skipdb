@@ -1,4 +1,5 @@
 use super::*;
+use skipdb_core::types::Values;
 use std::{collections::hash_map::RandomState, hash::Hash};
 
 mod write;
@@ -124,6 +125,7 @@ impl<K, V, S> OptimisticDb<K, V, S>
 where
   K: Ord + Eq + Hash + Send + 'static,
   V: Send + 'static,
+  Values<V>: Send,
   S: BuildHasher + Clone,
 {
   /// Compact the database.

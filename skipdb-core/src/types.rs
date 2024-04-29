@@ -18,8 +18,6 @@ pub struct Values<V> {
   values: SkipMap<u64, Option<V>>,
 }
 
-unsafe impl<V: Send> Send for Values<V> {}
-
 impl<V> Values<V> {
   pub(crate) fn new() -> Self {
     Self {
@@ -170,5 +168,18 @@ where
   #[inline]
   fn eq(&self, other: &&V) -> bool {
     core::ops::Deref::deref(self).eq(other)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_values_send() {
+    fn takes_send<T: Send>(_t: T) {}
+
+    let values = Values::<()>::new();
+    takes_send(values);
   }
 }
