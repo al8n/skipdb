@@ -12,6 +12,7 @@ use std::{borrow::Borrow, hash::BuildHasher, ops::RangeBounds, sync::Arc};
 use txn::{error::TransactionError, BTreePwm, HashCm, Rtm, Tm, Wtm};
 
 /// `OptimisticDb` implementation, which requires `K` implements both [`Hash`](core::hash::Hash) and [`Ord`].
+///
 /// If your `K` does not implement [`Hash`](core::hash::Hash), you can use [`SerializableDb`] instead.
 pub mod optimistic;
 

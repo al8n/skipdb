@@ -76,7 +76,7 @@ pub struct Entry<'a, K, V> {
   version: u64,
 }
 
-impl<'a, K, V> Clone for Entry<'a, K, V> {
+impl<K, V> Clone for Entry<'_, K, V> {
   #[inline]
   fn clone(&self) -> Self {
     Self {
@@ -87,7 +87,7 @@ impl<'a, K, V> Clone for Entry<'a, K, V> {
   }
 }
 
-impl<'a, K, V> Entry<'a, K, V> {
+impl<K, V> Entry<'_, K, V> {
   /// Get the value of the entry.
   #[inline]
   pub fn value(&self) -> Option<&V> {
@@ -110,26 +110,26 @@ impl<'a, K, V> Entry<'a, K, V> {
 /// A reference to an entry in the write transaction.
 pub struct ValueRef<'a, K, V>(Either<&'a V, Entry<'a, K, V>>);
 
-impl<'a, K, V: core::fmt::Debug> core::fmt::Debug for ValueRef<'a, K, V> {
+impl<K, V: core::fmt::Debug> core::fmt::Debug for ValueRef<'_, K, V> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     core::ops::Deref::deref(self).fmt(f)
   }
 }
 
-impl<'a, K, V: core::fmt::Display> core::fmt::Display for ValueRef<'a, K, V> {
+impl<K, V: core::fmt::Display> core::fmt::Display for ValueRef<'_, K, V> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     core::ops::Deref::deref(self).fmt(f)
   }
 }
 
-impl<'a, K, V> Clone for ValueRef<'a, K, V> {
+impl<K, V> Clone for ValueRef<'_, K, V> {
   #[inline]
   fn clone(&self) -> Self {
     Self(self.0.clone())
   }
 }
 
-impl<'a, K, V> core::ops::Deref for ValueRef<'a, K, V> {
+impl<K, V> core::ops::Deref for ValueRef<'_, K, V> {
   type Target = V;
 
   #[inline]
@@ -143,7 +143,7 @@ impl<'a, K, V> core::ops::Deref for ValueRef<'a, K, V> {
   }
 }
 
-impl<'a, K, V> ValueRef<'a, K, V> {
+impl<K, V> ValueRef<'_, K, V> {
   /// Returns `true` if the value was commited.
   #[inline]
   pub const fn is_committed(&self) -> bool {
@@ -151,7 +151,7 @@ impl<'a, K, V> ValueRef<'a, K, V> {
   }
 }
 
-impl<'a, K, V> PartialEq<V> for ValueRef<'a, K, V>
+impl<K, V> PartialEq<V> for ValueRef<'_, K, V>
 where
   V: PartialEq,
 {
@@ -161,7 +161,7 @@ where
   }
 }
 
-impl<'a, K, V> PartialEq<&V> for ValueRef<'a, K, V>
+impl<K, V> PartialEq<&V> for ValueRef<'_, K, V>
 where
   V: PartialEq,
 {

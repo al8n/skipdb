@@ -347,6 +347,7 @@ impl<S: AsyncSpawner> AsyncWaterMark<S> {
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_return)]
 mod tests {
   use super::*;
   use core::future::Future;

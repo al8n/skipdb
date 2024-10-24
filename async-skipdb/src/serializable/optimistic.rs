@@ -48,10 +48,10 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. If callback is provided, database will return immediately after checking
-  /// for conflicts. Writes to the database will happen in the background.  If
-  /// there is a conflict, an error will be returned and the callback will not
-  /// run. If there are no conflicts, the callback will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    for conflicts. Writes to the database will happen in the background.  If
+  ///    there is a conflict, an error will be returned and the callback will not
+  ///    run. If there are no conflicts, the callback will be called in the
+  ///    background upon successful completion of writes or any error during write.
   #[inline]
   pub async fn commit(&mut self) -> Result<(), WtmError<Infallible, Infallible, Infallible>> {
     let db = self.db.clone();
@@ -83,9 +83,9 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. Return immediately after checking for conflicts.
-  /// If there is a conflict, an error will be returned immediately and the callback will not
-  /// run. If there are no conflicts, the callback will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    If there is a conflict, an error will be returned immediately and the callback will not
+  ///    run. If there are no conflicts, the callback will be called in the
+  ///    background upon successful completion of writes or any error during write.
   #[inline]
   pub async fn commit_with_task<Fut, E, R>(
     &mut self,

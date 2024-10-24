@@ -18,7 +18,10 @@ where
   type Key = K;
   type Value = V;
 
-  type Iter<'a> = BTreeMapIter<'a, K, EntryValue<V>> where Self: 'a;
+  type Iter<'a>
+    = BTreeMapIter<'a, K, EntryValue<V>>
+  where
+    Self: 'a;
 
   type IntoIter = BTreeMapIntoIter<K, EntryValue<V>>;
 
@@ -109,7 +112,10 @@ impl<K, V> PwmRange for BTreeMap<K, EntryValue<V>>
 where
   K: Ord,
 {
-  type Range<'a> = BTreeMapRange<'a, K, EntryValue<V>> where Self: 'a;
+  type Range<'a>
+    = BTreeMapRange<'a, K, EntryValue<V>>
+  where
+    Self: 'a;
 
   #[inline]
   fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {

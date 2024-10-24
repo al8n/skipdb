@@ -1,4 +1,4 @@
-#![allow(clippy::blocks_in_conditions)]
+#![allow(clippy::blocks_in_conditions, clippy::needless_return)]
 
 use std::{
   sync::atomic::{AtomicU32, Ordering},

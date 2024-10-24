@@ -239,10 +239,10 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. If callback is provided, Badger will return immediately after checking
-  /// for conflicts. Writes to the database will happen in the background.  If
-  /// there is a conflict, an error will be returned and the callback will not
-  /// run. If there are no conflicts, the callback will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    for conflicts. Writes to the database will happen in the background.  If
+  ///    there is a conflict, an error will be returned and the callback will not
+  ///    run. If there are no conflicts, the callback will be called in the
+  ///    background upon successful completion of writes or any error during write.
   pub fn commit<F, E>(&mut self, apply: F) -> Result<(), WtmError<C::Error, P::Error, E>>
   where
     F: FnOnce(OneOrMore<Entry<K, V>>) -> Result<(), E>,
@@ -736,9 +736,9 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. Return immediately after checking for conflicts.
-  /// If there is a conflict, an error will be returned immediately and the callback will not
-  /// run. If there are no conflicts, the callback will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    If there is a conflict, an error will be returned immediately and the callback will not
+  ///    run. If there are no conflicts, the callback will be called in the
+  ///    background upon successful completion of writes or any error during write.
   ///
   /// If error does not occur, the transaction is successfully committed. In case of an error, the DB
   /// should not be updated (The implementors of [`Database`] must promise this), so there's no need for any rollback.
@@ -781,9 +781,8 @@ where
           .map(|_| {
             orc.done_commit(commit_ts);
           })
-          .map_err(|e| {
+          .inspect_err(|_| {
             orc.done_commit(commit_ts);
-            e
           }),
       )
     }))

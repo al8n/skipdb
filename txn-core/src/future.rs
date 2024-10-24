@@ -37,7 +37,7 @@ impl<'a, C: AsyncCmRange> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: CmRange> AsyncMarker<'a, C> {
+impl<C: CmRange> AsyncMarker<'_, C> {
   /// Marks a range is operated.
   pub fn mark_range_blocking(&mut self, range: impl RangeBounds<C::Key>) {
     self.marker.mark_range(range);
@@ -55,7 +55,7 @@ impl<'a, C: AsyncCmEquivalentRange> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: CmEquivalentRange> AsyncMarker<'a, C> {
+impl<C: CmEquivalentRange> AsyncMarker<'_, C> {
   /// Marks a range is operated.
   pub fn mark_range_equivalent_blocking<Q>(&mut self, range: impl RangeBounds<Q>)
   where
@@ -77,7 +77,7 @@ impl<'a, C: AsyncCmComparableRange> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: CmComparableRange> AsyncMarker<'a, C> {
+impl<C: CmComparableRange> AsyncMarker<'_, C> {
   /// Marks a range is operated.
   pub fn mark_range_comparable_blocking<Q>(&mut self, range: impl RangeBounds<Q>)
   where
@@ -128,7 +128,7 @@ impl<'a, C: AsyncCmEquivalent> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: Cm> AsyncMarker<'a, C> {
+impl<C: Cm> AsyncMarker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_blocking(&mut self, k: &C::Key) {
     self.marker.mark_read(k);
@@ -140,7 +140,7 @@ impl<'a, C: Cm> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: CmComparable> AsyncMarker<'a, C> {
+impl<C: CmComparable> AsyncMarker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_comparable_blocking<Q>(&mut self, k: &Q)
   where
@@ -160,7 +160,7 @@ impl<'a, C: CmComparable> AsyncMarker<'a, C> {
   }
 }
 
-impl<'a, C: CmEquivalent> AsyncMarker<'a, C> {
+impl<C: CmEquivalent> AsyncMarker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_equivalent_blocking<Q>(&mut self, k: &Q)
   where
@@ -548,7 +548,10 @@ where
 
   type Options = <T as Pwm>::Options;
 
-  type Iter<'a> = <T as Pwm>::Iter<'a> where Self: 'a;
+  type Iter<'a>
+    = <T as Pwm>::Iter<'a>
+  where
+    Self: 'a;
 
   type IntoIter = <T as Pwm>::IntoIter;
 
@@ -627,7 +630,10 @@ impl<T> AsyncPwmRange for T
 where
   T: PwmRange,
 {
-  type Range<'a> = <T as PwmRange>::Range<'a> where Self: 'a;
+  type Range<'a>
+    = <T as PwmRange>::Range<'a>
+  where
+    Self: 'a;
 
   async fn range<R: RangeBounds<Self::Key>>(&self, range: R) -> Self::Range<'_> {
     <T as PwmRange>::range(self, range)

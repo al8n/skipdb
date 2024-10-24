@@ -258,10 +258,10 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. If callback is provided, Badger will return immediately after checking
-  /// for conflicts. Writes to the database will happen in the background.  If
-  /// there is a conflict, an error will be returned and the callback will not
-  /// run. If there are no conflicts, the callback will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    for conflicts. Writes to the database will happen in the background.  If
+  ///    there is a conflict, an error will be returned and the callback will not
+  ///    run. If there are no conflicts, the callback will be called in the
+  ///    background upon successful completion of writes or any error during write.
   pub async fn commit<F, Fut, O, E>(
     &mut self,
     apply: F,
@@ -745,9 +745,9 @@ where
   /// 4. Batch up all writes, write them to database.
   ///
   /// 5. Return immediately after checking for conflicts.
-  /// If there is a conflict, an error will be returned immediately and the no task will be spawned
-  /// run. If there are no conflicts, a task will be spawned and the future will be called in the
-  /// background upon successful completion of writes or any error during write.
+  ///    If there is a conflict, an error will be returned immediately and the no task will be spawned
+  ///    run. If there are no conflicts, a task will be spawned and the future will be called in the
+  ///    background upon successful completion of writes or any error during write.
   pub async fn commit_with_task<F, Fut, CFut, E, R>(
     &mut self,
     apply: F,

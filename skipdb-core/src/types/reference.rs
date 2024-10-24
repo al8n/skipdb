@@ -7,7 +7,7 @@ pub struct CommittedRef<'a, K, V> {
   pub(crate) version: u64,
 }
 
-impl<'a, K, V> Clone for CommittedRef<'a, K, V> {
+impl<K, V> Clone for CommittedRef<'_, K, V> {
   #[inline]
   fn clone(&self) -> Self {
     Self {
@@ -17,7 +17,7 @@ impl<'a, K, V> Clone for CommittedRef<'a, K, V> {
   }
 }
 
-impl<'a, K, V> CommittedRef<'a, K, V> {
+impl<K, V> CommittedRef<'_, K, V> {
   /// Get the value of the entry.
   #[inline]
   fn entry(&self) -> Entry<'_, K, V> {
@@ -59,7 +59,7 @@ enum RefKind<'a, K, V> {
   Committed(CommittedRef<'a, K, V>),
 }
 
-impl<'a, K: core::fmt::Debug, V: core::fmt::Debug> core::fmt::Debug for Ref<'a, K, V> {
+impl<K: core::fmt::Debug, V: core::fmt::Debug> core::fmt::Debug for Ref<'_, K, V> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     f.debug_struct("Ref")
       .field("key", self.0.key())
@@ -69,7 +69,7 @@ impl<'a, K: core::fmt::Debug, V: core::fmt::Debug> core::fmt::Debug for Ref<'a, 
   }
 }
 
-impl<'a, K, V> Clone for RefKind<'a, K, V> {
+impl<K, V> Clone for RefKind<'_, K, V> {
   #[inline]
   fn clone(&self) -> Self {
     match self {
@@ -88,7 +88,7 @@ impl<'a, K, V> Clone for RefKind<'a, K, V> {
   }
 }
 
-impl<'a, K, V> RefKind<'a, K, V> {
+impl<K, V> RefKind<'_, K, V> {
   #[inline]
   fn key(&self) -> &K {
     match self {
@@ -129,7 +129,7 @@ impl<'a, K, V> RefKind<'a, K, V> {
 /// A reference to an entry in the write transaction.
 pub struct Ref<'a, K, V>(RefKind<'a, K, V>);
 
-impl<'a, K, V> Clone for Ref<'a, K, V> {
+impl<K, V> Clone for Ref<'_, K, V> {
   #[inline]
   fn clone(&self) -> Self {
     Self(self.0.clone())
@@ -161,7 +161,7 @@ impl<'a, K, V> From<CommittedRef<'a, K, V>> for Ref<'a, K, V> {
   }
 }
 
-impl<'a, K, V> Ref<'a, K, V> {
+impl<K, V> Ref<'_, K, V> {
   /// Returns the value of the key.
   #[inline]
   pub fn key(&self) -> &K {

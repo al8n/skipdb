@@ -15,7 +15,10 @@ where
   type Error = Infallible;
   type Key = K;
   type Value = V;
-  type Iter<'a> = indexmap::map::Iter<'a, K, EntryValue<V>> where Self: 'a;
+  type Iter<'a>
+    = indexmap::map::Iter<'a, K, EntryValue<V>>
+  where
+    Self: 'a;
   type IntoIter = indexmap::map::IntoIter<K, EntryValue<V>>;
 
   type Options = Option<S>;

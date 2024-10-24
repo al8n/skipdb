@@ -39,7 +39,7 @@ impl<'a, C> Marker<'a, C> {
   }
 }
 
-impl<'a, C: Cm> Marker<'a, C> {
+impl<C: Cm> Marker<'_, C> {
   /// Marks a key is operated.
   pub fn mark(&mut self, k: &C::Key) {
     self.marker.mark_read(k);
@@ -51,21 +51,21 @@ impl<'a, C: Cm> Marker<'a, C> {
   }
 }
 
-impl<'a, C: CmRange> Marker<'a, C> {
+impl<C: CmRange> Marker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_range(&mut self, range: impl RangeBounds<<C as Cm>::Key>) {
     self.marker.mark_range(range);
   }
 }
 
-impl<'a, C: CmIter> Marker<'a, C> {
+impl<C: CmIter> Marker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_iter(&mut self) {
     self.marker.mark_iter();
   }
 }
 
-impl<'a, C: CmComparable> Marker<'a, C> {
+impl<C: CmComparable> Marker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_comparable<Q>(&mut self, k: &Q)
   where
@@ -85,7 +85,7 @@ impl<'a, C: CmComparable> Marker<'a, C> {
   }
 }
 
-impl<'a, C: CmComparableRange> Marker<'a, C> {
+impl<C: CmComparableRange> Marker<'_, C> {
   /// Marks a range is operated.
   pub fn mark_range_comparable<Q>(&mut self, range: impl RangeBounds<Q>)
   where
@@ -96,7 +96,7 @@ impl<'a, C: CmComparableRange> Marker<'a, C> {
   }
 }
 
-impl<'a, C: CmEquivalent> Marker<'a, C> {
+impl<C: CmEquivalent> Marker<'_, C> {
   /// Marks a key is operated.
   pub fn mark_equivalent<Q>(&mut self, k: &Q)
   where
@@ -116,7 +116,7 @@ impl<'a, C: CmEquivalent> Marker<'a, C> {
   }
 }
 
-impl<'a, C: CmEquivalentRange> Marker<'a, C> {
+impl<C: CmEquivalentRange> Marker<'_, C> {
   /// Marks a range is operated.
   pub fn mark_range_equivalent<Q>(&mut self, range: impl RangeBounds<Q>)
   where

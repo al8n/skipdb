@@ -34,15 +34,15 @@ pub mod types {
     pub version: u64,
   }
 
-  impl<'a, K, V> Clone for EntryRef<'a, K, V> {
+  impl<K, V> Clone for EntryRef<'_, K, V> {
     fn clone(&self) -> Self {
       *self
     }
   }
 
-  impl<'a, K, V> Copy for EntryRef<'a, K, V> {}
+  impl<K, V> Copy for EntryRef<'_, K, V> {}
 
-  impl<'a, K, V> EntryRef<'a, K, V> {
+  impl<K, V> EntryRef<'_, K, V> {
     /// Get the key of the entry.
     #[inline]
     pub const fn key(&self) -> &K {
@@ -84,13 +84,13 @@ pub mod types {
     Remove(&'a K),
   }
 
-  impl<'a, K, V> Clone for EntryDataRef<'a, K, V> {
+  impl<K, V> Clone for EntryDataRef<'_, K, V> {
     fn clone(&self) -> Self {
       *self
     }
   }
 
-  impl<'a, K, V> Copy for EntryDataRef<'a, K, V> {}
+  impl<K, V> Copy for EntryDataRef<'_, K, V> {}
 
   /// The data of the [`Entry`].
   #[derive(Debug, Clone, PartialEq, Eq, Hash)]
