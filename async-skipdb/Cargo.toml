@@ -36,3 +36,13 @@ smol = "2"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "optimistic"
+path = "examples/optimistic.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "serializable"
+path = "examples/serializable.rs"
+required-features = ["tokio"]
